@@ -2,9 +2,8 @@
 FROM golang:1.26.1-alpine AS build-stage
 WORKDIR /app
 COPY go.mod go.sum ./
-COPY vendor ./
 COPY . ./
-RUN CGO_ENABLE=0 GOOS=linux go build -trimpath -buildvcs=false -ldflags="-s -w" -o /techchallenge ./cmd/api/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -buildvcs=false -ldflags="-s -w" -o /techchallenge ./cmd/api/main.go
 
 # SETUP CONTAINER RELEASE
 FROM scratch AS release-stage
