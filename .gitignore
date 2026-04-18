@@ -24,21 +24,11 @@ vendor/
 # IDEs
 .vscode
 .idea
-<<<<<<< HEAD
-=======
-<<<<<<< Updated upstream
-=======
->>>>>>> 288f894 (feat: setup postgres database dev setup and migration)
 
 # Go workspace file
 go.work
 
-<<<<<<< HEAD
-# End of https://www.toptal.com/developers/gitignore/api/go
-=======
 # Environments
 .env
 
 # End of https://www.toptal.com/developers/gitignore/api/go
->>>>>>> Stashed changes
->>>>>>> 288f894 (feat: setup postgres database dev setup and migration)
