@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"sync"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/config"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/database"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -41,8 +41,7 @@ func main() {
 func initDependencies() {
 	c := sync.Once{}
 	c.Do(func() {
-		log.Println("Initializing XPTO")
-		//...
+		database.RunMigrations(cfg.Database)
 	})
 }
 
