@@ -51,6 +51,11 @@ func main() {
 	supplyHandler := handler.NewSupplyHandler(supplySvc)
 	supplyHandler.RegisterRoutes(app)
 
+	customerRepo := repository.NewCustomerRepository(db)
+	customerSvc := service.NewCustomerService(customerRepo)
+	customerHandler := handler.NewCustomerHandler(customerSvc)
+	customerHandler.RegisterRoutes(app)
+
 	err := app.Listen(":" + cfg.Server.Port)
 	if err != nil {
 		shutdownApp(err, "Failed to start server")
