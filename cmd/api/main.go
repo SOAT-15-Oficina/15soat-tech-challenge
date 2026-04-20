@@ -51,7 +51,8 @@ func main() {
 	supplyHandler := handler.NewSupplyHandler(supplySvc)
 	supplyHandler.RegisterRoutes(app)
 
-	repository.NewVehicleRepository(db)
+	vehicleRepo := repository.NewVehicleRepository(db)
+	service.NewVehicleService(vehicleRepo)
 
 	err := app.Listen(":" + cfg.Server.Port)
 	if err != nil {
