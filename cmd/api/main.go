@@ -52,7 +52,9 @@ func main() {
 	supplyHandler.RegisterRoutes(app)
 
 	vehicleRepo := repository.NewVehicleRepository(db)
-	service.NewVehicleService(vehicleRepo)
+	vehicleSvc := service.NewVehicleService(vehicleRepo)
+	vehicleHandler := handler.NewVehicleHandler(vehicleSvc)
+	vehicleHandler.RegisterRoutes(app)
 
 	err := app.Listen(":" + cfg.Server.Port)
 	if err != nil {
