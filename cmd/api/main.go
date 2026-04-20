@@ -51,6 +51,8 @@ func main() {
 	supplyHandler := handler.NewSupplyHandler(supplySvc)
 	supplyHandler.RegisterRoutes(app)
 
+	repository.NewVehicleRepository(db)
+
 	err := app.Listen(":" + cfg.Server.Port)
 	if err != nil {
 		shutdownApp(err, "Failed to start server")
