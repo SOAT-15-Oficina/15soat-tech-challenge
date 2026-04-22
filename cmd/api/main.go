@@ -55,7 +55,7 @@ func main() {
 	customerSvc := service.NewCustomerService(customerRepo)
 	customerHandler := handler.NewCustomerHandler(customerSvc)
 	customerHandler.RegisterRoutes(app)
-  
+
 	vehicleRepo := repository.NewVehicleRepository(db)
 	vehicleSvc := service.NewVehicleService(vehicleRepo)
 	vehicleHandler := handler.NewVehicleHandler(vehicleSvc)
@@ -66,7 +66,6 @@ func main() {
 		shutdownApp(err, "Failed to start server")
 	}
 }
-
 func shutdownApp(err error, message string) {
 	if err != nil {
 		fmt.Println(message + " - shutdown with error: " + err.Error())
