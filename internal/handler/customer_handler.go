@@ -18,15 +18,6 @@ func NewCustomerHandler(svc service.CustomerService) *CustomerHandler {
 	return &CustomerHandler{svc: svc}
 }
 
-func (h *CustomerHandler) RegisterRoutes(app *fiber.App) {
-	group := app.Group("/customers")
-	group.Post("/", h.Create)
-	group.Get("/", h.GetAll)
-	group.Get("/:id", h.GetByID)
-	group.Put("/:id", h.Update)
-	group.Delete("/:id", h.Delete)
-}
-
 func (h *CustomerHandler) Create(c fiber.Ctx) error {
 	var customer domain.Customer
 	if err := c.Bind().JSON(&customer); err != nil {
