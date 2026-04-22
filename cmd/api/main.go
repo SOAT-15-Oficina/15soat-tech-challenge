@@ -51,6 +51,11 @@ func main() {
 	supplyHandler := handler.NewSupplyHandler(supplySvc)
 	supplyHandler.RegisterRoutes(app)
 
+	customerRepo := repository.NewCustomerRepository(db)
+	customerSvc := service.NewCustomerService(customerRepo)
+	customerHandler := handler.NewCustomerHandler(customerSvc)
+	customerHandler.RegisterRoutes(app)
+  
 	vehicleRepo := repository.NewVehicleRepository(db)
 	vehicleSvc := service.NewVehicleService(vehicleRepo)
 	vehicleHandler := handler.NewVehicleHandler(vehicleSvc)
