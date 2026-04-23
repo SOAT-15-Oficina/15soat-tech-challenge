@@ -61,6 +61,11 @@ func main() {
 	vehicleHandler := handler.NewVehicleHandler(vehicleSvc)
 	vehicleHandler.RegisterRoutes(app)
 
+	wsRepo := repository.NewWorkshopServiceRepository(db)
+	wsSvc := service.NewWorkshopServiceService(wsRepo)
+	wsHandler := handler.NewWorkshopServiceHandler(wsSvc)
+	wsHandler.RegisterRoutes(app)
+
 	err := app.Listen(":" + cfg.Server.Port)
 	if err != nil {
 		shutdownApp(err, "Failed to start server")
