@@ -46,7 +46,6 @@ func main() {
 		shutdownApp(err, "Failed to start server")
 	}
 }
-
 func shutdownApp(err error, message string) {
 	if err != nil {
 		fmt.Println(message + " - shutdown with error: " + err.Error())
