@@ -6,10 +6,8 @@ import (
 	"os"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/config"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/handler"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/infra/database"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/routes"
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -41,30 +39,7 @@ func init() {
 
 func main() {
 	app := fiber.New(fiber.Config{})
-
-	app.Get("/ping", func(c fiber.Ctx) error {
-		return c.SendString("Pong")
-	})
-
-	supplyRepo := repository.NewSupplyRepository(db)
-	supplySvc := service.NewSupplyService(supplyRepo)
-	supplyHandler := handler.NewSupplyHandler(supplySvc)
-	supplyHandler.RegisterRoutes(app)
-
-	customerRepo := repository.NewCustomerRepository(db)
-	customerSvc := service.NewCustomerService(customerRepo)
-	customerHandler := handler.NewCustomerHandler(customerSvc)
-	customerHandler.RegisterRoutes(app)
-
-	vehicleRepo := repository.NewVehicleRepository(db)
-	vehicleSvc := service.NewVehicleService(vehicleRepo)
-	vehicleHandler := handler.NewVehicleHandler(vehicleSvc)
-	vehicleHandler.RegisterRoutes(app)
-
-	wsRepo := repository.NewWorkshopServiceRepository(db)
-	wsSvc := service.NewWorkshopServiceService(wsRepo)
-	wsHandler := handler.NewWorkshopServiceHandler(wsSvc)
-	wsHandler.RegisterRoutes(app)
+	routes.RegisterRoutes(app, db, cfg)
 
 	err := app.Listen(":" + cfg.Server.Port)
 	if err != nil {

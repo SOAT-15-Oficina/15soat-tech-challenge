@@ -18,15 +18,6 @@ func NewVehicleHandler(svc service.VehicleService) *VehicleHandler {
 	return &VehicleHandler{svc: svc}
 }
 
-func (h *VehicleHandler) RegisterRoutes(app *fiber.App) {
-	group := app.Group("/vehicles")
-	group.Post("/", h.Create)
-	group.Get("/", h.GetAll)
-	group.Get("/:id", h.GetByID)
-	group.Put("/:id", h.Update)
-	group.Delete("/:id", h.Delete)
-}
-
 func (h *VehicleHandler) Create(c fiber.Ctx) error {
 	var vehicle domain.Vehicle
 	if err := c.Bind().JSON(&vehicle); err != nil {

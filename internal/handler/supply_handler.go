@@ -18,15 +18,6 @@ func NewSupplyHandler(svc service.SupplyService) *SupplyHandler {
 	return &SupplyHandler{svc: svc}
 }
 
-func (h *SupplyHandler) RegisterRoutes(app *fiber.App) {
-	group := app.Group("/supplies")
-	group.Post("/", h.Create)
-	group.Get("/", h.GetAll)
-	group.Get("/:id", h.GetByID)
-	group.Put("/:id", h.Update)
-	group.Delete("/:id", h.Delete)
-}
-
 func (h *SupplyHandler) Create(c fiber.Ctx) error {
 	var supply domain.Supply
 	if err := c.Bind().JSON(&supply); err != nil {
