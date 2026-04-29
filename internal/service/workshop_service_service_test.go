@@ -72,12 +72,17 @@ func (m *mockRepo) GetAvgExecutionTime(ctx context.Context, filters domain.AvgEx
 	return args.Get(0).([]domain.AvgExecutionTimeResult), args.Error(1)
 }
 
+func (m *mockRepo) SubtractSuppliesFromStock(ctx context.Context, serviceID uuid.UUID) error {
+	return m.Called(ctx, serviceID).Error(0)
+}
+
 func newTestService() *domain.WorkshopService {
 	return &domain.WorkshopService{
 		Title:                "Troca de oleo",
 		Description:          "Troca completa",
 		PriceCents:           5000,
 		EstimatedTimeMinutes: 30,
+		Status:               domain.WorkshopServiceStatusWaiting,
 	}
 }
 
@@ -88,6 +93,7 @@ func savedTestService() *domain.WorkshopService {
 		Description:          "Troca completa",
 		PriceCents:           5000,
 		EstimatedTimeMinutes: 30,
+		Status:               domain.WorkshopServiceStatusWaiting,
 		Active:               true,
 		CreatedAt:            time.Now().UTC(),
 		UpdatedAt:            time.Now().UTC(),
@@ -221,6 +227,7 @@ func TestUpdate_Success(t *testing.T) {
 		Description:          existing.Description,
 		PriceCents:           existing.PriceCents,
 		EstimatedTimeMinutes: existing.EstimatedTimeMinutes,
+		Status:               existing.Status,
 		Active:               existing.Active,
 		CreatedAt:            existing.CreatedAt,
 		UpdatedAt:            time.Now().UTC(),
@@ -265,6 +272,29 @@ func TestUpdate_NotFound(t *testing.T) {
 	result, err := svc.Update(ctx, id, input)
 	assert.ErrorIs(t, err, pgx.ErrNoRows)
 	assert.Nil(t, result)
+}
+
+func TestUpdate_FinishedStatusSubtractsSuppliesFromStock(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+	existing := savedTestService()
+	finished := domain.WorkshopServiceStatusFinished
+
+	input := WorkshopServiceUpdateInput{Status: &finished}
+	updated := *existing
+	updated.Status = domain.WorkshopServiceStatusFinished
+	updated.UpdatedAt = time.Now().UTC()
+
+	repo.On("FindByID", ctx, existing.ID).Return(existing, nil)
+	repo.On("ExistsByTitle", ctx, existing.Title, &existing.ID).Return(false, nil)
+	repo.On("Update", ctx, mock.AnythingOfType("*domain.WorkshopService")).Return(&updated, nil)
+	repo.On("SubtractSuppliesFromStock", ctx, existing.ID).Return(nil)
+
+	result, err := svc.Update(ctx, existing.ID, input)
+	assert.NoError(t, err)
+	assert.Equal(t, domain.WorkshopServiceStatusFinished, result.Status)
+	repo.AssertExpectations(t)
 }
 
 func TestDelete_HardDelete(t *testing.T) {

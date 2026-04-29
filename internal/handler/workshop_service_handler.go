@@ -22,6 +22,7 @@ type workshopServiceRequest struct {
 	Description          *string  `json:"description"`
 	Price                *float64 `json:"price"`
 	EstimatedTimeMinutes *int     `json:"estimatedTimeMinutes"`
+	Status               *domain.WorkshopServiceStatus `json:"status"`
 	Active               *bool    `json:"active"`
 }
 
@@ -31,6 +32,7 @@ type workshopServiceResponse struct {
 	Description          string    `json:"description"`
 	Price                float64   `json:"price"`
 	EstimatedTimeMinutes int       `json:"estimatedTimeMinutes"`
+	Status               domain.WorkshopServiceStatus `json:"status"`
 	Active               bool      `json:"active"`
 	CreatedAt            string    `json:"createdAt"`
 	UpdatedAt            string    `json:"updatedAt"`
@@ -235,7 +237,8 @@ func (h *WorkshopServiceHandler) handleServiceError(c fiber.Ctx, err error) erro
 		errors.Is(err, domain.ErrWorkshopServiceTitleLength),
 		errors.Is(err, domain.ErrWorkshopServiceDescriptionLength),
 		errors.Is(err, domain.ErrWorkshopServicePriceMustBePositive),
-		errors.Is(err, domain.ErrWorkshopServiceDurationMustBePositive):
+		errors.Is(err, domain.ErrWorkshopServiceDurationMustBePositive),
+		errors.Is(err, domain.ErrWorkshopServiceInvalidStatus):
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	default:
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -310,11 +313,14 @@ func (r workshopServiceRequest) toUpdateInput() (service.WorkshopServiceUpdateIn
 	if r.EstimatedTimeMinutes != nil {
 		input.EstimatedTimeMinutes = r.EstimatedTimeMinutes
 	}
+	if r.Status != nil {
+		input.Status = r.Status
+	}
 	if r.Active != nil {
 		input.Active = r.Active
 	}
 
-	if input.Title == nil && input.Description == nil && input.PriceCents == nil && input.EstimatedTimeMinutes == nil && input.Active == nil {
+	if input.Title == nil && input.Description == nil && input.PriceCents == nil && input.EstimatedTimeMinutes == nil && input.Status == nil && input.Active == nil {
 		return service.WorkshopServiceUpdateInput{}, errors.New("at least one field must be provided")
 	}
 
@@ -328,6 +334,7 @@ func toResponse(item *domain.WorkshopService) workshopServiceResponse {
 		Description:          item.Description,
 		Price:                centsToPrice(item.PriceCents),
 		EstimatedTimeMinutes: item.EstimatedTimeMinutes,
+		Status:               item.Status,
 		Active:               item.Active,
 		CreatedAt:            item.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:            item.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),

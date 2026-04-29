@@ -32,7 +32,7 @@ INSERT INTO "services" ("id", "title", "description", "price_cents", "estimated_
   ('d0000000-0000-0000-0000-000000000006', 'Diagnóstico Eletrônico', 'Leitura e diagnóstico via scanner OBD2', 8000, 30, true, NOW(), NOW());
 
 -- ==================== ITEMS ====================
-INSERT INTO "items" ("id", "title", "type", "price_cents", "stock_quantity", "minimum_stock", "active", "created_at", "updated_at") VALUES
+INSERT INTO "supplies" ("id", "title", "type", "price_cents", "stock_quantity", "minimum_stock", "active", "created_at", "updated_at") VALUES
   ('e0000000-0000-0000-0000-000000000001', 'Óleo Motor 5W30 (litro)', 'INSUMO', 4500, 50, 10, true, NOW(), NOW()),
   ('e0000000-0000-0000-0000-000000000002', 'Filtro de Óleo Universal', 'PECA', 3500, 30, 5, true, NOW(), NOW()),
   ('e0000000-0000-0000-0000-000000000003', 'Pastilha de Freio Dianteira (jogo)', 'PECA', 12000, 15, 3, true, NOW(), NOW()),
@@ -44,8 +44,8 @@ INSERT INTO "items" ("id", "title", "type", "price_cents", "stock_quantity", "mi
   ('e0000000-0000-0000-0000-000000000009', 'Peso de Balanceamento (unidade)', 'INSUMO', 200, 200, 50, true, NOW(), NOW()),
   ('e0000000-0000-0000-0000-000000000010', 'Líquido de Arrefecimento (litro)', 'INSUMO', 2500, 30, 8, true, NOW(), NOW());
 
--- ==================== SERVICE_ITEMS ====================
-INSERT INTO "service_items" ("id", "service_id", "item_id", "quantity", "created_at") VALUES
+-- ==================== SUPPLIES ====================
+INSERT INTO "service_supplies" ("id", "service_id", "item_id", "quantity", "created_at") VALUES
   -- Troca de Óleo: 4L óleo + 1 filtro de óleo
   ('f0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', 4, NOW()),
   ('f0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000002', 1, NOW()),

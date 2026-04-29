@@ -40,12 +40,13 @@ CREATE TABLE IF NOT EXISTS "services" (
   "description" text,
   "price_cents" int NOT NULL,
   "estimated_time_minutes" int NOT NULL,
+  "status" varchar(30) NOT NULL DEFAULT 'AGUARDANDO',
   "active" boolean NOT NULL DEFAULT true,
   "created_at" timestamp NOT NULL,
   "updated_at" timestamp NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS "items" (
+CREATE TABLE IF NOT EXISTS "supplies" (
   "id" uuid PRIMARY KEY,
   "title" varchar(120) NOT NULL,
   "type" varchar(20) NOT NULL,
@@ -57,7 +58,7 @@ CREATE TABLE IF NOT EXISTS "items" (
   "updated_at" timestamp NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS "service_items" (
+CREATE TABLE IF NOT EXISTS "service_supplies" (
   "id" uuid PRIMARY KEY,
   "service_id" uuid NOT NULL,
   "item_id" uuid NOT NULL,
@@ -141,9 +142,9 @@ CREATE TABLE IF NOT EXISTS "work_order_status_history" (
 CREATE INDEX IF NOT EXISTS idx_vehicles_customer_id ON "vehicles" ("customer_id");
 CREATE INDEX IF NOT EXISTS idx_vehicles_license_plate ON "vehicles" ("license_plate");
 
-CREATE INDEX IF NOT EXISTS idx_service_items_service_id ON "service_items" ("service_id");
-CREATE INDEX IF NOT EXISTS idx_service_items_item_id ON "service_items" ("item_id");
-CREATE UNIQUE INDEX IF NOT EXISTS idx_service_items_service_item ON "service_items" ("service_id", "item_id");
+CREATE INDEX IF NOT EXISTS idx_service_supplies_service_id ON "service_supplies" ("service_id");
+CREATE INDEX IF NOT EXISTS idx_service_supplies_item_id ON "service_supplies" ("item_id");
+CREATE UNIQUE INDEX IF NOT EXISTS idx_service_supplies_service_item ON "service_supplies" ("service_id", "item_id");
 
 CREATE INDEX IF NOT EXISTS idx_work_orders_code ON "work_orders" ("code");
 CREATE INDEX IF NOT EXISTS idx_work_orders_customer_id ON "work_orders" ("customer_id");
@@ -174,13 +175,13 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "service_items" ADD CONSTRAINT fk_service_items_service
+  ALTER TABLE "service_supplies" ADD CONSTRAINT fk_service_supplies_service
     FOREIGN KEY ("service_id") REFERENCES "services" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "service_items" ADD CONSTRAINT fk_service_items_item
-    FOREIGN KEY ("item_id") REFERENCES "items" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+  ALTER TABLE "service_supplies" ADD CONSTRAINT fk_service_supplies_supply
+    FOREIGN KEY ("item_id") REFERENCES "supplies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -225,12 +226,12 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
   ALTER TABLE "work_order_service_items" ADD CONSTRAINT fk_wosi_item
-    FOREIGN KEY ("item_id") REFERENCES "items" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+    FOREIGN KEY ("item_id") REFERENCES "supplies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
   ALTER TABLE "inventory_movements" ADD CONSTRAINT fk_inv_mov_item
-    FOREIGN KEY ("item_id") REFERENCES "items" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+    FOREIGN KEY ("item_id") REFERENCES "supplies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -267,8 +268,8 @@ DROP TABLE IF EXISTS "inventory_movements";
 DROP TABLE IF EXISTS "work_order_service_items";
 DROP TABLE IF EXISTS "work_order_services";
 DROP TABLE IF EXISTS "work_orders";
-DROP TABLE IF EXISTS "service_items";
-DROP TABLE IF EXISTS "items";
+DROP TABLE IF EXISTS "service_supplies";
+DROP TABLE IF EXISTS "supplies";
 DROP TABLE IF EXISTS "services";
 DROP TABLE IF EXISTS "vehicles";
 DROP TABLE IF EXISTS "customers";

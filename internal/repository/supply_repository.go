@@ -26,7 +26,7 @@ func NewSupplyRepository(db *pgxpool.Pool) SupplyRepository {
 
 func (r *supplyRepository) Create(ctx context.Context, supply *domain.Supply) (*domain.Supply, error) {
 	query := `
-		INSERT INTO supplies (service_id, item_id, quantity)
+		INSERT INTO service_supplies (service_id, item_id, quantity)
 		VALUES ($1, $2, $3)
 		RETURNING id, service_id, item_id, quantity`
 
@@ -40,7 +40,7 @@ func (r *supplyRepository) Create(ctx context.Context, supply *domain.Supply) (*
 }
 
 func (r *supplyRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.Supply, error) {
-	query := `SELECT id, service_id, item_id, quantity FROM supplies WHERE id = $1`
+	query := `SELECT id, service_id, item_id, quantity FROM service_supplies WHERE id = $1`
 
 	var result domain.Supply
 	err := r.db.QueryRow(ctx, query, id).
@@ -52,7 +52,7 @@ func (r *supplyRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.
 }
 
 func (r *supplyRepository) FindAll(ctx context.Context) ([]domain.Supply, error) {
-	query := `SELECT id, service_id, item_id, quantity FROM supplies`
+	query := `SELECT id, service_id, item_id, quantity FROM service_supplies`
 
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
@@ -73,7 +73,7 @@ func (r *supplyRepository) FindAll(ctx context.Context) ([]domain.Supply, error)
 
 func (r *supplyRepository) Update(ctx context.Context, supply *domain.Supply) (*domain.Supply, error) {
 	query := `
-		UPDATE supplies
+		UPDATE service_supplies
 		SET service_id = $1, item_id = $2, quantity = $3
 		WHERE id = $4
 		RETURNING id, service_id, item_id, quantity`
@@ -88,7 +88,7 @@ func (r *supplyRepository) Update(ctx context.Context, supply *domain.Supply) (*
 }
 
 func (r *supplyRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM supplies WHERE id = $1`
+	query := `DELETE FROM service_supplies WHERE id = $1`
 	_, err := r.db.Exec(ctx, query, id)
 	return err
 }
