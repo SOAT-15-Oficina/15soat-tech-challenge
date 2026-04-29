@@ -22,7 +22,6 @@ type WorkshopServiceUpdateInput struct {
 	Description          *string
 	PriceCents           *int
 	EstimatedTimeMinutes *int
-	Status               *domain.WorkshopServiceStatus
 	Active               *bool
 }
 
@@ -45,7 +44,6 @@ func NewWorkshopServiceService(repo repository.WorkshopServiceRepository) Worksh
 
 func (s *workshopServiceService) Create(ctx context.Context, ws *domain.WorkshopService) (*domain.WorkshopService, error) {
 	ws.Active = true
-	ws.Status = domain.WorkshopServiceStatusWaiting
 
 	if err := ws.Validate(); err != nil {
 		return nil, err
@@ -95,9 +93,6 @@ func (s *workshopServiceService) Update(ctx context.Context, id uuid.UUID, input
 	if input.EstimatedTimeMinutes != nil {
 		current.EstimatedTimeMinutes = *input.EstimatedTimeMinutes
 	}
-	if input.Status != nil {
-		current.Status = *input.Status
-	}
 	if input.Active != nil {
 		current.Active = *input.Active
 	}
@@ -114,18 +109,7 @@ func (s *workshopServiceService) Update(ctx context.Context, id uuid.UUID, input
 		return nil, ErrWorkshopServiceTitleAlreadyExists
 	}
 
-	updated, err := s.repo.Update(ctx, current)
-	if err != nil {
-		return nil, err
-	}
-
-	if input.Status != nil && *input.Status == domain.WorkshopServiceStatusFinished {
-		if err := s.repo.SubtractSuppliesFromStock(ctx, id); err != nil {
-			return nil, err
-		}
-	}
-
-	return updated, nil
+	return s.repo.Update(ctx, current)
 }
 
 func (s *workshopServiceService) Delete(ctx context.Context, id uuid.UUID) (*DeleteWorkshopServiceResult, error) {

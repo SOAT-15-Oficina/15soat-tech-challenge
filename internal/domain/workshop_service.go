@@ -14,15 +14,6 @@ var (
 	ErrWorkshopServiceDescriptionLength       = errors.New("description must be at most 500 characters")
 	ErrWorkshopServicePriceMustBePositive     = errors.New("price must be greater than zero")
 	ErrWorkshopServiceDurationMustBePositive  = errors.New("estimated time must be greater than zero")
-	ErrWorkshopServiceInvalidStatus           = errors.New("status must be AGUARDANDO, EM_EXECUCAO or CONCLUIDA")
-)
-
-type WorkshopServiceStatus string
-
-const (
-	WorkshopServiceStatusWaiting    WorkshopServiceStatus = "AGUARDANDO"
-	WorkshopServiceStatusInProgress WorkshopServiceStatus = "EM_EXECUCAO"
-	WorkshopServiceStatusFinished   WorkshopServiceStatus = "CONCLUIDA"
 )
 
 type WorkshopService struct {
@@ -31,7 +22,6 @@ type WorkshopService struct {
 	Description          string    `json:"description"`
 	PriceCents           int       `json:"price_cents"`
 	EstimatedTimeMinutes int       `json:"estimated_time_minutes"`
-	Status               WorkshopServiceStatus `json:"status"`
 	Active               bool      `json:"active"`
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
@@ -66,9 +56,6 @@ func (s *WorkshopService) Validate() error {
 	}
 	if s.EstimatedTimeMinutes <= 0 {
 		return ErrWorkshopServiceDurationMustBePositive
-	}
-	if s.Status != WorkshopServiceStatusWaiting && s.Status != WorkshopServiceStatusInProgress && s.Status != WorkshopServiceStatusFinished {
-		return ErrWorkshopServiceInvalidStatus
 	}
 
 	return nil

@@ -57,8 +57,8 @@ customers           │
   └── vehicles      │
                     │
 services            │
-  └── service_supplies │
-        └── supplies   │
+  └── service_items │
+        └── items   │
                     │
 work_orders ────────┤
   ├── work_order_services
@@ -75,8 +75,8 @@ work_orders ────────┤
 | `customers`                 | Dados dos clientes da oficina (nome, documento, contatos). Usada no cadastro e identificação do cliente para abertura da ordem de serviço.                |
 | `vehicles`                  | Veículos vinculados aos clientes (placa, marca, modelo, ano). Permite associar um veículo a uma ordem de serviço.                                         |
 | `services`                  | Catálogo de serviços oferecidos pela oficina (troca de óleo, alinhamento, etc). Guarda preço base e tempo estimado de execução.                           |
-| `supplies`                  | Peças e insumos cadastrados no sistema. Controla quantidade em estoque e disponibilidade para execução dos serviços.                                      |
-| `service_supplies`          | Composição padrão de um serviço: quais peças/insumos são normalmente necessários e em qual quantidade.                                                    |
+| `items`                     | Peças e insumos cadastrados no sistema. Controla quantidade em estoque e disponibilidade para execução dos serviços.                                      |
+| `service_items`             | Composição padrão de um serviço: quais peças/insumos são normalmente necessários e em qual quantidade.                                                    |
 | `work_orders`               | Ordem de serviço principal. Centraliza o atendimento ligando cliente, veículo, status, técnico responsável e dados do orçamento/execução.                 |
 | `work_order_services`       | Cada serviço incluído em uma ordem de serviço. Controla aprovação, execução, técnico responsável, tempo e preço no contexto daquela OS.                   |
 | `work_order_service_items`  | Itens previstos ou utilizados em cada serviço de uma OS. Snapshot operacional, separado da composição padrão do catálogo.                                 |
