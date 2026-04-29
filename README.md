@@ -83,6 +83,45 @@ work_orders ────────┤
 | `inventory_movements`       | Movimentações de estoque (entrada, saída, ajuste). Mantém histórico para auditoria e rastreio de baixas de peças e insumos.                               |
 | `work_order_status_history` | Histórico de mudança de status da OS, permitindo rastrear a evolução (recebida, em diagnóstico, em execução, entregue, etc).                              |
 
+## Convenções da API
+
+### Rotas
+
+- Rotas usam **plural em inglês** e **kebab-case** para caminhos compostos: `/services`, `/services/avg-execution-time`
+- Padrão REST para CRUD: `POST /recurso`, `GET /recurso`, `GET /recurso/:id`, `PUT /recurso/:id`, `DELETE /recurso/:id`
+- Rotas de consulta/relatório ficam como sub-rotas do recurso: `GET /services/avg-execution-time`
+
+### JSON (request e response)
+
+- Campos usam **camelCase**: `estimatedTimeMinutes`, `createdAt`, `serviceId`
+- Campos internos do domínio (domain structs) usam **snake_case** nas tags JSON (`price_cents`, `estimated_time_minutes`) — esses não são expostos diretamente na API
+- O handler é responsável por converter entre o formato interno e o formato da API (ex: `price_cents` → `price` em reais)
+
+### Query parameters
+
+- Query params usam **camelCase**: `?active=true&title=oil&technicianId=uuid`
+- Paginação: `page` e `limit` (padrão: page=1, limit=10)
+- Filtros booleanos aceitam `true` ou `false`
+- Datas usam formato `YYYY-MM-DD`: `?from=2026-01-01&to=2026-12-31`
+
+### Mensagens de erro
+
+- Erros são retornados em **inglês** no formato `{"error": "mensagem"}`
+- Exemplos: `"service not found"`, `"invalid id"`, `"title, price and estimatedTimeMinutes are required"`
+- Erros de domínio são propagados como texto: `"title is required"`, `"price must be greater than zero"`
+
+### Códigos HTTP
+
+| Código | Uso |
+| ------ | --- |
+| 200    | Sucesso em leitura ou atualização |
+| 201    | Recurso criado com sucesso |
+| 204    | Recurso deletado com sucesso (sem body) |
+| 400    | Dados inválidos ou campos obrigatórios faltando |
+| 404    | Recurso não encontrado |
+| 409    | Conflito (ex: título duplicado) |
+| 500    | Erro interno |
+
 ## Variáveis de ambiente
 
 | Variável             | Descrição              | Valor padrão       |

@@ -1,0 +1,698 @@
+openapi: 3.0.3
+info:
+  title: Tech Challenge - Oficina Mecânica API
+  description: API para gerenciamento de oficina mecânica com controle de ordens de serviço, estoque e clientes.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Health
+    description: Health check
+  - name: Customers
+    description: Gerenciamento de clientes
+  - name: Vehicles
+    description: Gerenciamento de veículos
+  - name: Supplies
+    description: Gerenciamento de insumos por serviço
+  - name: Services
+    description: Catálogo de serviços da oficina
+  - name: Reports
+    description: Relatórios de gestão administrativa
+
+paths:
+  /ping:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        "200":
+          description: API is running
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Pong
+
+  /customers:
+    post:
+      tags: [Customers]
+      summary: Create a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerRequest"
+      responses:
+        "201":
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    get:
+      tags: [Customers]
+      summary: List all customers
+      responses:
+        "200":
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+
+  /customers/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      tags: [Customers]
+      summary: Get a customer by ID
+      responses:
+        "200":
+          description: Customer found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Customers]
+      summary: Update a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerRequest"
+      responses:
+        "200":
+          description: Customer updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Customers]
+      summary: Delete a customer
+      responses:
+        "204":
+          description: Customer deleted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /vehicles:
+    post:
+      tags: [Vehicles]
+      summary: Create a vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleRequest"
+      responses:
+        "201":
+          description: Vehicle created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    get:
+      tags: [Vehicles]
+      summary: List all vehicles
+      responses:
+        "200":
+          description: List of vehicles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vehicle"
+
+  /vehicles/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      tags: [Vehicles]
+      summary: Get a vehicle by ID
+      responses:
+        "200":
+          description: Vehicle found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Vehicles]
+      summary: Update a vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleRequest"
+      responses:
+        "200":
+          description: Vehicle updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Vehicles]
+      summary: Delete a vehicle
+      responses:
+        "204":
+          description: Vehicle deleted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /supplies:
+    post:
+      tags: [Supplies]
+      summary: Create a supply link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplyRequest"
+      responses:
+        "201":
+          description: Supply created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supply"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    get:
+      tags: [Supplies]
+      summary: List all supplies
+      responses:
+        "200":
+          description: List of supplies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Supply"
+
+  /supplies/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      tags: [Supplies]
+      summary: Get a supply by ID
+      responses:
+        "200":
+          description: Supply found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supply"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Supplies]
+      summary: Update a supply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplyRequest"
+      responses:
+        "200":
+          description: Supply updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supply"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Supplies]
+      summary: Delete a supply
+      responses:
+        "204":
+          description: Supply deleted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /services:
+    post:
+      tags: [Services]
+      summary: Create a workshop service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkshopServiceCreateRequest"
+      responses:
+        "201":
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkshopServiceResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    get:
+      tags: [Services]
+      summary: List workshop services
+      parameters:
+        - name: title
+          in: query
+          description: Partial title search (case insensitive)
+          schema:
+            type: string
+        - name: active
+          in: query
+          description: Filter by active status
+          schema:
+            type: boolean
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Paginated list of services
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkshopServiceListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /services/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      tags: [Services]
+      summary: Get a workshop service by ID
+      responses:
+        "200":
+          description: Service found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkshopServiceResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Services]
+      summary: Update a workshop service
+      description: Partial update — only provided fields are changed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkshopServiceUpdateRequest"
+      responses:
+        "200":
+          description: Service updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkshopServiceResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags: [Services]
+      summary: Delete or deactivate a workshop service
+      description: |
+        Hard deletes the service if it has no work order links.
+        If the service is linked to existing work orders, it is deactivated instead (soft delete) and returns 200 with the deactivated resource.
+      responses:
+        "204":
+          description: Service hard deleted (no body)
+        "200":
+          description: Service deactivated (soft delete)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: service has existing work order links and was deactivated
+                  service:
+                    $ref: "#/components/schemas/WorkshopServiceResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /services/avg-execution-time:
+    get:
+      tags: [Reports]
+      summary: Average execution time per service
+      description: |
+        Returns the average real execution time for each service type,
+        calculated from finished work order services (difference between started_at and finished_at).
+      parameters:
+        - name: from
+          in: query
+          description: Start date filter (inclusive, format YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+            example: "2026-01-01"
+        - name: to
+          in: query
+          description: End date filter (inclusive, format YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+            example: "2026-12-31"
+        - name: technicianId
+          in: query
+          description: Filter by technician UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of services with average execution times
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AvgExecutionTimeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+components:
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      description: Page number (default 1)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Limit:
+      name: limit
+      in: query
+      description: Items per page (default 10)
+      schema:
+        type: integer
+        minimum: 1
+        default: 10
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "invalid id"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "resource not found"
+    Conflict:
+      description: Conflict (e.g. duplicate title)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "service title already exists"
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    CustomerRequest:
+      type: object
+      required: [name, email, document, document_type]
+      properties:
+        name:
+          type: string
+          example: Roberto Silva
+        email:
+          type: string
+          format: email
+          example: roberto@email.com
+        document:
+          type: string
+          example: "12345678901"
+        document_type:
+          type: string
+          enum: [CPF, CNPJ]
+          example: CPF
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+        document:
+          type: string
+        document_type:
+          type: string
+          enum: [CPF, CNPJ]
+
+    VehicleRequest:
+      type: object
+      required: [licensePlate, customerId, model, year, brand]
+      properties:
+        licensePlate:
+          type: string
+          example: ABC1D23
+        customerId:
+          type: string
+          format: uuid
+        model:
+          type: string
+          example: Corolla
+        year:
+          type: integer
+          example: 2022
+        brand:
+          type: string
+          example: Toyota
+
+    Vehicle:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        licensePlate:
+          type: string
+        customerId:
+          type: string
+          format: uuid
+        model:
+          type: string
+        year:
+          type: integer
+        brand:
+          type: string
+
+    SupplyRequest:
+      type: object
+      required: [service_id, item_id, quantity]
+      properties:
+        service_id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+
+    Supply:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        service_id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+
+    WorkshopServiceCreateRequest:
+      type: object
+      required: [title, price, estimatedTimeMinutes]
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 150
+          example: Oil Change
+        description:
+          type: string
+          maxLength: 500
+          example: Full engine oil change with filter
+        price:
+          type: number
+          format: double
+          minimum: 0.01
+          description: Price in BRL (e.g. 50.00)
+          example: 50.00
+        estimatedTimeMinutes:
+          type: integer
+          minimum: 1
+          example: 30
+
+    WorkshopServiceUpdateRequest:
+      type: object
+      description: At least one field must be provided.
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 150
+        description:
+          type: string
+          maxLength: 500
+        price:
+          type: number
+          format: double
+          minimum: 0.01
+        estimatedTimeMinutes:
+          type: integer
+          minimum: 1
+        active:
+          type: boolean
+
+    WorkshopServiceResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: double
+          description: Price in BRL
+        estimatedTimeMinutes:
+          type: integer
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    WorkshopServiceListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkshopServiceResponse"
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+
+    AvgExecutionTimeResponse:
+      type: object
+      properties:
+        serviceId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: Oil Change
+        estimatedTimeMinutes:
+          type: integer
+          description: Estimated time from the service catalog
+          example: 30
+        avgRealTimeMinutes:
+          type: number
+          format: double
+          description: Average real execution time in minutes
+          example: 25.5
+        executionCount:
+          type: integer
+          description: Number of finished executions
+          example: 3
+        differenceMinutes:
+          type: number
+          format: double
+          description: Difference between real avg and estimated (negative means faster than expected)
+          example: -4.5

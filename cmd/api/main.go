@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/config"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/infra/database"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/database"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/routes"
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -29,11 +29,7 @@ func init() {
 	if err != nil {
 		shutdownApp(err, "Failed to connect to database")
 	}
-
-	if err = database.RunMigrations(db); err != nil {
-		shutdownApp(err, "Failed to run migrations or migrations already executed")
-	}
-
+	database.RunMigrations(db)
 	log.Println("Dependencies initialized successfully")
 }
 

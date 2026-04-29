@@ -20,6 +20,7 @@ func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 	registerVehicle(app, db, cfg.JWT.SecretKey)
 	registerSupply(app, db, cfg.JWT.SecretKey)
 	registerWorkOrder(app, db, cfg.JWT.SecretKey)
+	registerWorkshopService(app, db, cfg.JWT.SecretKey)
 }
 
 func registerAuth(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
@@ -63,6 +64,20 @@ func registerVehicle(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
 	group.Get("/:id", vehicleHandler.GetByID)
 	group.Put("/:id", vehicleHandler.Update)
 	group.Delete("/:id", vehicleHandler.Delete)
+}
+
+func registerWorkshopService(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
+	wsRepo := repository.NewWorkshopServiceRepository(db)
+	wsSvc := service.NewWorkshopServiceService(wsRepo)
+	wsHandler := handler.NewWorkshopServiceHandler(wsSvc)
+
+	group := app.Group("/services", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
+	group.Post("/", wsHandler.Create)
+	group.Get("/avg-execution-time", wsHandler.GetAvgExecutionTime)
+	group.Get("/", wsHandler.GetAll)
+	group.Get("/:id", wsHandler.GetByID)
+	group.Put("/:id", wsHandler.Update)
+	group.Delete("/:id", wsHandler.Delete)
 }
 
 func registerSupply(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
