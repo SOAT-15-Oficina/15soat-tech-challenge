@@ -19,6 +19,7 @@ func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 	registerCustomer(app, db, cfg.JWT.SecretKey)
 	registerVehicle(app, db, cfg.JWT.SecretKey)
 	registerSupply(app, db, cfg.JWT.SecretKey)
+	registerWorkOrder(app, db, cfg.JWT.SecretKey)
 	registerWorkshopService(app, db, cfg.JWT.SecretKey)
 }
 
@@ -90,4 +91,16 @@ func registerSupply(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
 	group.Get("/:id", supplyHandler.GetByID)
 	group.Put("/:id", supplyHandler.Update)
 	group.Delete("/:id", supplyHandler.Delete)
+}
+
+func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
+	workOrderRepo := repository.NewWorkOrderRepository(db)
+	workOrderSvc := service.NewWorkOrderService(workOrderRepo)
+	workOrderHandler := handler.NewWorkOrderHandler(workOrderSvc)
+
+	group := app.Group("/work-orders", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
+	group.Post("/", workOrderHandler.Create)
+	group.Get("/", workOrderHandler.GetAll)
+	group.Get("/:id", workOrderHandler.GetByID)
+	group.Put("/:id", workOrderHandler.Update)
 }
