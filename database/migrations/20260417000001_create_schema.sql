@@ -91,11 +91,10 @@ CREATE TABLE IF NOT EXISTS "work_order_services" (
   "id" uuid PRIMARY KEY,
   "work_order_id" uuid NOT NULL,
   "service_id" uuid NOT NULL,
-  "technician_id" uuid,
-  "title_snapshot" varchar(120) NOT NULL,
-  "description_snapshot" text,
-  "price_cents_snapshot" int NOT NULL,
-  "estimated_time_minutes_snapshot" int NOT NULL,
+  "service_title_snapshot" varchar(120) NOT NULL,
+  "service_description_snapshot" text,
+  "service_price_cents_snapshot" int NOT NULL,
+  "service_estimated_time_minutes_snapshot" int NOT NULL,
   "approval_status" varchar(20) NOT NULL DEFAULT 'PENDENTE',
   "status" varchar(30) NOT NULL DEFAULT 'PENDENTE',
   "started_at" timestamp,
@@ -104,21 +103,20 @@ CREATE TABLE IF NOT EXISTS "work_order_services" (
   "updated_at" timestamp NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS "work_order_service_items" (
+CREATE TABLE IF NOT EXISTS "work_order_service_supplies" (
   "id" uuid PRIMARY KEY,
   "work_order_service_id" uuid NOT NULL,
-  "item_id" uuid NOT NULL,
-  "title_snapshot" varchar(120) NOT NULL,
-  "price_cents_snapshot" int NOT NULL,
-  "quantity_requested" int NOT NULL,
-  "quantity_used" int NOT NULL DEFAULT 0,
+  "supply_id" uuid NOT NULL,
+  "supply_title_snapshot" varchar(120) NOT NULL,
+  "supply_price_cents_snapshot" int NOT NULL,
+  "supply_quantity" int NOT NULL,
   "created_at" timestamp NOT NULL,
   "updated_at" timestamp NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS "inventory_movements" (
   "id" uuid PRIMARY KEY,
-  "item_id" uuid NOT NULL,
+  "supply_id" uuid NOT NULL,
   "movement_type" varchar(20) NOT NULL,
   "quantity" int NOT NULL,
   "reason" varchar(120),
@@ -128,11 +126,10 @@ CREATE TABLE IF NOT EXISTS "inventory_movements" (
   "created_at" timestamp NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS "work_order_status_history" (
+CREATE TABLE IF NOT EXISTS "work_order_service_status_history" (
   "id" uuid PRIMARY KEY,
-  "work_order_id" uuid NOT NULL,
-  "from_status" varchar(30),
-  "to_status" varchar(30) NOT NULL,
+  "work_order_service_id" uuid NOT NULL,
+  "status" varchar(30) NOT NULL,
   "changed_by_user_id" uuid,
   "note" text,
   "changed_at" timestamp NOT NULL
@@ -157,16 +154,16 @@ CREATE INDEX IF NOT EXISTS idx_work_order_services_technician_id ON "work_order_
 CREATE INDEX IF NOT EXISTS idx_work_order_services_approval_status ON "work_order_services" ("approval_status");
 CREATE INDEX IF NOT EXISTS idx_work_order_services_status ON "work_order_services" ("status");
 
-CREATE INDEX IF NOT EXISTS idx_work_order_service_items_wos_id ON "work_order_service_items" ("work_order_service_id");
-CREATE INDEX IF NOT EXISTS idx_work_order_service_items_item_id ON "work_order_service_items" ("item_id");
-CREATE UNIQUE INDEX IF NOT EXISTS idx_work_order_service_items_wos_item ON "work_order_service_items" ("work_order_service_id", "item_id");
+CREATE INDEX IF NOT EXISTS idx_work_order_service_supplies_wos_id ON "work_order_service_supplies" ("work_order_service_id");
+CREATE INDEX IF NOT EXISTS idx_work_order_service_supplies_supply_id ON "work_order_service_supplies" ("supply_id");
+CREATE UNIQUE INDEX IF NOT EXISTS idx_work_order_service_supplies_wos_supply ON "work_order_service_supplies" ("work_order_service_id", "supply_id");
 
-CREATE INDEX IF NOT EXISTS idx_inventory_movements_item_id ON "inventory_movements" ("item_id");
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_supply_id ON "inventory_movements" ("supply_id");
 CREATE INDEX IF NOT EXISTS idx_inventory_movements_work_order_id ON "inventory_movements" ("work_order_id");
 CREATE INDEX IF NOT EXISTS idx_inventory_movements_wos_id ON "inventory_movements" ("work_order_service_id");
 
-CREATE INDEX IF NOT EXISTS idx_work_order_status_history_wo_id ON "work_order_status_history" ("work_order_id");
-CREATE INDEX IF NOT EXISTS idx_work_order_status_history_changed_at ON "work_order_status_history" ("changed_at");
+CREATE INDEX IF NOT EXISTS idx_work_order_service_status_history_wos_id ON "work_order_service_status_history" ("work_order_service_id");
+CREATE INDEX IF NOT EXISTS idx_work_order_service_status_history_changed_at ON "work_order_service_status_history" ("changed_at");
 
 -- ==================== FOREIGN KEYS ====================
 DO $$ BEGIN
@@ -220,18 +217,18 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "work_order_service_items" ADD CONSTRAINT fk_wosi_work_order_service
+  ALTER TABLE "work_order_service_supplies" ADD CONSTRAINT fk_wosi_work_order_service
     FOREIGN KEY ("work_order_service_id") REFERENCES "work_order_services" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "work_order_service_items" ADD CONSTRAINT fk_wosi_item
-    FOREIGN KEY ("item_id") REFERENCES "supplies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+  ALTER TABLE "work_order_service_supplies" ADD CONSTRAINT fk_wosi_supply
+    FOREIGN KEY ("supply_id") REFERENCES "supplies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "inventory_movements" ADD CONSTRAINT fk_inv_mov_item
-    FOREIGN KEY ("item_id") REFERENCES "supplies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+  ALTER TABLE "inventory_movements" ADD CONSTRAINT fk_inv_mov_supply
+    FOREIGN KEY ("supply_id") REFERENCES "supplies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -250,12 +247,12 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "work_order_status_history" ADD CONSTRAINT fk_wosh_work_order
-    FOREIGN KEY ("work_order_id") REFERENCES "work_orders" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+  ALTER TABLE "work_order_service_status_history" ADD CONSTRAINT fk_wosh_work_order_service
+    FOREIGN KEY ("work_order_service_id") REFERENCES "work_order_services" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "work_order_status_history" ADD CONSTRAINT fk_wosh_changed_by
+  ALTER TABLE "work_order_service_status_history" ADD CONSTRAINT fk_wosh_changed_by
     FOREIGN KEY ("changed_by_user_id") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
@@ -263,9 +260,9 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE IF EXISTS "work_order_status_history";
+DROP TABLE IF EXISTS "work_order_service_status_history";
 DROP TABLE IF EXISTS "inventory_movements";
-DROP TABLE IF EXISTS "work_order_service_items";
+DROP TABLE IF EXISTS "work_order_service_supplies";
 DROP TABLE IF EXISTS "work_order_services";
 DROP TABLE IF EXISTS "work_orders";
 DROP TABLE IF EXISTS "service_supplies";
