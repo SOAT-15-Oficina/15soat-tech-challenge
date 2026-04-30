@@ -26,13 +26,35 @@ func NewSupplyRepository(db *pgxpool.Pool) SupplyRepository {
 
 func (r *supplyRepository) Create(ctx context.Context, supply *domain.Supply) (*domain.Supply, error) {
 	query := `
-		INSERT INTO supplies (service_id, item_id, quantity)
-		VALUES ($1, $2, $3)
-		RETURNING id, service_id, item_id, quantity`
+		INSERT INTO supplies (id, title, type, price_cents, stock_quantity, minimum_stock, active, created_at, updated_at)
+		VALUES (COALESCE($1, gen_random_uuid()), $2, $3, $4, $5, $6, $7, NOW(), NOW())
+		RETURNING id, title, type, price_cents, stock_quantity, minimum_stock, active, created_at, updated_at`
+
+	var idArg any
+	if supply.ID != uuid.Nil {
+		idArg = supply.ID
+	}
 
 	var result domain.Supply
-	err := r.db.QueryRow(ctx, query, supply.ServiceID, supply.ItemID, supply.Quantity).
-		Scan(&result.ID, &result.ServiceID, &result.ItemID, &result.Quantity)
+	err := r.db.QueryRow(ctx, query,
+		idArg,
+		supply.Title,
+		supply.Type,
+		supply.PriceCents,
+		supply.StockQuantity,
+		supply.MinimumStock,
+		supply.Active,
+	).Scan(
+		&result.ID,
+		&result.Title,
+		&result.Type,
+		&result.PriceCents,
+		&result.StockQuantity,
+		&result.MinimumStock,
+		&result.Active,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -40,11 +62,21 @@ func (r *supplyRepository) Create(ctx context.Context, supply *domain.Supply) (*
 }
 
 func (r *supplyRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.Supply, error) {
-	query := `SELECT id, service_id, item_id, quantity FROM supplies WHERE id = $1`
+	query := `SELECT id, title, type, price_cents, stock_quantity, minimum_stock, active, created_at, updated_at
+		FROM supplies WHERE id = $1`
 
 	var result domain.Supply
-	err := r.db.QueryRow(ctx, query, id).
-		Scan(&result.ID, &result.ServiceID, &result.ItemID, &result.Quantity)
+	err := r.db.QueryRow(ctx, query, id).Scan(
+		&result.ID,
+		&result.Title,
+		&result.Type,
+		&result.PriceCents,
+		&result.StockQuantity,
+		&result.MinimumStock,
+		&result.Active,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +84,8 @@ func (r *supplyRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.
 }
 
 func (r *supplyRepository) FindAll(ctx context.Context) ([]domain.Supply, error) {
-	query := `SELECT id, service_id, item_id, quantity FROM supplies`
+	query := `SELECT id, title, type, price_cents, stock_quantity, minimum_stock, active, created_at, updated_at
+		FROM supplies`
 
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
@@ -63,7 +96,17 @@ func (r *supplyRepository) FindAll(ctx context.Context) ([]domain.Supply, error)
 	var supplies []domain.Supply
 	for rows.Next() {
 		var supply domain.Supply
-		if err := rows.Scan(&supply.ID, &supply.ServiceID, &supply.ItemID, &supply.Quantity); err != nil {
+		if err := rows.Scan(
+			&supply.ID,
+			&supply.Title,
+			&supply.Type,
+			&supply.PriceCents,
+			&supply.StockQuantity,
+			&supply.MinimumStock,
+			&supply.Active,
+			&supply.CreatedAt,
+			&supply.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		supplies = append(supplies, supply)
@@ -74,13 +117,30 @@ func (r *supplyRepository) FindAll(ctx context.Context) ([]domain.Supply, error)
 func (r *supplyRepository) Update(ctx context.Context, supply *domain.Supply) (*domain.Supply, error) {
 	query := `
 		UPDATE supplies
-		SET service_id = $1, item_id = $2, quantity = $3
-		WHERE id = $4
-		RETURNING id, service_id, item_id, quantity`
+		SET title = $1, type = $2, price_cents = $3, stock_quantity = $4, minimum_stock = $5, active = $6, updated_at = NOW()
+		WHERE id = $7
+		RETURNING id, title, type, price_cents, stock_quantity, minimum_stock, active, created_at, updated_at`
 
 	var result domain.Supply
-	err := r.db.QueryRow(ctx, query, supply.ServiceID, supply.ItemID, supply.Quantity, supply.ID).
-		Scan(&result.ID, &result.ServiceID, &result.ItemID, &result.Quantity)
+	err := r.db.QueryRow(ctx, query,
+		supply.Title,
+		supply.Type,
+		supply.PriceCents,
+		supply.StockQuantity,
+		supply.MinimumStock,
+		supply.Active,
+		supply.ID,
+	).Scan(
+		&result.ID,
+		&result.Title,
+		&result.Type,
+		&result.PriceCents,
+		&result.StockQuantity,
+		&result.MinimumStock,
+		&result.Active,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+	)
 	if err != nil {
 		return nil, err
 	}
