@@ -117,8 +117,9 @@ func registerWorkOrderServicePublic(app *fiber.App, db *pgxpool.Pool) {
 	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo)
 	wosHandler := handler.NewWorkOrderServiceHandler(itemSvc)
 
-	app.Put("/work-orders/services/:workOrderServiceId/approve", wosHandler.Approve)
-	app.Put("/work-orders/services/:workOrderServiceId/reject", wosHandler.Reject)
-	app.Put("/work-orders/:workOrderId/approve-all", wosHandler.ApproveAll)
-	app.Put("/work-orders/:workOrderId/reject-all", wosHandler.RejectAll)
+	approval := app.Group("/approvals")
+	approval.Get("/services/:workOrderServiceId/approve", wosHandler.Approve)
+	approval.Get("/services/:workOrderServiceId/reject", wosHandler.Reject)
+	approval.Get("/work-orders/:workOrderId/approve-all", wosHandler.ApproveAll)
+	approval.Get("/work-orders/:workOrderId/reject-all", wosHandler.RejectAll)
 }
