@@ -11,11 +11,12 @@ import (
 )
 
 type WorkOrderHandler struct {
-	svc service.WorkOrderService
+	svc       service.WorkOrderService
+	budgetSvc service.BudgetService
 }
 
-func NewWorkOrderHandler(svc service.WorkOrderService) *WorkOrderHandler {
-	return &WorkOrderHandler{svc: svc}
+func NewWorkOrderHandler(svc service.WorkOrderService, budgetSvc service.BudgetService) *WorkOrderHandler {
+	return &WorkOrderHandler{svc: svc, budgetSvc: budgetSvc}
 }
 
 func (h *WorkOrderHandler) Create(c fiber.Ctx) error {
@@ -80,6 +81,12 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "work order not found"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if result.Status == domain.WorkOrderStatusWaitingApproval && h.budgetSvc != nil {
+		if err := h.budgetSvc.GenerateAndSendBudget(c.Context(), result.ID); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to send budget email: " + err.Error()})
+		}
 	}
 
 	return c.JSON(result)
