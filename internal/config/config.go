@@ -3,6 +3,7 @@ package config
 type ServerConfig struct {
 	Environment string `mapstructure:"SERVER_ENVIRONMENT"`
 	Port        string `mapstructure:"SERVER_PORT"`
+	BaseURL     string `mapstructure:"APP_BASE_URL"`
 }
 
 type DatabaseConfig struct {
@@ -31,10 +32,18 @@ type AWSConfig struct {
 	SESConfigSet   string `mapstructure:"SES_CONFIG_SET"`
 }
 
+type EmailConfig struct {
+	Provider string `mapstructure:"EMAIL_PROVIDER"`
+	Host     string `mapstructure:"EMAIL_HOST"`
+	Port     int    `mapstructure:"EMAIL_PORT"`
+	From     string `mapstructure:"EMAIL_FROM"`
+}
+
 type Config struct {
 	Server   *ServerConfig
 	Database *DatabaseConfig
 	Cache    *CacheConfig
 	JWT      *JWTConfig
 	AWS      *AWSConfig
+	Email    *EmailConfig
 }

@@ -14,6 +14,7 @@ func Load() (*Config, error) {
 		Server: &ServerConfig{
 			Environment: viper.GetString("SERVER_ENVIRONMENT"),
 			Port:        viper.GetString("SERVER_PORT"),
+			BaseURL:     viper.GetString("APP_BASE_URL"),
 		},
 		Database: &DatabaseConfig{
 			User:     viper.GetString("DATABASE_USER"),
@@ -36,6 +37,12 @@ func Load() (*Config, error) {
 			SESSenderEmail: viper.GetString("SES_SENDER_EMAIL"),
 			SESReplyTo:     viper.GetString("SES_REPLY_TO"),
 			SESConfigSet:   viper.GetString("SES_CONFIG_SET"),
+		},
+		Email: &EmailConfig{
+			Provider: viper.GetString("EMAIL_PROVIDER"),
+			Host:     viper.GetString("EMAIL_HOST"),
+			Port:     viper.GetInt("EMAIL_PORT"),
+			From:     viper.GetString("EMAIL_FROM"),
 		},
 	}
 
