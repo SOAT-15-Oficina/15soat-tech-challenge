@@ -150,7 +150,6 @@ CREATE INDEX IF NOT EXISTS idx_work_orders_status ON "work_orders" ("status");
 
 CREATE INDEX IF NOT EXISTS idx_work_order_services_work_order_id ON "work_order_services" ("work_order_id");
 CREATE INDEX IF NOT EXISTS idx_work_order_services_service_id ON "work_order_services" ("service_id");
-CREATE INDEX IF NOT EXISTS idx_work_order_services_technician_id ON "work_order_services" ("technician_id");
 CREATE INDEX IF NOT EXISTS idx_work_order_services_approval_status ON "work_order_services" ("approval_status");
 CREATE INDEX IF NOT EXISTS idx_work_order_services_status ON "work_order_services" ("status");
 
@@ -209,11 +208,6 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "work_order_services" ADD CONSTRAINT fk_wos_service
     FOREIGN KEY ("service_id") REFERENCES "services" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-  ALTER TABLE "work_order_services" ADD CONSTRAINT fk_wos_technician
-    FOREIGN KEY ("technician_id") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
