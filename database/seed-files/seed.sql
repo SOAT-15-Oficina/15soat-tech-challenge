@@ -1,10 +1,10 @@
 -- ==================== USERS ====================
-INSERT INTO "users" ("id", "name", "email", "password_hash", "role", "active", "created_at", "updated_at") VALUES
-  ('a0000000-0000-0000-0000-000000000001', 'Carlos Admin', 'carlos.admin@oficina.com', '$2a$10$xJwL5v5Jz5U5Z5Z5Z5Z5ZuZ5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5', 'ADMIN', true, NOW(), NOW()),
-  ('a0000000-0000-0000-0000-000000000002', 'Maria Atendente', 'maria.atendente@oficina.com', '$2a$10$xJwL5v5Jz5U5Z5Z5Z5Z5ZuZ5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5', 'ATENDENTE', true, NOW(), NOW()),
-  ('a0000000-0000-0000-0000-000000000003', 'João Mecânico', 'joao.mecanico@oficina.com', '$2a$10$xJwL5v5Jz5U5Z5Z5Z5Z5ZuZ5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5', 'MECANICO', true, NOW(), NOW()),
-  ('a0000000-0000-0000-0000-000000000004', 'Ana Mecânica', 'ana.mecanica@oficina.com', '$2a$10$xJwL5v5Jz5U5Z5Z5Z5Z5ZuZ5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5', 'MECANICO', true, NOW(), NOW()),
-  ('a0000000-0000-0000-0000-000000000005', 'Pedro Estoque', 'pedro.estoque@oficina.com', '$2a$10$xJwL5v5Jz5U5Z5Z5Z5Z5ZuZ5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5', 'CONTROLADOR_ESTOQUE', true, NOW(), NOW());
+INSERT INTO "users" ("id", "username", "password_hash", "role", "created_at", "updated_at") VALUES
+  ('a0000000-0000-0000-0000-000000000001', 'carlos.admin', '$2a$10$xJwL5v5Jz5U5Z5Z5Z5Z5ZuZ5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5', 'ADMIN', NOW(), NOW()),
+  ('a0000000-0000-0000-0000-000000000002', 'maria.atendente', '$2a$10$xJwL5v5Jz5U5Z5Z5Z5Z5ZuZ5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5', 'ATENDENTE', NOW(), NOW()),
+  ('a0000000-0000-0000-0000-000000000003', 'joao.mecanico', '$2a$10$xJwL5v5Jz5U5Z5Z5Z5Z5ZuZ5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5', 'MECANICO', NOW(), NOW()),
+  ('a0000000-0000-0000-0000-000000000004', 'ana.mecanica', '$2a$10$xJwL5v5Jz5U5Z5Z5Z5Z5ZuZ5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5', 'MECANICO', NOW(), NOW()),
+  ('a0000000-0000-0000-0000-000000000005', 'pedro.estoque', '$2a$10$xJwL5v5Jz5U5Z5Z5Z5Z5ZuZ5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5', 'CONTROLADOR_ESTOQUE', NOW(), NOW());
 
 -- ==================== CUSTOMERS ====================
 INSERT INTO "customers" ("id", "name", "document", "document_type", "phone", "email", "created_at", "updated_at") VALUES

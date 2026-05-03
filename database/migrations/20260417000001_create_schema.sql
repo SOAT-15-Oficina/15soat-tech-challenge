@@ -3,11 +3,9 @@
 
 CREATE TABLE IF NOT EXISTS "users" (
   "id" uuid PRIMARY KEY,
-  "name" varchar(150) NOT NULL,
-  "email" varchar(150) UNIQUE NOT NULL,
+  "username" varchar(150) NOT NULL,
   "password_hash" varchar(255) NOT NULL,
   "role" varchar(30) NOT NULL,
-  "active" boolean NOT NULL DEFAULT true,
   "created_at" timestamp NOT NULL,
   "updated_at" timestamp NOT NULL
 );
@@ -249,6 +247,10 @@ DO $$ BEGIN
   ALTER TABLE "work_order_service_status_history" ADD CONSTRAINT fk_wosh_changed_by
     FOREIGN KEY ("changed_by_user_id") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "users" ADD CONSTRAINT users_username_key UNIQUE ("username");
+EXCEPTION WHEN duplicate_table THEN NULL; END $$;
 
 -- +goose StatementEnd
 
