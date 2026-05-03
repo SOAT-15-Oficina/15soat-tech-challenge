@@ -6,11 +6,12 @@ import (
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/routes/middlewares"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
+func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config, emailProv email.Provider) {
 	app.Get("/ping", func(c fiber.Ctx) error {
 		return c.SendString("Pong")
 	})
@@ -19,7 +20,8 @@ func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 	registerCustomer(app, db, cfg.JWT.SecretKey)
 	registerVehicle(app, db, cfg.JWT.SecretKey)
 	registerSupply(app, db, cfg.JWT.SecretKey)
-	registerWorkOrder(app, db, cfg.JWT.SecretKey)
+	registerWorkOrderServicePublic(app, db)
+	registerWorkOrder(app, db, cfg.JWT.SecretKey, emailProv, cfg.Server.BaseURL)
 	registerWorkshopService(app, db, cfg.JWT.SecretKey)
 }
 
@@ -93,14 +95,31 @@ func registerSupply(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
 	group.Delete("/:id", supplyHandler.Delete)
 }
 
-func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
+func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string, emailProv email.Provider, baseURL string) {
 	workOrderRepo := repository.NewWorkOrderRepository(db)
+	wosRepo := repository.NewWorkOrderServiceRepository(db)
+	customerRepo := repository.NewCustomerRepository(db)
+
 	workOrderSvc := service.NewWorkOrderService(workOrderRepo)
-	workOrderHandler := handler.NewWorkOrderHandler(workOrderSvc)
+	budgetSvc := service.NewBudgetService(workOrderRepo, wosRepo, customerRepo, emailProv, baseURL)
+	workOrderHandler := handler.NewWorkOrderHandler(workOrderSvc, budgetSvc)
 
 	group := app.Group("/work-orders", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
 	group.Post("/", workOrderHandler.Create)
 	group.Get("/", workOrderHandler.GetAll)
 	group.Get("/:id", workOrderHandler.GetByID)
 	group.Put("/:id", workOrderHandler.Update)
+}
+
+func registerWorkOrderServicePublic(app *fiber.App, db *pgxpool.Pool) {
+	wosRepo := repository.NewWorkOrderServiceRepository(db)
+	woRepo := repository.NewWorkOrderRepository(db)
+	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo)
+	wosHandler := handler.NewWorkOrderServiceHandler(itemSvc)
+
+	approval := app.Group("/approvals")
+	approval.Get("/services/:workOrderServiceId/approve", wosHandler.Approve)
+	approval.Get("/services/:workOrderServiceId/reject", wosHandler.Reject)
+	approval.Get("/work-orders/:workOrderId/approve-all", wosHandler.ApproveAll)
+	approval.Get("/work-orders/:workOrderId/reject-all", wosHandler.RejectAll)
 }

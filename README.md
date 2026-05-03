@@ -122,6 +122,21 @@ work_orders ────────┤
 | 409    | Conflito (ex: título duplicado) |
 | 500    | Erro interno |
 
+## JWT para desenvolvimento
+
+Token sem expiração, gerado com o `JWT_SECRET_KEY` padrão do `.env.example` (`jwt-token`), role `admin`:
+
+```
+eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFkbWluIiwgInVzZXIiOiAiZGV2In0.sxWQewGk1XDLzwM4TYXRok7MhtgTy79qEs_nMk5FOr4
+```
+
+Uso:
+
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFkbWluIiwgInVzZXIiOiAiZGV2In0.sxWQewGk1XDLzwM4TYXRok7MhtgTy79qEs_nMk5FOr4" \
+  http://localhost:8080/work-orders
+```
+
 ## Variáveis de ambiente
 
 | Variável             | Descrição              | Valor padrão       |
