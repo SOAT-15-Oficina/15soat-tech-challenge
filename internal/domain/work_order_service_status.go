@@ -14,4 +14,5 @@ type WorkOrderServiceApprovalStatus string
 const (
 	WorkOrderServiceApprovalPending  WorkOrderServiceApprovalStatus = "PENDENTE"
 	WorkOrderServiceApprovalApproved WorkOrderServiceApprovalStatus = "APROVADO"
+	WorkOrderServiceApprovalRejected WorkOrderServiceApprovalStatus = "REPROVADO"
 )
