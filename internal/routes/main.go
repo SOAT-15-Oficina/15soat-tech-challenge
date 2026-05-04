@@ -99,16 +99,22 @@ func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string, em
 	workOrderRepo := repository.NewWorkOrderRepository(db)
 	wosRepo := repository.NewWorkOrderServiceRepository(db)
 	customerRepo := repository.NewCustomerRepository(db)
+	vehicleRepo := repository.NewVehicleRepository(db)
+	wsRepo := repository.NewWorkshopServiceRepository(db)
+	supplyRepo := repository.NewSupplyRepository(db)
 
-	workOrderSvc := service.NewWorkOrderService(workOrderRepo)
+	workOrderSvc := service.NewWorkOrderService(workOrderRepo, vehicleRepo)
 	budgetSvc := service.NewBudgetService(workOrderRepo, wosRepo, customerRepo, emailProv, baseURL)
-	workOrderHandler := handler.NewWorkOrderHandler(workOrderSvc, budgetSvc)
+	creationSvc := service.NewWorkOrderCreationService(workOrderRepo, wosRepo, wsRepo, supplyRepo)
+	workOrderHandler := handler.NewWorkOrderHandler(workOrderSvc, budgetSvc, creationSvc)
 
 	group := app.Group("/work-orders", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
 	group.Post("/", workOrderHandler.Create)
 	group.Get("/", workOrderHandler.GetAll)
 	group.Get("/:id", workOrderHandler.GetByID)
 	group.Put("/:id", workOrderHandler.Update)
+	group.Post("/:id/services", workOrderHandler.AddServices)
+	group.Post("/:id/services/:wosId/supplies", workOrderHandler.AddSupplies)
 }
 
 func registerWorkOrderServicePublic(app *fiber.App, db *pgxpool.Pool) {
