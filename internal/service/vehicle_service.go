@@ -25,6 +25,9 @@ func NewVehicleService(repo repository.VehicleRepository) VehicleService {
 }
 
 func (s *vehicleService) Create(ctx context.Context, vehicle *domain.Vehicle) (*domain.Vehicle, error) {
+	if err := vehicle.Validate(); err != nil {
+		return nil, err
+	}
 	return s.repo.Create(ctx, vehicle)
 }
 
@@ -37,6 +40,9 @@ func (s *vehicleService) GetAll(ctx context.Context) ([]domain.Vehicle, error) {
 }
 
 func (s *vehicleService) Update(ctx context.Context, vehicle *domain.Vehicle) (*domain.Vehicle, error) {
+	if err := vehicle.Validate(); err != nil {
+		return nil, err
+	}
 	return s.repo.Update(ctx, vehicle)
 }
 
