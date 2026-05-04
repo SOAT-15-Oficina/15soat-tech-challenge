@@ -25,6 +25,10 @@ func NewCustomerService(repo repository.CustomerRepository) CustomerService {
 }
 
 func (s *customerService) Create(ctx context.Context, customer *domain.Customer) (*domain.Customer, error) {
+	customer.Normalize()
+	if err := customer.ValidateDocument(); err != nil {
+		return nil, err
+	}
 	return s.repo.Create(ctx, customer)
 }
 
@@ -37,6 +41,10 @@ func (s *customerService) GetAll(ctx context.Context) ([]domain.Customer, error)
 }
 
 func (s *customerService) Update(ctx context.Context, customer *domain.Customer) (*domain.Customer, error) {
+	customer.Normalize()
+	if err := customer.ValidateDocument(); err != nil {
+		return nil, err
+	}
 	return s.repo.Update(ctx, customer)
 }
 

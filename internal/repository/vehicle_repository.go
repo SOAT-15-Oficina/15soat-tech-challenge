@@ -33,10 +33,10 @@ func (r *vehicleRepository) Create(ctx context.Context, vehicle *domain.Vehicle)
 		INSERT INTO vehicles (id, license_plate, customer_id, model, year, brand, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
 		RETURNING id, license_plate, customer_id, model, year, brand, created_at, updated_at`
-	
+
 	var result domain.Vehicle
 	err := r.db.QueryRow(ctx, query, vehicle.ID, vehicle.LicensePlate, vehicle.CustomerID, vehicle.Model, vehicle.Year, vehicle.Brand).
-	Scan(&result.ID, &result.LicensePlate, &result.CustomerID, &result.Model, &result.Year, &result.Brand, &result.CreatedAt, &result.UpdatedAt)
+		Scan(&result.ID, &result.LicensePlate, &result.CustomerID, &result.Model, &result.Year, &result.Brand, &result.CreatedAt, &result.UpdatedAt)
 
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func (r *vehicleRepository) Update(ctx context.Context, vehicle *domain.Vehicle)
 		UPDATE vehicles
 		SET license_plate = $1, customer_id = $2, model = $3, year = $4, brand = $5, updated_at = NOW()
 		WHERE id = $6
-		RETURNING id, license_plate, customer_id, model, year, brand, created_at, updated_at`
+		RETURNING id, license_plate, customer_id, model, year, brand`
 
 	var result domain.Vehicle
 	err := r.db.QueryRow(ctx, query, vehicle.LicensePlate, vehicle.CustomerID, vehicle.Model, vehicle.Year, vehicle.Brand, vehicle.ID).

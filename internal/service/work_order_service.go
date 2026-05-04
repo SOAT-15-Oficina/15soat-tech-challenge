@@ -3,12 +3,16 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 )
+
+var ErrVehicleNotBelongingToCustomer = errors.New("vehicle does not belong to the given customer")
 
 type WorkOrderService interface {
 	Create(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
@@ -18,33 +22,21 @@ type WorkOrderService interface {
 }
 
 type workOrderService struct {
-	repo repository.WorkOrderRepository
+	repo        repository.WorkOrderRepository
+	vehicleRepo repository.VehicleRepository
 }
 
-func NewWorkOrderService(repo repository.WorkOrderRepository) WorkOrderService {
-	return &workOrderService{repo: repo}
+func NewWorkOrderService(repo repository.WorkOrderRepository, vehicleRepo repository.VehicleRepository) WorkOrderService {
+	return &workOrderService{repo: repo, vehicleRepo: vehicleRepo}
+}
+
+func generateWorkOrderCode() string {
+	date := time.Now().Format("20060102")
+	suffix := fmt.Sprintf("%04X", rand.Intn(0x10000))
+	return fmt.Sprintf("OS-%s-%s", date, suffix)
 }
 
 func (s *workOrderService) Create(ctx context.Context, wo *domain.WorkOrder) (*domain.WorkOrder, error) {
-	if wo.ID == uuid.Nil {
-		wo.ID = uuid.New()
-	}
-
-	if wo.Status == "" {
-		wo.Status = domain.WorkOrderStatusReceived
-	}
-
-	now := time.Now()
-	wo.CreatedAt = now
-	wo.UpdatedAt = now
-
-	if wo.ReceivedAt.IsZero() {
-		wo.ReceivedAt = now
-	}
-
-	if wo.Code == "" {
-		return nil, errors.New("code is required")
-	}
 	if wo.Title == "" {
 		return nil, errors.New("title is required")
 	}
@@ -56,6 +48,31 @@ func (s *workOrderService) Create(ctx context.Context, wo *domain.WorkOrder) (*d
 	}
 	if wo.OpenedByUserID == uuid.Nil {
 		return nil, errors.New("opened_by_user_id is required")
+	}
+
+	vehicle, err := s.vehicleRepo.FindByID(ctx, wo.VehicleID)
+	if err != nil {
+		return nil, fmt.Errorf("validate vehicle: %w", err)
+	}
+	if vehicle.CustomerID != wo.CustomerID {
+		return nil, ErrVehicleNotBelongingToCustomer
+	}
+
+	if wo.ID == uuid.Nil {
+		wo.ID = uuid.New()
+	}
+	if wo.Code == "" {
+		wo.Code = generateWorkOrderCode()
+	}
+	if wo.Status == "" {
+		wo.Status = domain.WorkOrderStatusReceived
+	}
+
+	now := time.Now()
+	wo.CreatedAt = now
+	wo.UpdatedAt = now
+	if wo.ReceivedAt.IsZero() {
+		wo.ReceivedAt = now
 	}
 
 	return s.repo.Create(ctx, wo)
