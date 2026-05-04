@@ -71,8 +71,8 @@ func (s *budgetService) GenerateAndSendBudget(ctx context.Context, workOrderID u
 		serviceItems = append(serviceItems, email.BudgetServiceItem{
 			Title:       svc.ServiceTitleSnapshot,
 			Amount:      formatCents(svc.ServicePriceCentsSnapshot),
-			ApproveLink: fmt.Sprintf("%s/approvals/services/%s/approve", s.baseURL, svc.ID),
-			RejectLink:  fmt.Sprintf("%s/approvals/services/%s/reject", s.baseURL, svc.ID),
+			ApproveLink: fmt.Sprintf("%s/public/approvals/services/%s/approve", s.baseURL, svc.ID),
+			RejectLink:  fmt.Sprintf("%s/public/approvals/services/%s/reject", s.baseURL, svc.ID),
 		})
 	}
 
@@ -81,8 +81,8 @@ func (s *budgetService) GenerateAndSendBudget(ctx context.Context, workOrderID u
 		Amount:         formatCents(totalCents),
 		BudgetLink:     fmt.Sprintf("%s/work-orders/%s", s.baseURL, workOrderID),
 		Services:       serviceItems,
-		ApproveAllLink: fmt.Sprintf("%s/approvals/work-orders/%s/approve-all", s.baseURL, workOrderID),
-		RejectAllLink:  fmt.Sprintf("%s/approvals/work-orders/%s/reject-all", s.baseURL, workOrderID),
+		ApproveAllLink: fmt.Sprintf("%s/public/approvals/work-orders/%s/approve-all", s.baseURL, workOrderID),
+		RejectAllLink:  fmt.Sprintf("%s/public/approvals/work-orders/%s/reject-all", s.baseURL, workOrderID),
 	}
 
 	body, err := email.RenderBudgetEmail(data)

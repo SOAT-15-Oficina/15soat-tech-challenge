@@ -21,6 +21,7 @@ func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config, emailP
 	registerVehicle(app, db, cfg.JWT.SecretKey)
 	registerSupply(app, db, cfg.JWT.SecretKey)
 	registerWorkOrderServicePublic(app, db)
+	registerPublicWorkOrder(app, db)
 	registerWorkOrder(app, db, cfg.JWT.SecretKey, emailProv, cfg.Server.BaseURL)
 	registerWorkshopService(app, db, cfg.JWT.SecretKey)
 }
@@ -117,13 +118,24 @@ func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string, em
 	group.Post("/:id/services/:wosId/supplies", workOrderHandler.AddSupplies)
 }
 
+func registerPublicWorkOrder(app *fiber.App, db *pgxpool.Pool) {
+	woRepo := repository.NewWorkOrderRepository(db)
+	customerRepo := repository.NewCustomerRepository(db)
+	wosRepo := repository.NewWorkOrderServiceRepository(db)
+	publicSvc := service.NewPublicWorkOrderService(woRepo, customerRepo, wosRepo)
+	publicHandler := handler.NewPublicWorkOrderHandler(publicSvc)
+
+	public := app.Group("/public/work-orders")
+	public.Get("/:code", publicHandler.GetByCode)
+}
+
 func registerWorkOrderServicePublic(app *fiber.App, db *pgxpool.Pool) {
 	wosRepo := repository.NewWorkOrderServiceRepository(db)
 	woRepo := repository.NewWorkOrderRepository(db)
 	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo)
 	wosHandler := handler.NewWorkOrderServiceHandler(itemSvc)
 
-	approval := app.Group("/approvals")
+	approval := app.Group("/public/approvals")
 	approval.Get("/services/:workOrderServiceId/approve", wosHandler.Approve)
 	approval.Get("/services/:workOrderServiceId/reject", wosHandler.Reject)
 	approval.Get("/work-orders/:workOrderId/approve-all", wosHandler.ApproveAll)
