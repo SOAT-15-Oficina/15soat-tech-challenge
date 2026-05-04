@@ -26,13 +26,17 @@ func NewUserRepository(db *pgxpool.Pool) UserRepository {
 }
 
 func (r *userRepository) Create(ctx context.Context, user *domain.User) (*domain.User, error) {
+	if user.ID == uuid.Nil {
+		user.ID = uuid.New()
+	}
+
 	query := `
-		INSERT INTO users (username, password_hash, role)
-		VALUES ($1, $2, $3)
+		INSERT INTO users (id, username, password_hash, role, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, NOW(), NOW())
 		RETURNING id, username, password_hash, role`
 
 	var result domain.User
-	err := r.db.QueryRow(ctx, query, user.Username, user.PasswordHash, user.Role).
+	err := r.db.QueryRow(ctx, query, user.ID, user.Username, user.PasswordHash, user.Role).
 		Scan(&result.ID, &result.Username, &result.PasswordHash, &result.Role)
 	if err != nil {
 		return nil, err
@@ -87,7 +91,7 @@ func (r *userRepository) FindAll(ctx context.Context) ([]domain.User, error) {
 func (r *userRepository) Update(ctx context.Context, user *domain.User) (*domain.User, error) {
 	query := `
 		UPDATE users
-		SET username = $1, password_hash = $2, role = $3
+		SET username = $1, password_hash = $2, role = $3, updated_at = NOW()
 		WHERE id = $4
 		RETURNING id, username, password_hash, role`
 

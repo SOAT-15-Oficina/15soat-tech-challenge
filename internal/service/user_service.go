@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/auth"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
@@ -43,18 +44,28 @@ func hashPassword(password string) (string, error) {
 }
 
 func verifyPassword(password, encoded string) error {
-	var version int
-	var memory, time uint32
-	var threads uint8
-	var saltB64, hashB64 string
+	parts := strings.Split(encoded, "$")
+	if len(parts) != 6 {
+		return fmt.Errorf("invalid hash format: unexpected number of parts")
+	}
 
-	_, err := fmt.Sscanf(encoded,
-		"$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
-		&version, &memory, &time, &threads, &saltB64, &hashB64,
-	)
-	if err != nil {
+	if parts[1] != "argon2id" {
+		return fmt.Errorf("invalid hash format: unsupported algorithm")
+	}
+
+	var version int
+	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil {
 		return fmt.Errorf("invalid hash format: %w", err)
 	}
+
+	var memory, time uint32
+	var threads uint8
+	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &time, &threads); err != nil {
+		return fmt.Errorf("invalid hash format: %w", err)
+	}
+
+	saltB64 := parts[4]
+	hashB64 := parts[5]
 
 	salt, err := base64.RawStdEncoding.DecodeString(saltB64)
 	if err != nil {
