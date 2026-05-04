@@ -26,7 +26,7 @@ func (h *CustomerHandler) Create(c fiber.Ctx) error {
 
 	result, err := h.svc.Create(c.Context(), &customer)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return h.handleServiceError(c, err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(result)
@@ -76,13 +76,27 @@ func (h *CustomerHandler) Update(c fiber.Ctx) error {
 
 	result, err := h.svc.Update(c.Context(), &customer)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "customer not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return h.handleServiceError(c, err)
 	}
 
 	return c.JSON(result)
+}
+
+func (h *CustomerHandler) handleServiceError(c fiber.Ctx, err error) error {
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "customer not found"})
+	case errors.Is(err, domain.ErrCustomerNameRequired),
+		errors.Is(err, domain.ErrCustomerEmailRequired),
+		errors.Is(err, domain.ErrCustomerInvalidDocumentType),
+		errors.Is(err, domain.ErrCustomerInvalidCPFFormat),
+		errors.Is(err, domain.ErrCustomerInvalidCPFChecksum),
+		errors.Is(err, domain.ErrCustomerInvalidCNPJFormat),
+		errors.Is(err, domain.ErrCustomerInvalidCNPJChecksum):
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	default:
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
 }
 
 func (h *CustomerHandler) Delete(c fiber.Ctx) error {
