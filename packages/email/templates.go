@@ -12,10 +12,20 @@ var templatesFS embed.FS
 
 var templates = template.Must(template.ParseFS(templatesFS, "templates/*.html"))
 
+type BudgetServiceItem struct {
+	Title       string
+	Amount      string
+	ApproveLink string
+	RejectLink  string
+}
+
 type BudgetEmailData struct {
-	CustomerName string
-	Amount       string
-	BudgetLink   string
+	CustomerName   string
+	Amount         string
+	BudgetLink     string
+	Services       []BudgetServiceItem
+	ApproveAllLink string
+	RejectAllLink  string
 }
 
 func RenderBudgetEmail(data BudgetEmailData) (string, error) {
