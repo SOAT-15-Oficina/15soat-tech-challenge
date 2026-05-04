@@ -8,6 +8,16 @@ import (
 	"github.com/google/uuid"
 )
 
+var (
+	ErrCustomerNameRequired        = errors.New("name is required")
+	ErrCustomerEmailRequired       = errors.New("email is required")
+	ErrCustomerInvalidDocumentType = errors.New("invalid document type")
+	ErrCustomerInvalidCPFFormat    = errors.New("invalid CPF format")
+	ErrCustomerInvalidCPFChecksum  = errors.New("invalid CPF checksum")
+	ErrCustomerInvalidCNPJFormat   = errors.New("invalid CNPJ format")
+	ErrCustomerInvalidCNPJChecksum = errors.New("invalid CNPJ checksum")
+)
+
 type CustomerDocumentType string
 
 const (
@@ -23,13 +33,18 @@ type Customer struct {
 	DocumentType CustomerDocumentType `json:"document_type"`
 }
 
-// TODO: Talvez criar um DTO e validar isso na camada de handler, mas por enquanto deixo aqui para manter a simplicidade
+func (c *Customer) Normalize() {
+	c.Name = strings.TrimSpace(c.Name)
+	c.Email = strings.TrimSpace(c.Email)
+	c.Document = strings.Join(onlyNumbers.FindAllString(c.Document, -1), "")
+}
+
 func (c *Customer) ValidateDocument() error {
 	if c.Name == "" {
-		return errors.New("name is required")
+		return ErrCustomerNameRequired
 	}
 	if c.Email == "" {
-		return errors.New("email is required")
+		return ErrCustomerEmailRequired
 	}
 
 	switch c.DocumentType {
@@ -38,7 +53,7 @@ func (c *Customer) ValidateDocument() error {
 	case DocumentTypeCNPJ:
 		return validateCNPJ(c.Document)
 	default:
-		return errors.New("invalid document type")
+		return ErrCustomerInvalidDocumentType
 	}
 }
 
@@ -48,11 +63,11 @@ func validateCPF(doc string) error {
 	digits := strings.Join(onlyNumbers.FindAllString(doc, -1), "")
 
 	if len(digits) != 11 {
-		return errors.New("invalid CPF format")
+		return ErrCustomerInvalidCPFFormat
 	}
 
 	if !isValidCPFChecksum(digits) {
-		return errors.New("invalid CPF checksum")
+		return ErrCustomerInvalidCPFChecksum
 	}
 	return nil
 }
@@ -61,11 +76,11 @@ func validateCNPJ(doc string) error {
 	digits := strings.Join(onlyNumbers.FindAllString(doc, -1), "")
 
 	if len(digits) != 14 {
-		return errors.New("invalid CNPJ format")
+		return ErrCustomerInvalidCNPJFormat
 	}
 
 	if !isValidCNPJChecksum(digits) {
-		return errors.New("invalid CNPJ checksum")
+		return ErrCustomerInvalidCNPJChecksum
 	}
 	return nil
 }
