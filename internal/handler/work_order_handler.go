@@ -11,12 +11,23 @@ import (
 )
 
 type WorkOrderHandler struct {
-	svc       service.WorkOrderService
-	budgetSvc service.BudgetService
+	svc         service.WorkOrderService
+	budgetSvc   service.BudgetService
+	creationSvc service.WorkOrderCreationService
 }
 
-func NewWorkOrderHandler(svc service.WorkOrderService, budgetSvc service.BudgetService) *WorkOrderHandler {
-	return &WorkOrderHandler{svc: svc, budgetSvc: budgetSvc}
+func NewWorkOrderHandler(svc service.WorkOrderService, budgetSvc service.BudgetService, creationSvc service.WorkOrderCreationService) *WorkOrderHandler {
+	return &WorkOrderHandler{svc: svc, budgetSvc: budgetSvc, creationSvc: creationSvc}
+}
+
+type addServiceRequest struct {
+	ServiceID            uuid.UUID `json:"service_id"`
+	EstimatedTimeMinutes *int      `json:"estimated_time_minutes,omitempty"`
+}
+
+type addSupplyRequest struct {
+	SupplyID uuid.UUID `json:"supply_id"`
+	Quantity int       `json:"quantity"`
 }
 
 func (h *WorkOrderHandler) Create(c fiber.Ctx) error {
@@ -90,4 +101,78 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 	}
 
 	return c.JSON(result)
+}
+
+func (h *WorkOrderHandler) AddServices(c fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid work order id"})
+	}
+
+	var reqs []addServiceRequest
+	if err := c.Bind().JSON(&reqs); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	items := make([]service.AddWorkOrderServiceInput, len(reqs))
+	for i, r := range reqs {
+		items[i] = service.AddWorkOrderServiceInput{
+			ServiceID:            r.ServiceID,
+			EstimatedTimeMinutes: r.EstimatedTimeMinutes,
+		}
+	}
+
+	result, err := h.creationSvc.AddServices(c.Context(), id, items)
+	if err != nil {
+		if errors.Is(err, service.ErrWorkOrderInvalidStatusForItems) {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
+		}
+		if errors.Is(err, service.ErrWorkshopServiceInactive) {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
+		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "resource not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(result)
+}
+
+func (h *WorkOrderHandler) AddSupplies(c fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid work order id"})
+	}
+
+	wosID, err := uuid.Parse(c.Params("wosId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid work order service id"})
+	}
+
+	var reqs []addSupplyRequest
+	if err := c.Bind().JSON(&reqs); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	items := make([]service.AddWorkOrderSupplyInput, len(reqs))
+	for i, r := range reqs {
+		items[i] = service.AddWorkOrderSupplyInput{
+			SupplyID: r.SupplyID,
+			Quantity: r.Quantity,
+		}
+	}
+
+	result, err := h.creationSvc.AddSupplies(c.Context(), id, wosID, items)
+	if err != nil {
+		if errors.Is(err, service.ErrWorkOrderServiceOwnership) {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
+		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "resource not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(result)
 }

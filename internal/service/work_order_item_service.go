@@ -108,7 +108,7 @@ func (s *workOrderItemService) evaluateWorkOrderCompletion(ctx context.Context, 
 		now := time.Now()
 		wo.ApprovedAt = &now
 	} else {
-		wo.Status = domain.WorkOrderStatusFinished
+		wo.Status = domain.WorkOrderStatusCanceled
 	}
 
 	approvedTotal, err := s.wosRepo.CalculateApprovedTotalForWorkOrder(ctx, workOrderID)
