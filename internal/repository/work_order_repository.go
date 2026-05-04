@@ -12,6 +12,7 @@ import (
 type WorkOrderRepository interface {
 	Create(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrder, error)
+	FindByCode(ctx context.Context, code string) (*domain.WorkOrder, error)
 	FindAll(ctx context.Context) ([]domain.WorkOrder, error)
 	Update(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
 }
@@ -79,6 +80,29 @@ func (r *workOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*doma
 
 	var result domain.WorkOrder
 	err := r.db.QueryRow(ctx, query, id).
+		Scan(
+			&result.ID, &result.Code, &result.Title, &result.Description, &result.CustomerID, &result.VehicleID, &result.OpenedByUserID,
+			&result.AssignedTechnicianID, &result.Status, &result.TotalEstimatedPriceCents, &result.ReceivedAt,
+			&result.QuoteSentAt, &result.ApprovedAt, &result.StartedAt, &result.FinishedAt, &result.DeliveredAt,
+			&result.CreatedAt, &result.UpdatedAt,
+		)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (r *workOrderRepository) FindByCode(ctx context.Context, code string) (*domain.WorkOrder, error) {
+	query := `
+		SELECT
+			id, code, title, description, customer_id, vehicle_id, opened_by_user_id,
+			assigned_technician_id, status, total_estimated_price_cents, received_at,
+			quote_sent_at, approved_at, started_at, finished_at, delivered_at,
+			created_at, updated_at
+		FROM work_orders WHERE code = $1`
+
+	var result domain.WorkOrder
+	err := r.db.QueryRow(ctx, query, code).
 		Scan(
 			&result.ID, &result.Code, &result.Title, &result.Description, &result.CustomerID, &result.VehicleID, &result.OpenedByUserID,
 			&result.AssignedTechnicianID, &result.Status, &result.TotalEstimatedPriceCents, &result.ReceivedAt,

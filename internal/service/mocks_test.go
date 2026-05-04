@@ -29,6 +29,14 @@ func (m *mockWorkOrderRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain
 	return args.Get(0).(*domain.WorkOrder), args.Error(1)
 }
 
+func (m *mockWorkOrderRepo) FindByCode(ctx context.Context, code string) (*domain.WorkOrder, error) {
+	args := m.Called(ctx, code)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.WorkOrder), args.Error(1)
+}
+
 func (m *mockWorkOrderRepo) FindAll(ctx context.Context) ([]domain.WorkOrder, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {

@@ -21,6 +21,7 @@ func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config, emailP
 	registerVehicle(app, db, cfg.JWT.SecretKey)
 	registerSupply(app, db, cfg.JWT.SecretKey)
 	registerWorkOrderServicePublic(app, db)
+	registerPublicWorkOrder(app, db)
 	registerWorkOrder(app, db, cfg.JWT.SecretKey, emailProv, cfg.Server.BaseURL)
 	registerWorkshopService(app, db, cfg.JWT.SecretKey)
 }
@@ -115,6 +116,17 @@ func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string, em
 	group.Put("/:id", workOrderHandler.Update)
 	group.Post("/:id/services", workOrderHandler.AddServices)
 	group.Post("/:id/services/:wosId/supplies", workOrderHandler.AddSupplies)
+}
+
+func registerPublicWorkOrder(app *fiber.App, db *pgxpool.Pool) {
+	woRepo := repository.NewWorkOrderRepository(db)
+	customerRepo := repository.NewCustomerRepository(db)
+	wosRepo := repository.NewWorkOrderServiceRepository(db)
+	publicSvc := service.NewPublicWorkOrderService(woRepo, customerRepo, wosRepo)
+	publicHandler := handler.NewPublicWorkOrderHandler(publicSvc)
+
+	public := app.Group("/public/work-orders")
+	public.Get("/:code", publicHandler.GetByCode)
 }
 
 func registerWorkOrderServicePublic(app *fiber.App, db *pgxpool.Pool) {
