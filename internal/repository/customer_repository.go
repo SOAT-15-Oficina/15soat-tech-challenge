@@ -25,14 +25,18 @@ func NewCustomerRepository(db *pgxpool.Pool) CustomerRepository {
 }
 
 func (r *customerRepository) Create(ctx context.Context, customer *domain.Customer) (*domain.Customer, error) {
+	if customer.ID == uuid.Nil {
+		customer.ID = uuid.New()
+	}
+
 	query := `
-		INSERT INTO customers (name, email, document, document_type)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, name, email, document, document_type`
+		INSERT INTO customers (id, name, email, document, document_type, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+		RETURNING id, name, email, document, document_type, created_at, updated_at`
 
 	var result domain.Customer
-	err := r.db.QueryRow(ctx, query, customer.Name, customer.Email, customer.Document, customer.DocumentType).
-		Scan(&result.ID, &result.Name, &result.Email, &result.Document, &result.DocumentType)
+	err := r.db.QueryRow(ctx, query, customer.ID, customer.Name, customer.Email, customer.Document, customer.DocumentType).
+		Scan(&result.ID, &result.Name, &result.Email, &result.Document, &result.DocumentType, &result.CreatedAt, &result.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -74,13 +78,13 @@ func (r *customerRepository) FindAll(ctx context.Context) ([]domain.Customer, er
 func (r *customerRepository) Update(ctx context.Context, customer *domain.Customer) (*domain.Customer, error) {
 	query := `
 		UPDATE customers
-		SET name = $1, email = $2, document = $3, document_type = $4
+		SET name = $1, email = $2, document = $3, document_type = $4, updated_at = NOW()
 		WHERE id = $5
-		RETURNING id, name, email, document, document_type`
+		RETURNING id, name, email, document, document_type, created_at, updated_at`
 
 	var result domain.Customer
 	err := r.db.QueryRow(ctx, query, customer.Name, customer.Email, customer.Document, customer.DocumentType, customer.ID).
-		Scan(&result.ID, &result.Name, &result.Email, &result.Document, &result.DocumentType)
+		Scan(&result.ID, &result.Name, &result.Email, &result.Document, &result.DocumentType, &result.CreatedAt, &result.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

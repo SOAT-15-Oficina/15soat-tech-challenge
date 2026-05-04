@@ -41,6 +41,9 @@ func (r *workOrderRepository) Create(ctx context.Context, wo *domain.WorkOrder) 
 			quote_sent_at, approved_at, started_at, finished_at, delivered_at, 
 			created_at, updated_at`
 
+	if wo.ID == uuid.Nil {
+		wo.ID = uuid.New()
+	}
 	now := time.Now()
 	if wo.CreatedAt.IsZero() {
 		wo.CreatedAt = now

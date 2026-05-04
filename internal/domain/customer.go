@@ -4,6 +4,7 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -21,6 +22,8 @@ type Customer struct {
 	Email        string               `json:"email"`
 	Document     string               `json:"document"`
 	DocumentType CustomerDocumentType `json:"document_type"`
+	CreatedAt    time.Time            `json:"created_at"`
+	UpdatedAt    time.Time            `json:"updated_at"`
 }
 
 // TODO: Talvez criar um DTO e validar isso na camada de handler, mas por enquanto deixo aqui para manter a simplicidade
