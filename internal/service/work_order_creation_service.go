@@ -29,6 +29,7 @@ type AddWorkOrderSupplyInput struct {
 type WorkOrderCreationService interface {
 	AddServices(ctx context.Context, workOrderID uuid.UUID, items []AddWorkOrderServiceInput) ([]domain.WorkOrderService, error)
 	AddSupplies(ctx context.Context, workOrderID, wosID uuid.UUID, items []AddWorkOrderSupplyInput) ([]domain.WorkOrderServiceSupply, error)
+	RemoveService(ctx context.Context, workOrderID, wosID uuid.UUID) error
 }
 
 type workOrderCreationService struct {
@@ -94,11 +95,46 @@ func (s *workOrderCreationService) AddServices(ctx context.Context, workOrderID 
 		return nil, fmt.Errorf("add services: create batch: %w", err)
 	}
 
+	if wo.Status == domain.WorkOrderStatusReceived {
+		wo.Status = domain.WorkOrderStatusInDiagnosis
+		if _, err := s.woRepo.Update(ctx, wo); err != nil {
+			return nil, fmt.Errorf("add services: update work order status: %w", err)
+		}
+	}
+
 	result := make([]domain.WorkOrderService, len(created))
 	for i, item := range created {
 		result[i] = *item
 	}
 	return result, nil
+}
+
+func (s *workOrderCreationService) RemoveService(ctx context.Context, workOrderID, wosID uuid.UUID) error {
+	wos, err := s.wosRepo.FindByID(ctx, wosID)
+	if err != nil {
+		return fmt.Errorf("remove service: find: %w", err)
+	}
+
+	if wos.WorkOrderID != workOrderID {
+		return ErrWorkOrderServiceOwnership
+	}
+
+	wo, err := s.woRepo.FindByID(ctx, workOrderID)
+	if err != nil {
+		return fmt.Errorf("remove service: find work order: %w", err)
+	}
+
+	if wo.Status == domain.WorkOrderStatusFinished ||
+		wo.Status == domain.WorkOrderStatusDelivered ||
+		wo.Status == domain.WorkOrderStatusCanceled {
+		return ErrWorkOrderInvalidStatusForItems
+	}
+
+	if err := s.wosRepo.DeleteByID(ctx, wosID); err != nil {
+		return fmt.Errorf("remove service: delete: %w", err)
+	}
+
+	return nil
 }
 
 func (s *workOrderCreationService) AddSupplies(ctx context.Context, workOrderID, wosID uuid.UUID, items []AddWorkOrderSupplyInput) ([]domain.WorkOrderServiceSupply, error) {

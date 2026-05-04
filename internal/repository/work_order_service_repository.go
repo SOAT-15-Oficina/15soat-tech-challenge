@@ -7,6 +7,7 @@ import (
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -15,6 +16,7 @@ type WorkOrderServiceRepository interface {
 	CreateBatch(ctx context.Context, items []*domain.WorkOrderService) ([]*domain.WorkOrderService, error)
 	CreateSupply(ctx context.Context, supply *domain.WorkOrderServiceSupply) (*domain.WorkOrderServiceSupply, error)
 	CreateSupplyBatch(ctx context.Context, items []*domain.WorkOrderServiceSupply) ([]*domain.WorkOrderServiceSupply, error)
+	DeleteByID(ctx context.Context, id uuid.UUID) error
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrderService, error)
 	FindByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) ([]domain.WorkOrderService, error)
 	UpdateApprovalStatus(ctx context.Context, id uuid.UUID, status domain.WorkOrderServiceApprovalStatus) error
@@ -122,6 +124,17 @@ func (r *workOrderServiceRepository) CalculateApprovedTotalForWorkOrder(ctx cont
 	var total int
 	err := r.db.QueryRow(ctx, query, workOrderID).Scan(&total)
 	return total, err
+}
+
+func (r *workOrderServiceRepository) DeleteByID(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.db.Exec(ctx, `DELETE FROM work_order_services WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }
 
 func (r *workOrderServiceRepository) Create(ctx context.Context, wos *domain.WorkOrderService) (*domain.WorkOrderService, error) {

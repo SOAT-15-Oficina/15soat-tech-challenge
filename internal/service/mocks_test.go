@@ -116,6 +116,10 @@ func (m *mockWorkOrderServiceRepo) CreateSupplyBatch(ctx context.Context, items 
 	return args.Get(0).([]*domain.WorkOrderServiceSupply), args.Error(1)
 }
 
+func (m *mockWorkOrderServiceRepo) DeleteByID(ctx context.Context, id uuid.UUID) error {
+	return m.Called(ctx, id).Error(0)
+}
+
 // mockVehicleRepo mocks repository.VehicleRepository
 type mockVehicleRepo struct {
 	mock.Mock
