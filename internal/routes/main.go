@@ -115,6 +115,7 @@ func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string, em
 	group.Get("/:id", workOrderHandler.GetByID)
 	group.Put("/:id", workOrderHandler.Update)
 	group.Post("/:id/services", workOrderHandler.AddServices)
+	group.Delete("/:id/services/:wosId", workOrderHandler.RemoveService)
 	group.Post("/:id/services/:wosId/supplies", workOrderHandler.AddSupplies)
 }
 

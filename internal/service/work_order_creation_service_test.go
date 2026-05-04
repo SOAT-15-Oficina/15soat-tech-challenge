@@ -7,6 +7,7 @@ import (
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -76,6 +77,7 @@ func TestAddServices_ValidInput_CreatesItems(t *testing.T) {
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	wsRepo.On("FindByID", ctx, wsID).Return(ws, nil)
 	wosRepo.On("CreateBatch", ctx, mock.AnythingOfType("[]*domain.WorkOrderService")).Return(created, nil)
+	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	items := []AddWorkOrderServiceInput{{ServiceID: wsID}}
 	result, err := svc.AddServices(ctx, woID, items)
@@ -232,4 +234,143 @@ func TestAddSupplies_WosNotBelongingToWorkOrder_ReturnsError(t *testing.T) {
 	assert.ErrorIs(t, err, ErrWorkOrderServiceOwnership)
 	assert.Nil(t, result)
 	wosRepo.AssertNotCalled(t, "CreateSupplyBatch")
+}
+
+func TestAddServices_WorkOrderRecebida_TransitionsToEmDiagnostico(t *testing.T) {
+	// when WO is RECEBIDA and first service is added, status must become EM_DIAGNOSTICO
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wsID := uuid.New()
+	wo := openWO(woID, domain.WorkOrderStatusReceived)
+	ws := activeWorkshopService(wsID)
+
+	created := []*domain.WorkOrderService{
+		{ID: uuid.New(), WorkOrderID: woID, ServiceID: wsID},
+	}
+
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	wsRepo.On("FindByID", ctx, wsID).Return(ws, nil)
+	wosRepo.On("CreateBatch", ctx, mock.AnythingOfType("[]*domain.WorkOrderService")).Return(created, nil)
+	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+
+	_, err := svc.AddServices(ctx, woID, []AddWorkOrderServiceInput{{ServiceID: wsID}})
+	assert.NoError(t, err)
+
+	call := woRepo.Calls[len(woRepo.Calls)-1]
+	updated := call.Arguments[1].(*domain.WorkOrder)
+	assert.Equal(t, domain.WorkOrderStatusInDiagnosis, updated.Status)
+}
+
+func TestAddServices_WorkOrderEmDiagnostico_DoesNotChangeStatus(t *testing.T) {
+	// when WO is already EM_DIAGNOSTICO, status must not change after adding service
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wsID := uuid.New()
+	wo := openWO(woID, domain.WorkOrderStatusInDiagnosis)
+	ws := activeWorkshopService(wsID)
+
+	created := []*domain.WorkOrderService{
+		{ID: uuid.New(), WorkOrderID: woID, ServiceID: wsID},
+	}
+
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	wsRepo.On("FindByID", ctx, wsID).Return(ws, nil)
+	wosRepo.On("CreateBatch", ctx, mock.AnythingOfType("[]*domain.WorkOrderService")).Return(created, nil)
+
+	_, err := svc.AddServices(ctx, woID, []AddWorkOrderServiceInput{{ServiceID: wsID}})
+	assert.NoError(t, err)
+	woRepo.AssertNotCalled(t, "Update")
+}
+
+func TestRemoveService_Valid_DeletesCalled(t *testing.T) {
+	// happy path: valid ownership and non-final WO status triggers DeleteByID
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wosID := uuid.New()
+	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: woID}
+	wo := openWO(woID, domain.WorkOrderStatusInDiagnosis)
+
+	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	wosRepo.On("DeleteByID", ctx, wosID).Return(nil)
+
+	err := svc.RemoveService(ctx, woID, wosID)
+	assert.NoError(t, err)
+	wosRepo.AssertCalled(t, "DeleteByID", ctx, wosID)
+}
+
+func TestRemoveService_WosNotFound_ReturnsNotFoundError(t *testing.T) {
+	// when wosID does not exist, must propagate pgx.ErrNoRows
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	ctx := context.Background()
+
+	wosID := uuid.New()
+	wosRepo.On("FindByID", ctx, wosID).Return(nil, pgx.ErrNoRows)
+
+	err := svc.RemoveService(ctx, uuid.New(), wosID)
+	assert.ErrorIs(t, err, pgx.ErrNoRows)
+	wosRepo.AssertNotCalled(t, "DeleteByID")
+}
+
+func TestRemoveService_WosWrongWorkOrder_ReturnsOwnershipError(t *testing.T) {
+	// wosID exists but belongs to a different work order
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wosID := uuid.New()
+	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: uuid.New()}
+	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+
+	err := svc.RemoveService(ctx, woID, wosID)
+	assert.ErrorIs(t, err, ErrWorkOrderServiceOwnership)
+	wosRepo.AssertNotCalled(t, "DeleteByID")
+}
+
+func TestRemoveService_WorkOrderFinalStatus_ReturnsInvalidStatusError(t *testing.T) {
+	// must reject removal when WO is in a final status
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wosID := uuid.New()
+	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: woID}
+	wo := openWO(woID, domain.WorkOrderStatusFinished)
+
+	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+
+	err := svc.RemoveService(ctx, woID, wosID)
+	assert.ErrorIs(t, err, ErrWorkOrderInvalidStatusForItems)
+	wosRepo.AssertNotCalled(t, "DeleteByID")
 }
