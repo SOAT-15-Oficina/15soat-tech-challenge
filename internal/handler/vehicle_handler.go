@@ -26,6 +26,10 @@ func (h *VehicleHandler) Create(c fiber.Ctx) error {
 
 	result, err := h.svc.Create(c.Context(), &vehicle)
 	if err != nil {
+		var valErr *domain.VehicleValidationError
+		if errors.As(err, &valErr) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -76,6 +80,10 @@ func (h *VehicleHandler) Update(c fiber.Ctx) error {
 
 	result, err := h.svc.Update(c.Context(), &vehicle)
 	if err != nil {
+		var valErr *domain.VehicleValidationError
+		if errors.As(err, &valErr) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
 		if errors.Is(err, pgx.ErrNoRows) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "vehicle not found"})
 		}

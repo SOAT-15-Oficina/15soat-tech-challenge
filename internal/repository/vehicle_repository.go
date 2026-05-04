@@ -76,7 +76,7 @@ func (r *vehicleRepository) Update(ctx context.Context, vehicle *domain.Vehicle)
 	query := `
 		UPDATE vehicles
 		SET license_plate = $1, customer_id = $2, model = $3, year = $4, brand = $5
-		WHERE id = $4
+		WHERE id = $6
 		RETURNING id, license_plate, customer_id, model, year, brand`
 
 	var result domain.Vehicle
