@@ -75,23 +75,44 @@ func (r *workOrderRepository) Create(ctx context.Context, wo *domain.WorkOrder) 
 func (r *workOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrder, error) {
 	query := `
 		SELECT 
-			id, code, title, description, customer_id, vehicle_id, opened_by_user_id, 
-			assigned_technician_id, status, total_estimated_price_cents, received_at, 
-			quote_sent_at, approved_at, started_at, finished_at, delivered_at, 
-			created_at, updated_at
-		FROM work_orders WHERE id = $1`
+			wo.id, wo.code, wo.title, wo.description, wo.customer_id, wo.vehicle_id, wo.opened_by_user_id, 
+			wo.assigned_technician_id, wo.status, wo.total_estimated_price_cents, wo.received_at, 
+			wo.quote_sent_at, wo.approved_at, wo.started_at, wo.finished_at, wo.delivered_at, 
+			wo.created_at, wo.updated_at,
+			c.id, c.name, c.document,
+			v.id, v.license_plate, v.brand, v.model, v.year
+		FROM work_orders wo
+		JOIN customers c ON wo.customer_id = c.id
+		JOIN vehicles v ON wo.vehicle_id = v.id
+		WHERE wo.id = $1`
 
 	var result domain.WorkOrder
+	var customer domain.WorkOrderCustomer
+	var vehicle domain.WorkOrderVehicle
+	var customerID, vehicleID uuid.UUID
+
 	err := r.db.QueryRow(ctx, query, id).
 		Scan(
-			&result.ID, &result.Code, &result.Title, &result.Description, &result.CustomerID, &result.VehicleID, &result.OpenedByUserID,
+			&result.ID, &result.Code, &result.Title, &result.Description, &customerID, &vehicleID, &result.OpenedByUserID,
 			&result.AssignedTechnicianID, &result.Status, &result.TotalEstimatedPriceCents, &result.ReceivedAt,
 			&result.QuoteSentAt, &result.ApprovedAt, &result.StartedAt, &result.FinishedAt, &result.DeliveredAt,
 			&result.CreatedAt, &result.UpdatedAt,
+			&customer.ID, &customer.Name, &customer.Document,
+			&vehicle.ID, &vehicle.LicensePlate, &vehicle.Brand, &vehicle.Model, &vehicle.Year,
 		)
 	if err != nil {
 		return nil, err
 	}
+
+	result.Customer = &customer
+	result.Vehicle = &vehicle
+
+	services, err := r.fetchServicesForWorkOrder(ctx, result.ID)
+	if err != nil {
+		return nil, err
+	}
+	result.Services = services
+
 	return &result, nil
 }
 
@@ -184,4 +205,75 @@ func (r *workOrderRepository) Update(ctx context.Context, wo *domain.WorkOrder) 
 		return nil, err
 	}
 	return &result, nil
+}
+
+func (r *workOrderRepository) fetchServicesForWorkOrder(ctx context.Context, workOrderID uuid.UUID) ([]domain.WorkOrderServiceWithSupplies, error) {
+	query := `SELECT id, service_title_snapshot, service_price_cents_snapshot, status, approval_status FROM work_order_services WHERE work_order_id = $1`
+	rows, err := r.db.Query(ctx, query, workOrderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var services []domain.WorkOrderServiceWithSupplies
+	for rows.Next() {
+		var svc domain.WorkOrderServiceWithSupplies
+		svc.Quantity = 1
+		if err := rows.Scan(&svc.ID, &svc.Description, &svc.ServicePriceCentsSnapshot, &svc.Status, &svc.ApprovalStatus); err != nil {
+			return nil, err
+		}
+
+		supplies, err := r.fetchSuppliesForService(ctx, svc.ID)
+		if err != nil {
+			return nil, err
+		}
+		svc.Supplies = supplies
+
+		history, err := r.fetchHistoryForService(ctx, svc.ID)
+		if err != nil {
+			return nil, err
+		}
+		svc.History = history
+
+		services = append(services, svc)
+	}
+	return services, nil
+}
+
+func (r *workOrderRepository) fetchSuppliesForService(ctx context.Context, serviceID uuid.UUID) ([]domain.WorkOrderServiceSupplyResponse, error) {
+	query := `SELECT id, supply_title_snapshot, supply_price_cents_snapshot, supply_quantity FROM work_order_service_supplies WHERE work_order_service_id = $1`
+	rows, err := r.db.Query(ctx, query, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var supplies []domain.WorkOrderServiceSupplyResponse
+	for rows.Next() {
+		var sup domain.WorkOrderServiceSupplyResponse
+		if err := rows.Scan(&sup.ID, &sup.Description, &sup.SupplyPriceCentsSnapshot, &sup.SupplyQuantity); err != nil {
+			return nil, err
+		}
+		supplies = append(supplies, sup)
+	}
+	return supplies, nil
+}
+
+func (r *workOrderRepository) fetchHistoryForService(ctx context.Context, serviceID uuid.UUID) ([]domain.WorkOrderServiceHistoryResponse, error) {
+	query := `SELECT status, note, changed_by_user_id, changed_at FROM work_order_service_status_history WHERE work_order_service_id = $1 ORDER BY changed_at DESC`
+	rows, err := r.db.Query(ctx, query, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var history []domain.WorkOrderServiceHistoryResponse
+	for rows.Next() {
+		var entry domain.WorkOrderServiceHistoryResponse
+		if err := rows.Scan(&entry.Status, &entry.Note, &entry.ChangedByUserID, &entry.ChangedAt); err != nil {
+			return nil, err
+		}
+		history = append(history, entry)
+	}
+	return history, nil
 }
