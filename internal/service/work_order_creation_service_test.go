@@ -310,10 +310,12 @@ func TestRemoveService_Valid_DeletesCalled(t *testing.T) {
 
 	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	wosRepo.On("DeleteSuppliesByWorkOrderServiceID", ctx, wosID).Return(nil)
 	wosRepo.On("DeleteByID", ctx, wosID).Return(nil)
 
 	err := svc.RemoveService(ctx, woID, wosID)
 	assert.NoError(t, err)
+	wosRepo.AssertCalled(t, "DeleteSuppliesByWorkOrderServiceID", ctx, wosID)
 	wosRepo.AssertCalled(t, "DeleteByID", ctx, wosID)
 }
 
@@ -373,4 +375,66 @@ func TestRemoveService_WorkOrderFinalStatus_ReturnsInvalidStatusError(t *testing
 	err := svc.RemoveService(ctx, woID, wosID)
 	assert.ErrorIs(t, err, ErrWorkOrderInvalidStatusForItems)
 	wosRepo.AssertNotCalled(t, "DeleteByID")
+}
+
+func TestRemoveSupplyFromService_Valid_DeletesRow(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wosID := uuid.New()
+	supplyID := uuid.New()
+	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: woID}
+	wo := openWO(woID, domain.WorkOrderStatusInDiagnosis)
+
+	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	wosRepo.On("DeleteSupplyForWorkOrderService", ctx, wosID, supplyID).Return(nil)
+
+	err := svc.RemoveSupplyFromService(ctx, woID, wosID, supplyID)
+	assert.NoError(t, err)
+	wosRepo.AssertCalled(t, "DeleteSupplyForWorkOrderService", ctx, wosID, supplyID)
+}
+
+func TestRemoveSupplyFromService_WosWrongWorkOrder_ReturnsOwnershipError(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wosID := uuid.New()
+	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: uuid.New()}
+	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+
+	err := svc.RemoveSupplyFromService(ctx, woID, wosID, uuid.New())
+	assert.ErrorIs(t, err, ErrWorkOrderServiceOwnership)
+	wosRepo.AssertNotCalled(t, "DeleteSupplyForWorkOrderService")
+}
+
+func TestRemoveSupplyFromService_WorkOrderFinalStatus_ReturnsInvalidStatusError(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wosID := uuid.New()
+	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: woID}
+	wo := openWO(woID, domain.WorkOrderStatusDelivered)
+
+	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+
+	err := svc.RemoveSupplyFromService(ctx, woID, wosID, uuid.New())
+	assert.ErrorIs(t, err, ErrWorkOrderInvalidStatusForItems)
+	wosRepo.AssertNotCalled(t, "DeleteSupplyForWorkOrderService")
 }

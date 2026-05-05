@@ -124,6 +124,14 @@ func (m *mockWorkOrderServiceRepo) CreateSupplyBatch(ctx context.Context, items 
 	return args.Get(0).([]*domain.WorkOrderServiceSupply), args.Error(1)
 }
 
+func (m *mockWorkOrderServiceRepo) DeleteSuppliesByWorkOrderServiceID(ctx context.Context, workOrderServiceID uuid.UUID) error {
+	return m.Called(ctx, workOrderServiceID).Error(0)
+}
+
+func (m *mockWorkOrderServiceRepo) DeleteSupplyForWorkOrderService(ctx context.Context, workOrderServiceID, supplyID uuid.UUID) error {
+	return m.Called(ctx, workOrderServiceID, supplyID).Error(0)
+}
+
 func (m *mockWorkOrderServiceRepo) DeleteByID(ctx context.Context, id uuid.UUID) error {
 	return m.Called(ctx, id).Error(0)
 }

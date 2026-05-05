@@ -203,3 +203,35 @@ func (h *WorkOrderHandler) AddSupplies(c fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(result)
 }
+
+func (h *WorkOrderHandler) RemoveSupplyFromService(c fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid work order id"})
+	}
+
+	wosID, err := uuid.Parse(c.Params("wosId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid work order service id"})
+	}
+
+	supplyID, err := uuid.Parse(c.Params("supplyId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid supply id"})
+	}
+
+	if err := h.creationSvc.RemoveSupplyFromService(c.Context(), id, wosID, supplyID); err != nil {
+		if errors.Is(err, service.ErrWorkOrderServiceOwnership) {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
+		}
+		if errors.Is(err, service.ErrWorkOrderInvalidStatusForItems) {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
+		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "resource not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
