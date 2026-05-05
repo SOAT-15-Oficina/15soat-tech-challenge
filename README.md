@@ -25,11 +25,21 @@ A API fica disponível em `http://localhost:8080`.
 
 O banco de dados PostgreSQL é inicializado automaticamente com o schema (via `initdb.d` e goose no boot da API) e dados de seed na primeira execução. As migrations são embedded no binário da API via `go:embed`.
 
+### Documentacao da API (Swagger)
+
+Com o projeto rodando, acesse o Swagger UI para visualizar e testar todos os endpoints:
+
+- **Swagger UI**: [http://localhost:8080/swagger](http://localhost:8080/swagger)
+- **OpenAPI spec**: [http://localhost:8080/docs/swagger.yaml](http://localhost:8080/docs/swagger.yaml)
+
+Para endpoints autenticados, clique em **Authorize** no Swagger UI e insira o token JWT de desenvolvimento (seção abaixo).
+
 ### Endpoints
 
-| Método | Rota    | Descrição    |
+| Metodo | Rota    | Descricao    |
 | ------ | ------- | ------------ |
 | GET    | `/ping` | Health check |
+| GET    | `/swagger` | Swagger UI |
 
 ## Estrutura do projeto
 
