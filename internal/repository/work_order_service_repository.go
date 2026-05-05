@@ -16,6 +16,8 @@ type WorkOrderServiceRepository interface {
 	CreateBatch(ctx context.Context, items []*domain.WorkOrderService) ([]*domain.WorkOrderService, error)
 	CreateSupply(ctx context.Context, supply *domain.WorkOrderServiceSupply) (*domain.WorkOrderServiceSupply, error)
 	CreateSupplyBatch(ctx context.Context, items []*domain.WorkOrderServiceSupply) ([]*domain.WorkOrderServiceSupply, error)
+	DeleteSupplyForWorkOrderService(ctx context.Context, workOrderServiceID, supplyID uuid.UUID) error
+	DeleteSuppliesByWorkOrderServiceID(ctx context.Context, workOrderServiceID uuid.UUID) error
 	DeleteByID(ctx context.Context, id uuid.UUID) error
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrderService, error)
 	FindByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) ([]domain.WorkOrderService, error)
@@ -23,6 +25,8 @@ type WorkOrderServiceRepository interface {
 	UpdateApprovalStatusByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, status domain.WorkOrderServiceApprovalStatus) error
 	CalculateTotalForWorkOrder(ctx context.Context, workOrderID uuid.UUID) (int, error)
 	CalculateApprovedTotalForWorkOrder(ctx context.Context, workOrderID uuid.UUID) (int, error)
+	MarkAsStartedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, startedAt time.Time) error
+	MarkAsFinishedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, finishedAt time.Time) error
 }
 
 type workOrderServiceRepository struct {
@@ -126,6 +130,28 @@ func (r *workOrderServiceRepository) CalculateApprovedTotalForWorkOrder(ctx cont
 	return total, err
 }
 
+func (r *workOrderServiceRepository) DeleteSuppliesByWorkOrderServiceID(ctx context.Context, workOrderServiceID uuid.UUID) error {
+	_, err := r.db.Exec(ctx,
+		`DELETE FROM work_order_service_supplies WHERE work_order_service_id = $1`,
+		workOrderServiceID,
+	)
+	return err
+}
+
+func (r *workOrderServiceRepository) DeleteSupplyForWorkOrderService(ctx context.Context, workOrderServiceID, supplyID uuid.UUID) error {
+	tag, err := r.db.Exec(ctx,
+		`DELETE FROM work_order_service_supplies WHERE work_order_service_id = $1 AND supply_id = $2`,
+		workOrderServiceID, supplyID,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
 func (r *workOrderServiceRepository) DeleteByID(ctx context.Context, id uuid.UUID) error {
 	tag, err := r.db.Exec(ctx, `DELETE FROM work_order_services WHERE id = $1`, id)
 	if err != nil {
@@ -201,6 +227,34 @@ func (r *workOrderServiceRepository) CreateSupply(ctx context.Context, supply *d
 		return nil, err
 	}
 	return items[0], nil
+}
+
+func (r *workOrderServiceRepository) MarkAsStartedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, startedAt time.Time) error {
+	query := `
+		UPDATE work_order_services
+		SET status = $1, started_at = $2, updated_at = $2
+		WHERE work_order_id = $3
+		  AND approval_status = $4
+		  AND started_at IS NULL`
+	_, err := r.db.Exec(ctx, query,
+		domain.WorkOrderServiceStatusInProgress, startedAt,
+		workOrderID, domain.WorkOrderServiceApprovalApproved,
+	)
+	return err
+}
+
+func (r *workOrderServiceRepository) MarkAsFinishedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, finishedAt time.Time) error {
+	query := `
+		UPDATE work_order_services
+		SET status = $1, finished_at = $2, updated_at = $2
+		WHERE work_order_id = $3
+		  AND status = $4
+		  AND finished_at IS NULL`
+	_, err := r.db.Exec(ctx, query,
+		domain.WorkOrderServiceStatusFinished, finishedAt,
+		workOrderID, domain.WorkOrderServiceStatusInProgress,
+	)
+	return err
 }
 
 func (r *workOrderServiceRepository) CreateSupplyBatch(ctx context.Context, items []*domain.WorkOrderServiceSupply) ([]*domain.WorkOrderServiceSupply, error) {

@@ -35,7 +35,8 @@ func TestRejectAll_AllRejected_SetsCanceled(t *testing.T) {
 	// when every service is rejected, work order must become CANCELADA (not FINALIZADA)
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
 	ctx := context.Background()
 	woID := uuid.New()
 
@@ -43,27 +44,25 @@ func TestRejectAll_AllRejected_SetsCanceled(t *testing.T) {
 		makeWOS(woID, domain.WorkOrderServiceApprovalRejected),
 		makeWOS(woID, domain.WorkOrderServiceApprovalRejected),
 	}
-	wo := makeWO(woID, domain.WorkOrderStatusWaitingApproval)
+	wo := makeWO(woID, domain.WorkOrderStatusCanceled)
 
 	wosRepo.On("UpdateApprovalStatusByWorkOrderID", ctx, woID, domain.WorkOrderServiceApprovalRejected).Return(nil)
 	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
-	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusCanceled).Return(wo, nil)
 	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(0, nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	err := svc.RejectAllByWorkOrder(ctx, woID)
 	assert.NoError(t, err)
-
-	call := woRepo.Calls[len(woRepo.Calls)-1]
-	updated := call.Arguments[1].(*domain.WorkOrder)
-	assert.Equal(t, domain.WorkOrderStatusCanceled, updated.Status)
+	statusSvc.AssertCalled(t, "TransitionTo", ctx, woID, domain.WorkOrderStatusCanceled)
 }
 
 func TestRejectService_LastPending_AllRejected_SetsCanceled(t *testing.T) {
 	// when the last pending service is rejected and none are approved, WO becomes CANCELADA
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
 	ctx := context.Background()
 	woID := uuid.New()
 	wosID := uuid.New()
@@ -77,46 +76,41 @@ func TestRejectService_LastPending_AllRejected_SetsCanceled(t *testing.T) {
 		makeWOS(woID, domain.WorkOrderServiceApprovalRejected),
 		{ID: wosID, WorkOrderID: woID, ApprovalStatus: domain.WorkOrderServiceApprovalRejected},
 	}
-	wo := makeWO(woID, domain.WorkOrderStatusWaitingApproval)
+	wo := makeWO(woID, domain.WorkOrderStatusCanceled)
 
 	wosRepo.On("FindByID", ctx, wosID).Return(pending, nil)
 	wosRepo.On("UpdateApprovalStatus", ctx, wosID, domain.WorkOrderServiceApprovalRejected).Return(nil)
 	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(afterReject, nil)
-	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusCanceled).Return(wo, nil)
 	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(0, nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	err := svc.RejectService(ctx, wosID)
 	assert.NoError(t, err)
-
-	call := woRepo.Calls[len(woRepo.Calls)-1]
-	updated := call.Arguments[1].(*domain.WorkOrder)
-	assert.Equal(t, domain.WorkOrderStatusCanceled, updated.Status)
+	statusSvc.AssertCalled(t, "TransitionTo", ctx, woID, domain.WorkOrderStatusCanceled)
 }
 
 func TestApproveAll_AllApproved_SetsApproved(t *testing.T) {
 	// existing behaviour: when all approved, WO becomes APROVADO
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
 	ctx := context.Background()
 	woID := uuid.New()
 
 	services := []domain.WorkOrderService{
 		makeWOS(woID, domain.WorkOrderServiceApprovalApproved),
 	}
-	wo := makeWO(woID, domain.WorkOrderStatusWaitingApproval)
+	wo := makeWO(woID, domain.WorkOrderStatusApproved)
 
 	wosRepo.On("UpdateApprovalStatusByWorkOrderID", ctx, woID, domain.WorkOrderServiceApprovalApproved).Return(nil)
 	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
-	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusApproved).Return(wo, nil)
 	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(10000, nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	err := svc.ApproveAllByWorkOrder(ctx, woID)
 	assert.NoError(t, err)
-
-	call := woRepo.Calls[len(woRepo.Calls)-1]
-	updated := call.Arguments[1].(*domain.WorkOrder)
-	assert.Equal(t, domain.WorkOrderStatusApproved, updated.Status)
+	statusSvc.AssertCalled(t, "TransitionTo", ctx, woID, domain.WorkOrderStatusApproved)
 }
