@@ -16,6 +16,7 @@ func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config, emailP
 		return c.SendString("Pong")
 	})
 
+	registerSwagger(app)
 	registerAuth(app, db, cfg.JWT.SecretKey)
 	registerCustomer(app, db, cfg.JWT.SecretKey)
 	registerVehicle(app, db, cfg.JWT.SecretKey)
