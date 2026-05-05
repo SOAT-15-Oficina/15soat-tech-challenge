@@ -965,7 +965,7 @@ components:
           example:
             error: "resource not found"
     Conflict:
-      description: Conflito (ex: titulo duplicado)
+      description: "Conflito (ex: titulo duplicado)"
       content:
         application/json:
           schema:
