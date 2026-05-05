@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
@@ -136,6 +137,14 @@ func (m *mockWorkOrderServiceRepo) DeleteByID(ctx context.Context, id uuid.UUID)
 	return m.Called(ctx, id).Error(0)
 }
 
+func (m *mockWorkOrderServiceRepo) MarkAsStartedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, startedAt time.Time) error {
+	return m.Called(ctx, workOrderID, startedAt).Error(0)
+}
+
+func (m *mockWorkOrderServiceRepo) MarkAsFinishedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, finishedAt time.Time) error {
+	return m.Called(ctx, workOrderID, finishedAt).Error(0)
+}
+
 // mockVehicleRepo mocks repository.VehicleRepository
 type mockVehicleRepo struct {
 	mock.Mock
@@ -240,6 +249,40 @@ func (m *mockWorkshopServiceRepo) GetAvgExecutionTime(ctx context.Context, filte
 
 func (m *mockWorkshopServiceRepo) SubtractSuppliesFromStock(ctx context.Context, serviceID uuid.UUID) error {
 	return m.Called(ctx, serviceID).Error(0)
+}
+
+// mockStatusService mocks WorkOrderStatusService
+type mockStatusService struct {
+	mock.Mock
+}
+
+func (m *mockStatusService) TransitionTo(ctx context.Context, workOrderID uuid.UUID, newStatus domain.WorkOrderStatus, changedByUserID *uuid.UUID) (*domain.WorkOrder, error) {
+	args := m.Called(ctx, workOrderID, newStatus, changedByUserID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.WorkOrder), args.Error(1)
+}
+
+func (m *mockStatusService) IsValidTransition(from, to domain.WorkOrderStatus) bool {
+	return m.Called(from, to).Bool(0)
+}
+
+// mockStatusHistoryRepo mocks repository.WorkOrderStatusHistoryRepository
+type mockStatusHistoryRepo struct {
+	mock.Mock
+}
+
+func (m *mockStatusHistoryRepo) Create(ctx context.Context, history *domain.WorkOrderStatusHistory) error {
+	return m.Called(ctx, history).Error(0)
+}
+
+func (m *mockStatusHistoryRepo) FindByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) ([]domain.WorkOrderStatusHistory, error) {
+	args := m.Called(ctx, workOrderID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.WorkOrderStatusHistory), args.Error(1)
 }
 
 // mockSupplyRepo mocks repository.SupplyRepository

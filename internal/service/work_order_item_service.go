@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
@@ -18,17 +17,20 @@ type WorkOrderItemService interface {
 }
 
 type workOrderItemService struct {
-	wosRepo repository.WorkOrderServiceRepository
-	woRepo  repository.WorkOrderRepository
+	wosRepo   repository.WorkOrderServiceRepository
+	woRepo    repository.WorkOrderRepository
+	statusSvc WorkOrderStatusService
 }
 
 func NewWorkOrderItemService(
 	wosRepo repository.WorkOrderServiceRepository,
 	woRepo repository.WorkOrderRepository,
+	statusSvc WorkOrderStatusService,
 ) WorkOrderItemService {
 	return &workOrderItemService{
-		wosRepo: wosRepo,
-		woRepo:  woRepo,
+		wosRepo:   wosRepo,
+		woRepo:    woRepo,
+		statusSvc: statusSvc,
 	}
 }
 
@@ -98,17 +100,16 @@ func (s *workOrderItemService) evaluateWorkOrderCompletion(ctx context.Context, 
 		}
 	}
 
-	wo, err := s.woRepo.FindByID(ctx, workOrderID)
-	if err != nil {
-		return fmt.Errorf("evaluate: find work order: %w", err)
+	var newStatus domain.WorkOrderStatus
+	if hasApproved {
+		newStatus = domain.WorkOrderStatusApproved
+	} else {
+		newStatus = domain.WorkOrderStatusCanceled
 	}
 
-	if hasApproved {
-		wo.Status = domain.WorkOrderStatusApproved
-		now := time.Now()
-		wo.ApprovedAt = &now
-	} else {
-		wo.Status = domain.WorkOrderStatusCanceled
+	wo, err := s.statusSvc.TransitionTo(ctx, workOrderID, newStatus, nil)
+	if err != nil {
+		return fmt.Errorf("evaluate: transition status: %w", err)
 	}
 
 	approvedTotal, err := s.wosRepo.CalculateApprovedTotalForWorkOrder(ctx, workOrderID)

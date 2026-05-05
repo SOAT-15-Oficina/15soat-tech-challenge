@@ -100,7 +100,6 @@ func (s *workOrderService) Update(ctx context.Context, wo *domain.WorkOrder) (*d
 	if wo.CustomerID != uuid.Nil { existing.CustomerID = wo.CustomerID }
 	if wo.VehicleID != uuid.Nil { existing.VehicleID = wo.VehicleID }
 	if wo.AssignedTechnicianID != nil { existing.AssignedTechnicianID = wo.AssignedTechnicianID }
-	if wo.Status != "" { existing.Status = wo.Status }
 	if wo.TotalEstimatedPriceCents != 0 { existing.TotalEstimatedPriceCents = wo.TotalEstimatedPriceCents }
 	if !wo.ReceivedAt.IsZero() { existing.ReceivedAt = wo.ReceivedAt }
 	if wo.QuoteSentAt != nil { existing.QuoteSentAt = wo.QuoteSentAt }

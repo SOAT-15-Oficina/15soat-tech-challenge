@@ -38,6 +38,7 @@ type workOrderCreationService struct {
 	wosRepo    repository.WorkOrderServiceRepository
 	wsRepo     repository.WorkshopServiceRepository
 	supplyRepo repository.SupplyRepository
+	statusSvc  WorkOrderStatusService
 }
 
 func NewWorkOrderCreationService(
@@ -45,12 +46,14 @@ func NewWorkOrderCreationService(
 	wosRepo repository.WorkOrderServiceRepository,
 	wsRepo repository.WorkshopServiceRepository,
 	supplyRepo repository.SupplyRepository,
+	statusSvc WorkOrderStatusService,
 ) WorkOrderCreationService {
 	return &workOrderCreationService{
 		woRepo:     woRepo,
 		wosRepo:    wosRepo,
 		wsRepo:     wsRepo,
 		supplyRepo: supplyRepo,
+		statusSvc:  statusSvc,
 	}
 }
 
@@ -97,9 +100,8 @@ func (s *workOrderCreationService) AddServices(ctx context.Context, workOrderID 
 	}
 
 	if wo.Status == domain.WorkOrderStatusReceived {
-		wo.Status = domain.WorkOrderStatusInDiagnosis
-		if _, err := s.woRepo.Update(ctx, wo); err != nil {
-			return nil, fmt.Errorf("add services: update work order status: %w", err)
+		if _, err := s.statusSvc.TransitionTo(ctx, workOrderID, domain.WorkOrderStatusInDiagnosis, nil); err != nil {
+			return nil, fmt.Errorf("add services: transition status: %w", err)
 		}
 	}
 
