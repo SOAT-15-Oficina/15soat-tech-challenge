@@ -79,6 +79,7 @@ func setupSchema(t *testing.T, pool *pgxpool.Pool) {
 			"description" text,
 			"price_cents" int NOT NULL,
 			"estimated_time_minutes" int NOT NULL,
+			"status" varchar(30) NOT NULL DEFAULT 'ATIVO',
 			"active" boolean NOT NULL DEFAULT true,
 			"created_at" timestamp NOT NULL,
 			"updated_at" timestamp NOT NULL
