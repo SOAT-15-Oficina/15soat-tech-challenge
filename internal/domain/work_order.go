@@ -81,3 +81,21 @@ type WorkOrderServiceHistoryResponse struct {
 	ChangedByUserID *uuid.UUID `json:"changed_by_user_id,omitempty"`
 	ChangedAt       time.Time  `json:"changed_at"`
 }
+
+type WorkOrderListFilters struct {
+	Status     string    `query:"status"`
+	CustomerID uuid.UUID `query:"customerId"`
+	VehicleID  uuid.UUID `query:"vehicleId"`
+	FromDate   *time.Time
+	ToDate     *time.Time
+	Page       int
+	Limit      int
+}
+
+type WorkOrderListResponse struct {
+	Data       []WorkOrder `json:"data"`
+	Total      int         `json:"total"`
+	Page       int         `json:"page"`
+	Limit      int         `json:"limit"`
+	TotalPages int         `json:"total_pages"`
+}

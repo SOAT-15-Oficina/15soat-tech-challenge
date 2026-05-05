@@ -2,6 +2,8 @@ package handler
 
 import (
 	"errors"
+	"strconv"
+	"time"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
@@ -45,16 +47,67 @@ func (h *WorkOrderHandler) Create(c fiber.Ctx) error {
 }
 
 func (h *WorkOrderHandler) GetAll(c fiber.Ctx) error {
-	workOrders, err := h.svc.GetAll(c.Context())
+	filters := domain.WorkOrderListFilters{
+		Page:  1,
+		Limit: 10,
+	}
+
+	if page := c.Query("page"); page != "" {
+		if p, err := strconv.Atoi(page); err == nil && p > 0 {
+			filters.Page = p
+		}
+	}
+	if limit := c.Query("limit"); limit != "" {
+		if l, err := strconv.Atoi(limit); err == nil && l > 0 && l <= 100 {
+			filters.Limit = l
+		}
+	}
+
+	if status := c.Query("status"); status != "" {
+		filters.Status = status
+	}
+
+	if customerID := c.Query("customerId"); customerID != "" {
+		if id, err := uuid.Parse(customerID); err == nil {
+			filters.CustomerID = id
+		}
+	}
+
+	if vehicleID := c.Query("vehicleId"); vehicleID != "" {
+		if id, err := uuid.Parse(vehicleID); err == nil {
+			filters.VehicleID = id
+		}
+	}
+
+	if from := c.Query("from"); from != "" {
+		if t, err := time.Parse("2006-01-02", from); err == nil {
+			filters.FromDate = &t
+		}
+	}
+
+	if to := c.Query("to"); to != "" {
+		if t, err := time.Parse("2006-01-02", to); err == nil {
+			t = t.Add(24*time.Hour - 1*time.Nanosecond)
+			filters.ToDate = &t
+		}
+	}
+
+	result, err := h.svc.GetAllWithFilters(c.Context(), filters)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	if workOrders == nil {
-		return c.JSON([]domain.WorkOrder{})
+	if result == nil || result.Data == nil {
+		result = &domain.WorkOrderListResponse{
+			Data:       []domain.WorkOrder{},
+			Total:      0,
+			Page:       filters.Page,
+			Limit:      filters.Limit,
+			TotalPages: 0,
+		}
 	}
 
-	return c.JSON(workOrders)
+	return c.JSON(result)
 }
 
 func (h *WorkOrderHandler) GetByID(c fiber.Ctx) error {
