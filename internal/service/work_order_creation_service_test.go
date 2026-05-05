@@ -53,7 +53,8 @@ func TestAddServices_ValidInput_CreatesItems(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -77,7 +78,7 @@ func TestAddServices_ValidInput_CreatesItems(t *testing.T) {
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	wsRepo.On("FindByID", ctx, wsID).Return(ws, nil)
 	wosRepo.On("CreateBatch", ctx, mock.AnythingOfType("[]*domain.WorkOrderService")).Return(created, nil)
-	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusInDiagnosis).Return(wo, nil)
 
 	items := []AddWorkOrderServiceInput{{ServiceID: wsID}}
 	result, err := svc.AddServices(ctx, woID, items)
@@ -95,7 +96,8 @@ func TestAddServices_InvalidStatus_ReturnsError(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -116,7 +118,8 @@ func TestAddServices_InactiveService_ReturnsError(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -141,7 +144,8 @@ func TestAddServices_OptionalEstimatedTime_UsesCustomValue(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -178,7 +182,8 @@ func TestAddSupplies_ValidInput_CreatesItems(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -218,7 +223,8 @@ func TestAddSupplies_WosNotBelongingToWorkOrder_ReturnsError(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -242,7 +248,8 @@ func TestAddServices_WorkOrderRecebida_TransitionsToEmDiagnostico(t *testing.T) 
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -257,14 +264,11 @@ func TestAddServices_WorkOrderRecebida_TransitionsToEmDiagnostico(t *testing.T) 
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	wsRepo.On("FindByID", ctx, wsID).Return(ws, nil)
 	wosRepo.On("CreateBatch", ctx, mock.AnythingOfType("[]*domain.WorkOrderService")).Return(created, nil)
-	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusInDiagnosis).Return(wo, nil)
 
 	_, err := svc.AddServices(ctx, woID, []AddWorkOrderServiceInput{{ServiceID: wsID}})
 	assert.NoError(t, err)
-
-	call := woRepo.Calls[len(woRepo.Calls)-1]
-	updated := call.Arguments[1].(*domain.WorkOrder)
-	assert.Equal(t, domain.WorkOrderStatusInDiagnosis, updated.Status)
+	statusSvc.AssertCalled(t, "TransitionTo", ctx, woID, domain.WorkOrderStatusInDiagnosis)
 }
 
 func TestAddServices_WorkOrderEmDiagnostico_DoesNotChangeStatus(t *testing.T) {
@@ -273,7 +277,8 @@ func TestAddServices_WorkOrderEmDiagnostico_DoesNotChangeStatus(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -291,7 +296,7 @@ func TestAddServices_WorkOrderEmDiagnostico_DoesNotChangeStatus(t *testing.T) {
 
 	_, err := svc.AddServices(ctx, woID, []AddWorkOrderServiceInput{{ServiceID: wsID}})
 	assert.NoError(t, err)
-	woRepo.AssertNotCalled(t, "Update")
+	statusSvc.AssertNotCalled(t, "TransitionTo")
 }
 
 func TestRemoveService_Valid_DeletesCalled(t *testing.T) {
@@ -300,7 +305,8 @@ func TestRemoveService_Valid_DeletesCalled(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -325,7 +331,8 @@ func TestRemoveService_WosNotFound_ReturnsNotFoundError(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	wosID := uuid.New()
@@ -342,7 +349,8 @@ func TestRemoveService_WosWrongWorkOrder_ReturnsOwnershipError(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -361,7 +369,8 @@ func TestRemoveService_WorkOrderFinalStatus_ReturnsInvalidStatusError(t *testing
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -382,7 +391,8 @@ func TestRemoveSupplyFromService_Valid_DeletesRow(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -405,7 +415,8 @@ func TestRemoveSupplyFromService_WosWrongWorkOrder_ReturnsOwnershipError(t *test
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -423,7 +434,8 @@ func TestRemoveSupplyFromService_WorkOrderFinalStatus_ReturnsInvalidStatusError(
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()

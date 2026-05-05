@@ -14,10 +14,11 @@ type WorkOrderHandler struct {
 	svc         service.WorkOrderService
 	budgetSvc   service.BudgetService
 	creationSvc service.WorkOrderCreationService
+	statusSvc   service.WorkOrderStatusService
 }
 
-func NewWorkOrderHandler(svc service.WorkOrderService, budgetSvc service.BudgetService, creationSvc service.WorkOrderCreationService) *WorkOrderHandler {
-	return &WorkOrderHandler{svc: svc, budgetSvc: budgetSvc, creationSvc: creationSvc}
+func NewWorkOrderHandler(svc service.WorkOrderService, budgetSvc service.BudgetService, creationSvc service.WorkOrderCreationService, statusSvc service.WorkOrderStatusService) *WorkOrderHandler {
+	return &WorkOrderHandler{svc: svc, budgetSvc: budgetSvc, creationSvc: creationSvc, statusSvc: statusSvc}
 }
 
 type addServiceRequest struct {
@@ -86,18 +87,35 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 	}
 	workOrder.ID = id
 
+	// Handle status transition separately via state machine
+	if workOrder.Status != "" {
+		result, err := h.statusSvc.TransitionTo(c.Context(), id, workOrder.Status)
+		if err != nil {
+			if errors.Is(err, service.ErrInvalidStatusTransition) {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
+			}
+			if errors.Is(err, pgx.ErrNoRows) {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "work order not found"})
+			}
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		if result.Status == domain.WorkOrderStatusWaitingApproval && h.budgetSvc != nil {
+			if err := h.budgetSvc.GenerateAndSendBudget(c.Context(), result.ID); err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to send budget email: " + err.Error()})
+			}
+		}
+
+		// Clear status so the field update below skips it
+		workOrder.Status = ""
+	}
+
 	result, err := h.svc.Update(c.Context(), &workOrder)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "work order not found"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	if result.Status == domain.WorkOrderStatusWaitingApproval && h.budgetSvc != nil {
-		if err := h.budgetSvc.GenerateAndSendBudget(c.Context(), result.ID); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to send budget email: " + err.Error()})
-		}
 	}
 
 	return c.JSON(result)
