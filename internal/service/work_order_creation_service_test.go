@@ -391,7 +391,8 @@ func TestRemoveSupplyFromService_Valid_DeletesRow(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -414,7 +415,8 @@ func TestRemoveSupplyFromService_WosWrongWorkOrder_ReturnsOwnershipError(t *test
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -432,7 +434,8 @@ func TestRemoveSupplyFromService_WorkOrderFinalStatus_ReturnsInvalidStatusError(
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
 	supplyRepo := new(mockSupplyRepo)
-	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
