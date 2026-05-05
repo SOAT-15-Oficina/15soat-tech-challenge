@@ -119,7 +119,8 @@ func TestApproveAll_AllApproved_SetsApproved(t *testing.T) {
 func TestApproveService_Pending_Success(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -132,12 +133,12 @@ func TestApproveService_Pending_Success(t *testing.T) {
 	services := []domain.WorkOrderService{
 		{ID: wosID, WorkOrderID: woID, ApprovalStatus: domain.WorkOrderServiceApprovalApproved},
 	}
-	wo := makeWO(woID, domain.WorkOrderStatusWaitingApproval)
+	wo := makeWO(woID, domain.WorkOrderStatusApproved)
 
 	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
 	wosRepo.On("UpdateApprovalStatus", ctx, wosID, domain.WorkOrderServiceApprovalApproved).Return(nil)
 	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
-	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusApproved).Return(wo, nil)
 	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(5000, nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
@@ -148,7 +149,7 @@ func TestApproveService_Pending_Success(t *testing.T) {
 func TestApproveService_AlreadyApproved_Idempotent(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, new(mockStatusService))
 	ctx := context.Background()
 
 	wosID := uuid.New()
@@ -167,7 +168,7 @@ func TestApproveService_AlreadyApproved_Idempotent(t *testing.T) {
 func TestApproveService_FindFails(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, new(mockStatusService))
 	ctx := context.Background()
 	wosID := uuid.New()
 
@@ -182,7 +183,7 @@ func TestApproveService_FindFails(t *testing.T) {
 func TestApproveService_UpdateStatusFails(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, new(mockStatusService))
 	ctx := context.Background()
 	wosID := uuid.New()
 	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: uuid.New(), ApprovalStatus: domain.WorkOrderServiceApprovalPending}
@@ -199,7 +200,7 @@ func TestApproveService_UpdateStatusFails(t *testing.T) {
 func TestRejectService_FindFails(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, new(mockStatusService))
 	ctx := context.Background()
 	wosID := uuid.New()
 
@@ -212,7 +213,7 @@ func TestRejectService_FindFails(t *testing.T) {
 func TestRejectService_AlreadyRejected_Idempotent(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, new(mockStatusService))
 	ctx := context.Background()
 	wosID := uuid.New()
 	wos := &domain.WorkOrderService{ID: wosID, ApprovalStatus: domain.WorkOrderServiceApprovalRejected}
@@ -227,7 +228,7 @@ func TestRejectService_AlreadyRejected_Idempotent(t *testing.T) {
 func TestRejectService_UpdateStatusFails(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, new(mockStatusService))
 	ctx := context.Background()
 	wosID := uuid.New()
 	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: uuid.New(), ApprovalStatus: domain.WorkOrderServiceApprovalPending}
@@ -244,7 +245,7 @@ func TestRejectService_UpdateStatusFails(t *testing.T) {
 func TestApproveAllByWorkOrder_UpdateFails(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, new(mockStatusService))
 	ctx := context.Background()
 	woID := uuid.New()
 
@@ -257,7 +258,7 @@ func TestApproveAllByWorkOrder_UpdateFails(t *testing.T) {
 func TestRejectAllByWorkOrder_UpdateFails(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, new(mockStatusService))
 	ctx := context.Background()
 	woID := uuid.New()
 
@@ -272,7 +273,7 @@ func TestRejectAllByWorkOrder_UpdateFails(t *testing.T) {
 func TestEvaluate_FindServicesFails(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, new(mockStatusService))
 	ctx := context.Background()
 	woID := uuid.New()
 
@@ -287,7 +288,8 @@ func TestEvaluate_StillPendingServices_ReturnsNil(t *testing.T) {
 	// one service pending → evaluateWorkOrderCompletion returns nil early
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
 	ctx := context.Background()
 	woID := uuid.New()
 
@@ -301,13 +303,14 @@ func TestEvaluate_StillPendingServices_ReturnsNil(t *testing.T) {
 
 	err := svc.ApproveAllByWorkOrder(ctx, woID)
 	assert.NoError(t, err)
-	woRepo.AssertNotCalled(t, "FindByID")
+	statusSvc.AssertNotCalled(t, "TransitionTo")
 }
 
-func TestEvaluate_FindWorkOrderFails(t *testing.T) {
+func TestEvaluate_TransitionFails(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
 	ctx := context.Background()
 	woID := uuid.New()
 
@@ -317,7 +320,7 @@ func TestEvaluate_FindWorkOrderFails(t *testing.T) {
 
 	wosRepo.On("UpdateApprovalStatusByWorkOrderID", ctx, woID, domain.WorkOrderServiceApprovalApproved).Return(nil)
 	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
-	woRepo.On("FindByID", ctx, woID).Return(nil, errors.New("db error"))
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusApproved).Return(nil, errors.New("db error"))
 
 	err := svc.ApproveAllByWorkOrder(ctx, woID)
 	assert.Error(t, err)
@@ -326,10 +329,11 @@ func TestEvaluate_FindWorkOrderFails(t *testing.T) {
 func TestEvaluate_CalculateTotalFails(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
 	ctx := context.Background()
 	woID := uuid.New()
-	wo := makeWO(woID, domain.WorkOrderStatusWaitingApproval)
+	wo := makeWO(woID, domain.WorkOrderStatusApproved)
 
 	services := []domain.WorkOrderService{
 		makeWOS(woID, domain.WorkOrderServiceApprovalApproved),
@@ -337,7 +341,7 @@ func TestEvaluate_CalculateTotalFails(t *testing.T) {
 
 	wosRepo.On("UpdateApprovalStatusByWorkOrderID", ctx, woID, domain.WorkOrderServiceApprovalApproved).Return(nil)
 	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
-	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusApproved).Return(wo, nil)
 	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(0, errors.New("db error"))
 
 	err := svc.ApproveAllByWorkOrder(ctx, woID)
@@ -347,10 +351,11 @@ func TestEvaluate_CalculateTotalFails(t *testing.T) {
 func TestEvaluate_UpdateWorkOrderFails(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
-	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
 	ctx := context.Background()
 	woID := uuid.New()
-	wo := makeWO(woID, domain.WorkOrderStatusWaitingApproval)
+	wo := makeWO(woID, domain.WorkOrderStatusApproved)
 
 	services := []domain.WorkOrderService{
 		makeWOS(woID, domain.WorkOrderServiceApprovalApproved),
@@ -358,7 +363,7 @@ func TestEvaluate_UpdateWorkOrderFails(t *testing.T) {
 
 	wosRepo.On("UpdateApprovalStatusByWorkOrderID", ctx, woID, domain.WorkOrderServiceApprovalApproved).Return(nil)
 	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
-	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusApproved).Return(wo, nil)
 	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(5000, nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(nil, errors.New("db error"))
 
