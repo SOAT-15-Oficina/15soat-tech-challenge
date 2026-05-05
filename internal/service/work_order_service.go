@@ -18,6 +18,7 @@ type WorkOrderService interface {
 	Create(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrder, error)
 	GetAll(ctx context.Context) ([]domain.WorkOrder, error)
+	GetAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error)
 	Update(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
 }
 
@@ -109,4 +110,15 @@ func (s *workOrderService) Update(ctx context.Context, wo *domain.WorkOrder) (*d
 	if wo.DeliveredAt != nil { existing.DeliveredAt = wo.DeliveredAt }
 
 	return s.repo.Update(ctx, existing)
+}
+
+func (s *workOrderService) GetAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error) {
+	if filters.Page < 1 {
+		filters.Page = 1
+	}
+	if filters.Limit < 1 || filters.Limit > 100 {
+		filters.Limit = 10
+	}
+
+	return s.repo.FindAllWithFilters(ctx, filters)
 }

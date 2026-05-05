@@ -20,22 +20,82 @@ const (
 )
 
 type WorkOrder struct {
-	ID                       uuid.UUID       `json:"id"`
-	Code                     string          `json:"code"`
-	Title                    string          `json:"title"`
-	Description              *string         `json:"description,omitempty"`
-	CustomerID               uuid.UUID       `json:"customer_id"`
-	VehicleID                uuid.UUID       `json:"vehicle_id"`
-	OpenedByUserID           uuid.UUID       `json:"opened_by_user_id"`
-	AssignedTechnicianID     *uuid.UUID      `json:"assigned_technician_id,omitempty"`
-	Status                   WorkOrderStatus `json:"status"`
-	TotalEstimatedPriceCents int             `json:"total_estimated_price_cents"`
-	ReceivedAt               time.Time       `json:"received_at"`
-	QuoteSentAt              *time.Time      `json:"quote_sent_at,omitempty"`
-	ApprovedAt               *time.Time      `json:"approved_at,omitempty"`
-	StartedAt                *time.Time      `json:"started_at,omitempty"`
-	FinishedAt               *time.Time      `json:"finished_at,omitempty"`
-	DeliveredAt              *time.Time      `json:"delivered_at,omitempty"`
-	CreatedAt                time.Time       `json:"created_at"`
-	UpdatedAt                time.Time       `json:"updated_at"`
+	ID                       uuid.UUID                      `json:"id"`
+	Code                     string                         `json:"code"`
+	Title                    string                         `json:"title"`
+	Description              *string                        `json:"description,omitempty"`
+	CustomerID               uuid.UUID                      `json:"-"`
+	VehicleID                uuid.UUID                      `json:"-"`
+	OpenedByUserID           uuid.UUID                      `json:"opened_by_user_id"`
+	AssignedTechnicianID     *uuid.UUID                     `json:"assigned_technician_id,omitempty"`
+	Status                   WorkOrderStatus                `json:"status"`
+	TotalEstimatedPriceCents int                            `json:"total_estimated_price_cents"`
+	ReceivedAt               time.Time                      `json:"received_at"`
+	QuoteSentAt              *time.Time                     `json:"quote_sent_at,omitempty"`
+	ApprovedAt               *time.Time                     `json:"approved_at,omitempty"`
+	StartedAt                *time.Time                     `json:"started_at,omitempty"`
+	FinishedAt               *time.Time                     `json:"finished_at,omitempty"`
+	DeliveredAt              *time.Time                     `json:"delivered_at,omitempty"`
+	CreatedAt                time.Time                      `json:"created_at"`
+	UpdatedAt                time.Time                      `json:"updated_at"`
+	Customer                 *WorkOrderCustomer             `json:"customer"`
+	Vehicle                  *WorkOrderVehicle              `json:"vehicle"`
+	Services                 []WorkOrderServiceWithSupplies `json:"services"`
+}
+
+type WorkOrderCustomer struct {
+	ID       uuid.UUID `json:"id"`
+	Name     string    `json:"name"`
+	Document string    `json:"document"`
+}
+
+type WorkOrderVehicle struct {
+	ID           uuid.UUID `json:"id"`
+	LicensePlate string    `json:"license_plate"`
+	Brand        string    `json:"brand"`
+	Model        string    `json:"model"`
+	Year         int       `json:"year"`
+}
+
+type WorkOrderServiceWithSupplies struct {
+	ID                        uuid.UUID                         `json:"id"`
+	Description               string                            `json:"description"`
+	ServicePriceCentsSnapshot int                               `json:"service_price_cents_snapshot"`
+	Status                    string                            `json:"status"`
+	ApprovalStatus            string                            `json:"approval_status"`
+	Quantity                  int                               `json:"quantity"`
+	Supplies                  []WorkOrderServiceSupplyResponse  `json:"supplies"`
+	History                   []WorkOrderServiceHistoryResponse `json:"history"`
+}
+
+type WorkOrderServiceSupplyResponse struct {
+	ID                       uuid.UUID `json:"id"`
+	Description              string    `json:"description"`
+	SupplyPriceCentsSnapshot int       `json:"supply_price_cents_snapshot"`
+	SupplyQuantity           int       `json:"supply_quantity"`
+}
+
+type WorkOrderServiceHistoryResponse struct {
+	Status          string     `json:"status"`
+	Note            *string    `json:"note,omitempty"`
+	ChangedByUserID *uuid.UUID `json:"changed_by_user_id,omitempty"`
+	ChangedAt       time.Time  `json:"changed_at"`
+}
+
+type WorkOrderListFilters struct {
+	Status     string    `query:"status"`
+	CustomerID uuid.UUID `query:"customerId"`
+	VehicleID  uuid.UUID `query:"vehicleId"`
+	FromDate   *time.Time
+	ToDate     *time.Time
+	Page       int
+	Limit      int
+}
+
+type WorkOrderListResponse struct {
+	Data       []WorkOrder `json:"data"`
+	Total      int         `json:"total"`
+	Page       int         `json:"page"`
+	Limit      int         `json:"limit"`
+	TotalPages int         `json:"total_pages"`
 }

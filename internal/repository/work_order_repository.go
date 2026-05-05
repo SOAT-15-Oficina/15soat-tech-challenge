@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
@@ -14,6 +16,7 @@ type WorkOrderRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrder, error)
 	FindByCode(ctx context.Context, code string) (*domain.WorkOrder, error)
 	FindAll(ctx context.Context) ([]domain.WorkOrder, error)
+	FindAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error)
 	Update(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
 }
 
@@ -75,23 +78,44 @@ func (r *workOrderRepository) Create(ctx context.Context, wo *domain.WorkOrder) 
 func (r *workOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrder, error) {
 	query := `
 		SELECT 
-			id, code, title, description, customer_id, vehicle_id, opened_by_user_id, 
-			assigned_technician_id, status, total_estimated_price_cents, received_at, 
-			quote_sent_at, approved_at, started_at, finished_at, delivered_at, 
-			created_at, updated_at
-		FROM work_orders WHERE id = $1`
+			wo.id, wo.code, wo.title, wo.description, wo.customer_id, wo.vehicle_id, wo.opened_by_user_id, 
+			wo.assigned_technician_id, wo.status, wo.total_estimated_price_cents, wo.received_at, 
+			wo.quote_sent_at, wo.approved_at, wo.started_at, wo.finished_at, wo.delivered_at, 
+			wo.created_at, wo.updated_at,
+			c.id, c.name, c.document,
+			v.id, v.license_plate, v.brand, v.model, v.year
+		FROM work_orders wo
+		JOIN customers c ON wo.customer_id = c.id
+		JOIN vehicles v ON wo.vehicle_id = v.id
+		WHERE wo.id = $1`
 
 	var result domain.WorkOrder
+	var customer domain.WorkOrderCustomer
+	var vehicle domain.WorkOrderVehicle
+	var customerID, vehicleID uuid.UUID
+
 	err := r.db.QueryRow(ctx, query, id).
 		Scan(
-			&result.ID, &result.Code, &result.Title, &result.Description, &result.CustomerID, &result.VehicleID, &result.OpenedByUserID,
+			&result.ID, &result.Code, &result.Title, &result.Description, &customerID, &vehicleID, &result.OpenedByUserID,
 			&result.AssignedTechnicianID, &result.Status, &result.TotalEstimatedPriceCents, &result.ReceivedAt,
 			&result.QuoteSentAt, &result.ApprovedAt, &result.StartedAt, &result.FinishedAt, &result.DeliveredAt,
 			&result.CreatedAt, &result.UpdatedAt,
+			&customer.ID, &customer.Name, &customer.Document,
+			&vehicle.ID, &vehicle.LicensePlate, &vehicle.Brand, &vehicle.Model, &vehicle.Year,
 		)
 	if err != nil {
 		return nil, err
 	}
+
+	result.Customer = &customer
+	result.Vehicle = &vehicle
+
+	services, err := r.fetchServicesForWorkOrder(ctx, result.ID)
+	if err != nil {
+		return nil, err
+	}
+	result.Services = services
+
 	return &result, nil
 }
 
@@ -184,4 +208,182 @@ func (r *workOrderRepository) Update(ctx context.Context, wo *domain.WorkOrder) 
 		return nil, err
 	}
 	return &result, nil
+}
+
+func (r *workOrderRepository) fetchServicesForWorkOrder(ctx context.Context, workOrderID uuid.UUID) ([]domain.WorkOrderServiceWithSupplies, error) {
+	query := `SELECT id, service_title_snapshot, service_price_cents_snapshot, status, approval_status FROM work_order_services WHERE work_order_id = $1`
+	rows, err := r.db.Query(ctx, query, workOrderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var services []domain.WorkOrderServiceWithSupplies
+	for rows.Next() {
+		var svc domain.WorkOrderServiceWithSupplies
+		svc.Quantity = 1
+		if err := rows.Scan(&svc.ID, &svc.Description, &svc.ServicePriceCentsSnapshot, &svc.Status, &svc.ApprovalStatus); err != nil {
+			return nil, err
+		}
+
+		supplies, err := r.fetchSuppliesForService(ctx, svc.ID)
+		if err != nil {
+			return nil, err
+		}
+		svc.Supplies = supplies
+
+		history, err := r.fetchHistoryForService(ctx, svc.ID)
+		if err != nil {
+			return nil, err
+		}
+		svc.History = history
+
+		services = append(services, svc)
+	}
+	return services, nil
+}
+
+func (r *workOrderRepository) fetchSuppliesForService(ctx context.Context, serviceID uuid.UUID) ([]domain.WorkOrderServiceSupplyResponse, error) {
+	query := `SELECT id, supply_title_snapshot, supply_price_cents_snapshot, supply_quantity FROM work_order_service_supplies WHERE work_order_service_id = $1`
+	rows, err := r.db.Query(ctx, query, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var supplies []domain.WorkOrderServiceSupplyResponse
+	for rows.Next() {
+		var sup domain.WorkOrderServiceSupplyResponse
+		if err := rows.Scan(&sup.ID, &sup.Description, &sup.SupplyPriceCentsSnapshot, &sup.SupplyQuantity); err != nil {
+			return nil, err
+		}
+		supplies = append(supplies, sup)
+	}
+	return supplies, nil
+}
+
+func (r *workOrderRepository) fetchHistoryForService(ctx context.Context, serviceID uuid.UUID) ([]domain.WorkOrderServiceHistoryResponse, error) {
+	query := `SELECT status, note, changed_by_user_id, changed_at FROM work_order_service_status_history WHERE work_order_service_id = $1 ORDER BY changed_at DESC`
+	rows, err := r.db.Query(ctx, query, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var history []domain.WorkOrderServiceHistoryResponse
+	for rows.Next() {
+		var entry domain.WorkOrderServiceHistoryResponse
+		if err := rows.Scan(&entry.Status, &entry.Note, &entry.ChangedByUserID, &entry.ChangedAt); err != nil {
+			return nil, err
+		}
+		history = append(history, entry)
+	}
+	return history, nil
+}
+
+func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error) {
+	whereConditions := []string{}
+	args := []interface{}{}
+	argIndex := 1
+
+	if filters.Status != "" {
+		whereConditions = append(whereConditions, fmt.Sprintf("wo.status = $%d", argIndex))
+		args = append(args, filters.Status)
+		argIndex++
+	}
+
+	if filters.CustomerID != uuid.Nil {
+		whereConditions = append(whereConditions, fmt.Sprintf("wo.customer_id = $%d", argIndex))
+		args = append(args, filters.CustomerID)
+		argIndex++
+	}
+
+	if filters.VehicleID != uuid.Nil {
+		whereConditions = append(whereConditions, fmt.Sprintf("wo.vehicle_id = $%d", argIndex))
+		args = append(args, filters.VehicleID)
+		argIndex++
+	}
+
+	if filters.FromDate != nil {
+		whereConditions = append(whereConditions, fmt.Sprintf("wo.received_at >= $%d", argIndex))
+		args = append(args, filters.FromDate)
+		argIndex++
+	}
+
+	if filters.ToDate != nil {
+		whereConditions = append(whereConditions, fmt.Sprintf("wo.received_at <= $%d", argIndex))
+		args = append(args, filters.ToDate)
+		argIndex++
+	}
+
+	whereClause := "1 = 1"
+	if len(whereConditions) > 0 {
+		whereClause = strings.Join(whereConditions, " AND ")
+	}
+
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM work_orders wo WHERE %s", whereClause)
+	var total int
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, err
+	}
+
+	offset := (filters.Page - 1) * filters.Limit
+	args = append(args, filters.Limit, offset)
+
+	query := fmt.Sprintf(`
+		SELECT 
+			wo.id, wo.code, wo.title, wo.description, wo.customer_id, wo.vehicle_id, wo.opened_by_user_id, 
+			wo.assigned_technician_id, wo.status, wo.total_estimated_price_cents, wo.received_at, 
+			wo.quote_sent_at, wo.approved_at, wo.started_at, wo.finished_at, wo.delivered_at, 
+			wo.created_at, wo.updated_at,
+			c.id, c.name, c.document,
+			v.id, v.license_plate, v.brand, v.model, v.year
+		FROM work_orders wo
+		JOIN customers c ON wo.customer_id = c.id
+		JOIN vehicles v ON wo.vehicle_id = v.id
+		WHERE %s
+		ORDER BY wo.created_at DESC
+		LIMIT $%d OFFSET $%d`, whereClause, len(args)-1, len(args))
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var workOrders []domain.WorkOrder
+	for rows.Next() {
+		var wo domain.WorkOrder
+		var customer domain.WorkOrderCustomer
+		var vehicle domain.WorkOrderVehicle
+		var customerID, vehicleID uuid.UUID
+
+		if err := rows.Scan(
+			&wo.ID, &wo.Code, &wo.Title, &wo.Description, &customerID, &vehicleID, &wo.OpenedByUserID,
+			&wo.AssignedTechnicianID, &wo.Status, &wo.TotalEstimatedPriceCents, &wo.ReceivedAt,
+			&wo.QuoteSentAt, &wo.ApprovedAt, &wo.StartedAt, &wo.FinishedAt, &wo.DeliveredAt,
+			&wo.CreatedAt, &wo.UpdatedAt,
+			&customer.ID, &customer.Name, &customer.Document,
+			&vehicle.ID, &vehicle.LicensePlate, &vehicle.Brand, &vehicle.Model, &vehicle.Year,
+		); err != nil {
+			return nil, err
+		}
+
+		wo.Customer = &customer
+		wo.Vehicle = &vehicle
+		wo.CustomerID = customerID
+		wo.VehicleID = vehicleID
+
+		workOrders = append(workOrders, wo)
+	}
+
+	totalPages := (total + filters.Limit - 1) / filters.Limit
+
+	return &domain.WorkOrderListResponse{
+		Data:       workOrders,
+		Total:      total,
+		Page:       filters.Page,
+		Limit:      filters.Limit,
+		TotalPages: totalPages,
+	}, nil
 }
