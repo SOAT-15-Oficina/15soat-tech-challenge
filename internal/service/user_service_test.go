@@ -233,3 +233,66 @@ func TestUserUpdate_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "alice2", result.Username)
 }
+
+func TestUserGetByID_Success(t *testing.T) {
+	repo := new(mockUserRepo)
+	svc := NewUserService(repo, "secret")
+	ctx := context.Background()
+	id := uuid.New()
+	user := &domain.User{ID: id, Username: "alice", Role: domain.UserRoleAdmin}
+
+	repo.On("FindByID", ctx, id).Return(user, nil)
+
+	result, err := svc.GetByID(ctx, id)
+	assert.NoError(t, err)
+	assert.Equal(t, id, result.ID)
+}
+
+func TestUserGetByID_NotFound(t *testing.T) {
+	repo := new(mockUserRepo)
+	svc := NewUserService(repo, "secret")
+	ctx := context.Background()
+	id := uuid.New()
+
+	repo.On("FindByID", ctx, id).Return(nil, pgx.ErrNoRows)
+
+	result, err := svc.GetByID(ctx, id)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestUserGetAll_Success(t *testing.T) {
+	repo := new(mockUserRepo)
+	svc := NewUserService(repo, "secret")
+	ctx := context.Background()
+
+	repo.On("FindAll", ctx).Return([]domain.User{{ID: uuid.New(), Username: "alice"}}, nil)
+
+	results, err := svc.GetAll(ctx)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
+}
+
+func TestUserDelete_Success(t *testing.T) {
+	repo := new(mockUserRepo)
+	svc := NewUserService(repo, "secret")
+	ctx := context.Background()
+	id := uuid.New()
+
+	repo.On("Delete", ctx, id).Return(nil)
+
+	err := svc.Delete(ctx, id)
+	assert.NoError(t, err)
+}
+
+func TestUserDelete_Error(t *testing.T) {
+	repo := new(mockUserRepo)
+	svc := NewUserService(repo, "secret")
+	ctx := context.Background()
+	id := uuid.New()
+
+	repo.On("Delete", ctx, id).Return(errors.New("db error"))
+
+	err := svc.Delete(ctx, id)
+	assert.Error(t, err)
+}

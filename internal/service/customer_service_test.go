@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -159,4 +161,66 @@ func TestCustomerUpdate_InvalidCPF(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrCustomerInvalidCPFChecksum)
 	assert.Nil(t, result)
 	repo.AssertNotCalled(t, "Update")
+}
+
+func TestCustomerGetByID_Success(t *testing.T) {
+	repo := new(mockCustomerRepo)
+	svc := NewCustomerService(repo)
+	ctx := context.Background()
+	c := savedCustomer()
+
+	repo.On("FindByID", ctx, c.ID).Return(c, nil)
+
+	result, err := svc.GetByID(ctx, c.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, c.ID, result.ID)
+}
+
+func TestCustomerGetByID_NotFound(t *testing.T) {
+	repo := new(mockCustomerRepo)
+	svc := NewCustomerService(repo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	repo.On("FindByID", ctx, id).Return(nil, pgx.ErrNoRows)
+
+	result, err := svc.GetByID(ctx, id)
+	assert.ErrorIs(t, err, pgx.ErrNoRows)
+	assert.Nil(t, result)
+}
+
+func TestCustomerGetAll_Success(t *testing.T) {
+	repo := new(mockCustomerRepo)
+	svc := NewCustomerService(repo)
+	ctx := context.Background()
+
+	repo.On("FindAll", ctx).Return([]domain.Customer{*savedCustomer()}, nil)
+
+	results, err := svc.GetAll(ctx)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
+}
+
+func TestCustomerDelete_Success(t *testing.T) {
+	repo := new(mockCustomerRepo)
+	svc := NewCustomerService(repo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	repo.On("Delete", ctx, id).Return(nil)
+
+	err := svc.Delete(ctx, id)
+	assert.NoError(t, err)
+}
+
+func TestCustomerDelete_Error(t *testing.T) {
+	repo := new(mockCustomerRepo)
+	svc := NewCustomerService(repo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	repo.On("Delete", ctx, id).Return(errors.New("db error"))
+
+	err := svc.Delete(ctx, id)
+	assert.Error(t, err)
 }

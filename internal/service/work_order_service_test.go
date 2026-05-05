@@ -8,6 +8,7 @@ import (
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -133,4 +134,81 @@ func TestCreate_MissingCustomerID_ReturnsError(t *testing.T) {
 	out, err := svc.Create(ctx, input)
 	assert.Error(t, err)
 	assert.Nil(t, out)
+}
+
+func TestWorkOrderGetByID_Success(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+	id := uuid.New()
+	wo := makeWO(id, domain.WorkOrderStatusReceived)
+
+	woRepo.On("FindByID", ctx, id).Return(wo, nil)
+
+	result, err := svc.GetByID(ctx, id)
+	assert.NoError(t, err)
+	assert.Equal(t, id, result.ID)
+}
+
+func TestWorkOrderGetByID_NotFound(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	woRepo.On("FindByID", ctx, id).Return(nil, pgx.ErrNoRows)
+
+	result, err := svc.GetByID(ctx, id)
+	assert.ErrorIs(t, err, pgx.ErrNoRows)
+	assert.Nil(t, result)
+}
+
+func TestWorkOrderGetAll_Success(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	woRepo.On("FindAll", ctx).Return([]domain.WorkOrder{*makeWO(id, domain.WorkOrderStatusReceived)}, nil)
+
+	results, err := svc.GetAll(ctx)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
+}
+
+func TestWorkOrderUpdate_Success(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	existing := makeWO(id, domain.WorkOrderStatusReceived)
+	existing.Title = "Revisão Original"
+	updated := makeWO(id, domain.WorkOrderStatusInDiagnosis)
+
+	woRepo.On("FindByID", ctx, id).Return(existing, nil)
+	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(updated, nil)
+
+	input := &domain.WorkOrder{ID: id, Title: "Revisão Atualizada", Status: domain.WorkOrderStatusInDiagnosis}
+	result, err := svc.Update(ctx, input)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+}
+
+func TestWorkOrderUpdate_NotFound(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	woRepo.On("FindByID", ctx, id).Return(nil, pgx.ErrNoRows)
+
+	result, err := svc.Update(ctx, &domain.WorkOrder{ID: id})
+	assert.ErrorIs(t, err, pgx.ErrNoRows)
+	assert.Nil(t, result)
 }

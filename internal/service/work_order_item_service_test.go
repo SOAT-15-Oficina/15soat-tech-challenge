@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -119,4 +120,65 @@ func TestApproveAll_AllApproved_SetsApproved(t *testing.T) {
 	call := woRepo.Calls[len(woRepo.Calls)-1]
 	updated := call.Arguments[1].(*domain.WorkOrder)
 	assert.Equal(t, domain.WorkOrderStatusApproved, updated.Status)
+}
+
+func TestApproveService_Pending_Success(t *testing.T) {
+	wosRepo := new(mockWorkOrderServiceRepo)
+	woRepo := new(mockWorkOrderRepo)
+	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wosID := uuid.New()
+	wos := &domain.WorkOrderService{
+		ID:             wosID,
+		WorkOrderID:    woID,
+		ApprovalStatus: domain.WorkOrderServiceApprovalPending,
+	}
+	services := []domain.WorkOrderService{
+		{ID: wosID, WorkOrderID: woID, ApprovalStatus: domain.WorkOrderServiceApprovalApproved},
+	}
+	wo := makeWO(woID, domain.WorkOrderStatusWaitingApproval)
+
+	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+	wosRepo.On("UpdateApprovalStatus", ctx, wosID, domain.WorkOrderServiceApprovalApproved).Return(nil)
+	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(5000, nil)
+	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+
+	err := svc.ApproveService(ctx, wosID)
+	assert.NoError(t, err)
+}
+
+func TestApproveService_AlreadyApproved_Idempotent(t *testing.T) {
+	wosRepo := new(mockWorkOrderServiceRepo)
+	woRepo := new(mockWorkOrderRepo)
+	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	ctx := context.Background()
+
+	wosID := uuid.New()
+	wos := &domain.WorkOrderService{
+		ID:             wosID,
+		ApprovalStatus: domain.WorkOrderServiceApprovalApproved,
+	}
+
+	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+
+	err := svc.ApproveService(ctx, wosID)
+	assert.NoError(t, err)
+	wosRepo.AssertNotCalled(t, "UpdateApprovalStatus")
+}
+
+func TestApproveService_FindFails(t *testing.T) {
+	wosRepo := new(mockWorkOrderServiceRepo)
+	woRepo := new(mockWorkOrderRepo)
+	svc := NewWorkOrderItemService(wosRepo, woRepo)
+	ctx := context.Background()
+	wosID := uuid.New()
+
+	wosRepo.On("FindByID", ctx, wosID).Return(nil, errors.New("db error"))
+
+	err := svc.ApproveService(ctx, wosID)
+	assert.Error(t, err)
 }
