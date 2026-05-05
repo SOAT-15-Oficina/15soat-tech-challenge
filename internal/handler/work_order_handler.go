@@ -3,7 +3,9 @@ package handler
 import (
 	"errors"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/auth"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
@@ -14,10 +16,12 @@ type WorkOrderHandler struct {
 	svc         service.WorkOrderService
 	budgetSvc   service.BudgetService
 	creationSvc service.WorkOrderCreationService
+	statusSvc   service.WorkOrderStatusService
+	userRepo    repository.UserRepository
 }
 
-func NewWorkOrderHandler(svc service.WorkOrderService, budgetSvc service.BudgetService, creationSvc service.WorkOrderCreationService) *WorkOrderHandler {
-	return &WorkOrderHandler{svc: svc, budgetSvc: budgetSvc, creationSvc: creationSvc}
+func NewWorkOrderHandler(svc service.WorkOrderService, budgetSvc service.BudgetService, creationSvc service.WorkOrderCreationService, statusSvc service.WorkOrderStatusService, userRepo repository.UserRepository) *WorkOrderHandler {
+	return &WorkOrderHandler{svc: svc, budgetSvc: budgetSvc, creationSvc: creationSvc, statusSvc: statusSvc, userRepo: userRepo}
 }
 
 type addServiceRequest struct {
@@ -86,18 +90,43 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 	}
 	workOrder.ID = id
 
+	// Handle status transition separately via state machine
+	if workOrder.Status != "" {
+		var changedByUserID *uuid.UUID
+		if claims, ok := c.Locals("token").(*auth.AppClaims); ok {
+			user, err := h.userRepo.FindByUsername(c.Context(), claims.User)
+			if err == nil {
+				changedByUserID = &user.ID
+			}
+		}
+
+		result, err := h.statusSvc.TransitionTo(c.Context(), id, workOrder.Status, changedByUserID)
+		if err != nil {
+			if errors.Is(err, service.ErrInvalidStatusTransition) {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
+			}
+			if errors.Is(err, pgx.ErrNoRows) {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "work order not found"})
+			}
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		if result.Status == domain.WorkOrderStatusWaitingApproval && h.budgetSvc != nil {
+			if err := h.budgetSvc.GenerateAndSendBudget(c.Context(), result.ID); err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to send budget email: " + err.Error()})
+			}
+		}
+
+		// Clear status so the field update below skips it
+		workOrder.Status = ""
+	}
+
 	result, err := h.svc.Update(c.Context(), &workOrder)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "work order not found"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	if result.Status == domain.WorkOrderStatusWaitingApproval && h.budgetSvc != nil {
-		if err := h.budgetSvc.GenerateAndSendBudget(c.Context(), result.ID); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to send budget email: " + err.Error()})
-		}
 	}
 
 	return c.JSON(result)
