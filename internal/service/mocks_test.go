@@ -46,6 +46,14 @@ func (m *mockWorkOrderRepo) FindAll(ctx context.Context) ([]domain.WorkOrder, er
 	return args.Get(0).([]domain.WorkOrder), args.Error(1)
 }
 
+func (m *mockWorkOrderRepo) FindAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error) {
+	args := m.Called(ctx, filters)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.WorkOrderListResponse), args.Error(1)
+}
+
 func (m *mockWorkOrderRepo) Update(ctx context.Context, wo *domain.WorkOrder) (*domain.WorkOrder, error) {
 	args := m.Called(ctx, wo)
 	if args.Get(0) == nil {
