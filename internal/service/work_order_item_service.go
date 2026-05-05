@@ -107,7 +107,7 @@ func (s *workOrderItemService) evaluateWorkOrderCompletion(ctx context.Context, 
 		newStatus = domain.WorkOrderStatusCanceled
 	}
 
-	wo, err := s.statusSvc.TransitionTo(ctx, workOrderID, newStatus, nil)
+	wo, err := s.statusSvc.TransitionTo(ctx, workOrderID, newStatus)
 	if err != nil {
 		return fmt.Errorf("evaluate: transition status: %w", err)
 	}

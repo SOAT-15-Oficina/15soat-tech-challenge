@@ -78,7 +78,7 @@ func TestAddServices_ValidInput_CreatesItems(t *testing.T) {
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	wsRepo.On("FindByID", ctx, wsID).Return(ws, nil)
 	wosRepo.On("CreateBatch", ctx, mock.AnythingOfType("[]*domain.WorkOrderService")).Return(created, nil)
-	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusInDiagnosis, (*uuid.UUID)(nil)).Return(wo, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusInDiagnosis).Return(wo, nil)
 
 	items := []AddWorkOrderServiceInput{{ServiceID: wsID}}
 	result, err := svc.AddServices(ctx, woID, items)
@@ -264,11 +264,11 @@ func TestAddServices_WorkOrderRecebida_TransitionsToEmDiagnostico(t *testing.T) 
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	wsRepo.On("FindByID", ctx, wsID).Return(ws, nil)
 	wosRepo.On("CreateBatch", ctx, mock.AnythingOfType("[]*domain.WorkOrderService")).Return(created, nil)
-	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusInDiagnosis, (*uuid.UUID)(nil)).Return(wo, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusInDiagnosis).Return(wo, nil)
 
 	_, err := svc.AddServices(ctx, woID, []AddWorkOrderServiceInput{{ServiceID: wsID}})
 	assert.NoError(t, err)
-	statusSvc.AssertCalled(t, "TransitionTo", ctx, woID, domain.WorkOrderStatusInDiagnosis, (*uuid.UUID)(nil))
+	statusSvc.AssertCalled(t, "TransitionTo", ctx, woID, domain.WorkOrderStatusInDiagnosis)
 }
 
 func TestAddServices_WorkOrderEmDiagnostico_DoesNotChangeStatus(t *testing.T) {

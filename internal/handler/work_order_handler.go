@@ -3,9 +3,7 @@ package handler
 import (
 	"errors"
 
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/auth"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
@@ -17,11 +15,10 @@ type WorkOrderHandler struct {
 	budgetSvc   service.BudgetService
 	creationSvc service.WorkOrderCreationService
 	statusSvc   service.WorkOrderStatusService
-	userRepo    repository.UserRepository
 }
 
-func NewWorkOrderHandler(svc service.WorkOrderService, budgetSvc service.BudgetService, creationSvc service.WorkOrderCreationService, statusSvc service.WorkOrderStatusService, userRepo repository.UserRepository) *WorkOrderHandler {
-	return &WorkOrderHandler{svc: svc, budgetSvc: budgetSvc, creationSvc: creationSvc, statusSvc: statusSvc, userRepo: userRepo}
+func NewWorkOrderHandler(svc service.WorkOrderService, budgetSvc service.BudgetService, creationSvc service.WorkOrderCreationService, statusSvc service.WorkOrderStatusService) *WorkOrderHandler {
+	return &WorkOrderHandler{svc: svc, budgetSvc: budgetSvc, creationSvc: creationSvc, statusSvc: statusSvc}
 }
 
 type addServiceRequest struct {
@@ -92,15 +89,7 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 
 	// Handle status transition separately via state machine
 	if workOrder.Status != "" {
-		var changedByUserID *uuid.UUID
-		if claims, ok := c.Locals("token").(*auth.AppClaims); ok {
-			user, err := h.userRepo.FindByUsername(c.Context(), claims.User)
-			if err == nil {
-				changedByUserID = &user.ID
-			}
-		}
-
-		result, err := h.statusSvc.TransitionTo(c.Context(), id, workOrder.Status, changedByUserID)
+		result, err := h.statusSvc.TransitionTo(c.Context(), id, workOrder.Status)
 		if err != nil {
 			if errors.Is(err, service.ErrInvalidStatusTransition) {
 				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})

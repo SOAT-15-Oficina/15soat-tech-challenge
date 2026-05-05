@@ -25,25 +25,22 @@ var allowedTransitions = map[domain.WorkOrderStatus][]domain.WorkOrderStatus{
 }
 
 type WorkOrderStatusService interface {
-	TransitionTo(ctx context.Context, workOrderID uuid.UUID, newStatus domain.WorkOrderStatus, changedByUserID *uuid.UUID) (*domain.WorkOrder, error)
+	TransitionTo(ctx context.Context, workOrderID uuid.UUID, newStatus domain.WorkOrderStatus) (*domain.WorkOrder, error)
 	IsValidTransition(from, to domain.WorkOrderStatus) bool
 }
 
 type workOrderStatusService struct {
-	woRepo      repository.WorkOrderRepository
-	wosRepo     repository.WorkOrderServiceRepository
-	historyRepo repository.WorkOrderStatusHistoryRepository
+	woRepo  repository.WorkOrderRepository
+	wosRepo repository.WorkOrderServiceRepository
 }
 
 func NewWorkOrderStatusService(
 	woRepo repository.WorkOrderRepository,
 	wosRepo repository.WorkOrderServiceRepository,
-	historyRepo repository.WorkOrderStatusHistoryRepository,
 ) WorkOrderStatusService {
 	return &workOrderStatusService{
-		woRepo:      woRepo,
-		wosRepo:     wosRepo,
-		historyRepo: historyRepo,
+		woRepo:  woRepo,
+		wosRepo: wosRepo,
 	}
 }
 
@@ -60,7 +57,7 @@ func (s *workOrderStatusService) IsValidTransition(from, to domain.WorkOrderStat
 	return false
 }
 
-func (s *workOrderStatusService) TransitionTo(ctx context.Context, workOrderID uuid.UUID, newStatus domain.WorkOrderStatus, changedByUserID *uuid.UUID) (*domain.WorkOrder, error) {
+func (s *workOrderStatusService) TransitionTo(ctx context.Context, workOrderID uuid.UUID, newStatus domain.WorkOrderStatus) (*domain.WorkOrder, error) {
 	wo, err := s.woRepo.FindByID(ctx, workOrderID)
 	if err != nil {
 		return nil, fmt.Errorf("transition: find work order: %w", err)
@@ -74,7 +71,6 @@ func (s *workOrderStatusService) TransitionTo(ctx context.Context, workOrderID u
 		return nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStatusTransition, wo.Status, newStatus)
 	}
 
-	fromStatus := wo.Status
 	wo.Status = newStatus
 	now := time.Now()
 	wo.UpdatedAt = now
@@ -104,18 +100,6 @@ func (s *workOrderStatusService) TransitionTo(ctx context.Context, workOrderID u
 		if err := s.wosRepo.MarkAsFinishedByWorkOrderID(ctx, workOrderID, now); err != nil {
 			return nil, fmt.Errorf("transition: mark services as finished: %w", err)
 		}
-	}
-
-	history := &domain.WorkOrderStatusHistory{
-		ID:              uuid.New(),
-		WorkOrderID:     workOrderID,
-		FromStatus:      fromStatus,
-		ToStatus:        newStatus,
-		ChangedByUserID: changedByUserID,
-		ChangedAt:       now,
-	}
-	if err := s.historyRepo.Create(ctx, history); err != nil {
-		return nil, fmt.Errorf("transition: record history: %w", err)
 	}
 
 	return updated, nil

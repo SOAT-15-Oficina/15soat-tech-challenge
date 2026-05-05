@@ -48,13 +48,13 @@ func TestRejectAll_AllRejected_SetsCanceled(t *testing.T) {
 
 	wosRepo.On("UpdateApprovalStatusByWorkOrderID", ctx, woID, domain.WorkOrderServiceApprovalRejected).Return(nil)
 	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
-	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusCanceled, (*uuid.UUID)(nil)).Return(wo, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusCanceled).Return(wo, nil)
 	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(0, nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	err := svc.RejectAllByWorkOrder(ctx, woID)
 	assert.NoError(t, err)
-	statusSvc.AssertCalled(t, "TransitionTo", ctx, woID, domain.WorkOrderStatusCanceled, (*uuid.UUID)(nil))
+	statusSvc.AssertCalled(t, "TransitionTo", ctx, woID, domain.WorkOrderStatusCanceled)
 }
 
 func TestRejectService_LastPending_AllRejected_SetsCanceled(t *testing.T) {
@@ -81,13 +81,13 @@ func TestRejectService_LastPending_AllRejected_SetsCanceled(t *testing.T) {
 	wosRepo.On("FindByID", ctx, wosID).Return(pending, nil)
 	wosRepo.On("UpdateApprovalStatus", ctx, wosID, domain.WorkOrderServiceApprovalRejected).Return(nil)
 	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(afterReject, nil)
-	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusCanceled, (*uuid.UUID)(nil)).Return(wo, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusCanceled).Return(wo, nil)
 	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(0, nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	err := svc.RejectService(ctx, wosID)
 	assert.NoError(t, err)
-	statusSvc.AssertCalled(t, "TransitionTo", ctx, woID, domain.WorkOrderStatusCanceled, (*uuid.UUID)(nil))
+	statusSvc.AssertCalled(t, "TransitionTo", ctx, woID, domain.WorkOrderStatusCanceled)
 }
 
 func TestApproveAll_AllApproved_SetsApproved(t *testing.T) {
@@ -106,11 +106,11 @@ func TestApproveAll_AllApproved_SetsApproved(t *testing.T) {
 
 	wosRepo.On("UpdateApprovalStatusByWorkOrderID", ctx, woID, domain.WorkOrderServiceApprovalApproved).Return(nil)
 	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
-	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusApproved, (*uuid.UUID)(nil)).Return(wo, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusApproved).Return(wo, nil)
 	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(10000, nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	err := svc.ApproveAllByWorkOrder(ctx, woID)
 	assert.NoError(t, err)
-	statusSvc.AssertCalled(t, "TransitionTo", ctx, woID, domain.WorkOrderStatusApproved, (*uuid.UUID)(nil))
+	statusSvc.AssertCalled(t, "TransitionTo", ctx, woID, domain.WorkOrderStatusApproved)
 }

@@ -100,7 +100,7 @@ func (s *workOrderCreationService) AddServices(ctx context.Context, workOrderID 
 	}
 
 	if wo.Status == domain.WorkOrderStatusReceived {
-		if _, err := s.statusSvc.TransitionTo(ctx, workOrderID, domain.WorkOrderStatusInDiagnosis, nil); err != nil {
+		if _, err := s.statusSvc.TransitionTo(ctx, workOrderID, domain.WorkOrderStatusInDiagnosis); err != nil {
 			return nil, fmt.Errorf("add services: transition status: %w", err)
 		}
 	}
