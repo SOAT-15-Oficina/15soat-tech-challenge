@@ -5,6 +5,7 @@ import (
 	"errors"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
@@ -211,4 +212,87 @@ func TestWorkOrderUpdate_NotFound(t *testing.T) {
 	result, err := svc.Update(ctx, &domain.WorkOrder{ID: id})
 	assert.ErrorIs(t, err, pgx.ErrNoRows)
 	assert.Nil(t, result)
+}
+
+func TestCreate_MissingOpenedByUserID_ReturnsError(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+
+	input := &domain.WorkOrder{
+		Title:      "Revisão",
+		CustomerID: uuid.New(),
+		VehicleID:  uuid.New(),
+	}
+
+	out, err := svc.Create(ctx, input)
+	assert.Error(t, err)
+	assert.Nil(t, out)
+}
+
+func TestCreate_VehicleNotBelongingToCustomer(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+
+	customerID := uuid.New()
+	vehicleID := uuid.New()
+	input := &domain.WorkOrder{
+		Title:          "Revisão",
+		CustomerID:     customerID,
+		VehicleID:      vehicleID,
+		OpenedByUserID: uuid.New(),
+	}
+	vehicle := &domain.Vehicle{ID: vehicleID, CustomerID: uuid.New()} // diferente customerID
+
+	vehicleRepo.On("FindByID", ctx, vehicleID).Return(vehicle, nil)
+
+	out, err := svc.Create(ctx, input)
+	assert.ErrorIs(t, err, ErrVehicleNotBelongingToCustomer)
+	assert.Nil(t, out)
+}
+
+func TestWorkOrderUpdate_AllFields(t *testing.T) {
+	// cobre todos os branches opcionais do Update
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	existing := makeWO(id, domain.WorkOrderStatusReceived)
+	updated := makeWO(id, domain.WorkOrderStatusInDiagnosis)
+
+	desc := "nova descrição"
+	techID := uuid.New()
+	custID := uuid.New()
+	vehID := uuid.New()
+	now := time.Now()
+
+	input := &domain.WorkOrder{
+		ID:                       id,
+		Code:                     "OS-NOVO",
+		Title:                    "Revisão Completa",
+		Description:              &desc,
+		CustomerID:               custID,
+		VehicleID:                vehID,
+		AssignedTechnicianID:     &techID,
+		Status:                   domain.WorkOrderStatusInDiagnosis,
+		TotalEstimatedPriceCents: 9999,
+		ReceivedAt:               now,
+		QuoteSentAt:              &now,
+		ApprovedAt:               &now,
+		StartedAt:                &now,
+		FinishedAt:               &now,
+		DeliveredAt:              &now,
+	}
+
+	woRepo.On("FindByID", ctx, id).Return(existing, nil)
+	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(updated, nil)
+
+	result, err := svc.Update(ctx, input)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
 }
