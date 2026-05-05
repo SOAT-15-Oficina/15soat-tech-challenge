@@ -56,14 +56,6 @@ CREATE TABLE IF NOT EXISTS "supplies" (
   "updated_at" timestamp NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS "service_supplies" (
-  "id" uuid PRIMARY KEY,
-  "service_id" uuid NOT NULL,
-  "item_id" uuid NOT NULL,
-  "quantity" int NOT NULL,
-  "created_at" timestamp NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS "work_orders" (
   "id" uuid PRIMARY KEY,
   "code" varchar(30) UNIQUE NOT NULL,
@@ -112,18 +104,6 @@ CREATE TABLE IF NOT EXISTS "work_order_service_supplies" (
   "updated_at" timestamp NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS "inventory_movements" (
-  "id" uuid PRIMARY KEY,
-  "supply_id" uuid NOT NULL,
-  "movement_type" varchar(20) NOT NULL,
-  "quantity" int NOT NULL,
-  "reason" varchar(120),
-  "work_order_id" uuid,
-  "work_order_service_id" uuid,
-  "created_by_user_id" uuid,
-  "created_at" timestamp NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS "work_order_service_status_history" (
   "id" uuid PRIMARY KEY,
   "work_order_service_id" uuid NOT NULL,
@@ -136,10 +116,6 @@ CREATE TABLE IF NOT EXISTS "work_order_service_status_history" (
 -- ==================== INDEXES ====================
 CREATE INDEX IF NOT EXISTS idx_vehicles_customer_id ON "vehicles" ("customer_id");
 CREATE INDEX IF NOT EXISTS idx_vehicles_license_plate ON "vehicles" ("license_plate");
-
-CREATE INDEX IF NOT EXISTS idx_service_supplies_service_id ON "service_supplies" ("service_id");
-CREATE INDEX IF NOT EXISTS idx_service_supplies_item_id ON "service_supplies" ("item_id");
-CREATE UNIQUE INDEX IF NOT EXISTS idx_service_supplies_service_item ON "service_supplies" ("service_id", "item_id");
 
 CREATE INDEX IF NOT EXISTS idx_work_orders_code ON "work_orders" ("code");
 CREATE INDEX IF NOT EXISTS idx_work_orders_customer_id ON "work_orders" ("customer_id");
@@ -155,10 +131,6 @@ CREATE INDEX IF NOT EXISTS idx_work_order_service_supplies_wos_id ON "work_order
 CREATE INDEX IF NOT EXISTS idx_work_order_service_supplies_supply_id ON "work_order_service_supplies" ("supply_id");
 CREATE UNIQUE INDEX IF NOT EXISTS idx_work_order_service_supplies_wos_supply ON "work_order_service_supplies" ("work_order_service_id", "supply_id");
 
-CREATE INDEX IF NOT EXISTS idx_inventory_movements_supply_id ON "inventory_movements" ("supply_id");
-CREATE INDEX IF NOT EXISTS idx_inventory_movements_work_order_id ON "inventory_movements" ("work_order_id");
-CREATE INDEX IF NOT EXISTS idx_inventory_movements_wos_id ON "inventory_movements" ("work_order_service_id");
-
 CREATE INDEX IF NOT EXISTS idx_work_order_service_status_history_wos_id ON "work_order_service_status_history" ("work_order_service_id");
 CREATE INDEX IF NOT EXISTS idx_work_order_service_status_history_changed_at ON "work_order_service_status_history" ("changed_at");
 
@@ -166,16 +138,6 @@ CREATE INDEX IF NOT EXISTS idx_work_order_service_status_history_changed_at ON "
 DO $$ BEGIN
   ALTER TABLE "vehicles" ADD CONSTRAINT fk_vehicles_customer
     FOREIGN KEY ("customer_id") REFERENCES "customers" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-  ALTER TABLE "service_supplies" ADD CONSTRAINT fk_service_supplies_service
-    FOREIGN KEY ("service_id") REFERENCES "services" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-  ALTER TABLE "service_supplies" ADD CONSTRAINT fk_service_supplies_supply
-    FOREIGN KEY ("item_id") REFERENCES "supplies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -219,26 +181,6 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "inventory_movements" ADD CONSTRAINT fk_inv_mov_supply
-    FOREIGN KEY ("supply_id") REFERENCES "supplies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-  ALTER TABLE "inventory_movements" ADD CONSTRAINT fk_inv_mov_work_order
-    FOREIGN KEY ("work_order_id") REFERENCES "work_orders" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-  ALTER TABLE "inventory_movements" ADD CONSTRAINT fk_inv_mov_wos
-    FOREIGN KEY ("work_order_service_id") REFERENCES "work_order_services" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-  ALTER TABLE "inventory_movements" ADD CONSTRAINT fk_inv_mov_created_by
-    FOREIGN KEY ("created_by_user_id") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
   ALTER TABLE "work_order_service_status_history" ADD CONSTRAINT fk_wosh_work_order_service
     FOREIGN KEY ("work_order_service_id") REFERENCES "work_order_services" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -257,11 +199,9 @@ EXCEPTION WHEN duplicate_table THEN NULL; END $$;
 -- +goose Down
 -- +goose StatementBegin
 DROP TABLE IF EXISTS "work_order_service_status_history";
-DROP TABLE IF EXISTS "inventory_movements";
 DROP TABLE IF EXISTS "work_order_service_supplies";
 DROP TABLE IF EXISTS "work_order_services";
 DROP TABLE IF EXISTS "work_orders";
-DROP TABLE IF EXISTS "service_supplies";
 DROP TABLE IF EXISTS "supplies";
 DROP TABLE IF EXISTS "services";
 DROP TABLE IF EXISTS "vehicles";

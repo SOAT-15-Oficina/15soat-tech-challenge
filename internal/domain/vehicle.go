@@ -29,6 +29,8 @@ type Vehicle struct {
 	Model        string    `json:"model"`
 	Year         int       `json:"year"`
 	Brand        string    `json:"brand"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 func (v *Vehicle) Normalize() {

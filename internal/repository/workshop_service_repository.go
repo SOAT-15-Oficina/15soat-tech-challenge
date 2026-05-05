@@ -277,11 +277,12 @@ func (r *workshopServiceRepository) GetAvgExecutionTime(ctx context.Context, fil
 
 func (r *workshopServiceRepository) SubtractSuppliesFromStock(ctx context.Context, serviceID uuid.UUID) error {
 	query := `
-		UPDATE supplies i
-		SET stock_quantity = i.stock_quantity - s.quantity
-		FROM service_supplies s
-		WHERE s.item_id = i.id
-		  AND s.service_id = $1`
+		UPDATE supplies s
+		SET stock_quantity = s.stock_quantity - woss.supply_quantity
+		FROM work_order_service_supplies woss
+		JOIN work_order_services wos ON wos.id = woss.work_order_service_id
+		WHERE woss.supply_id = s.id
+		  AND wos.service_id = $1`
 
 	_, err := r.db.Exec(ctx, query, serviceID)
 	return err
