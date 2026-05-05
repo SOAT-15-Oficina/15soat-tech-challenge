@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -348,4 +349,36 @@ func TestDelete_NotFound(t *testing.T) {
 	result, err := svc.Delete(ctx, id)
 	assert.ErrorIs(t, err, pgx.ErrNoRows)
 	assert.Nil(t, result)
+}
+
+func TestGetAvgExecutionTime_Success(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+
+	filters := domain.AvgExecutionTimeFilters{}
+	expected := []domain.AvgExecutionTimeResult{
+		{ServiceID: uuid.New(), Title: "Troca de óleo", AvgRealTimeMinutes: 45.5, ExecutionCount: 10},
+	}
+
+	repo.On("GetAvgExecutionTime", ctx, filters).Return(expected, nil)
+
+	results, err := svc.GetAvgExecutionTime(ctx, filters)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, 45.5, results[0].AvgRealTimeMinutes)
+}
+
+func TestGetAvgExecutionTime_RepoError(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+
+	filters := domain.AvgExecutionTimeFilters{}
+
+	repo.On("GetAvgExecutionTime", ctx, filters).Return([]domain.AvgExecutionTimeResult{}, errors.New("db error"))
+
+	results, err := svc.GetAvgExecutionTime(ctx, filters)
+	assert.Error(t, err)
+	assert.Empty(t, results)
 }
