@@ -49,10 +49,10 @@ func (r *workshopServiceRepository) Create(ctx context.Context, ws *domain.Works
 	var result domain.WorkshopService
 	err := r.db.QueryRow(ctx, query,
 		ws.ID, ws.Title, ws.Description, ws.PriceCents,
-		ws.EstimatedTimeMinutes, ws.Status, ws.Active, ws.CreatedAt, ws.UpdatedAt,
+		ws.EstimatedTimeMinutes, ws.Active, ws.CreatedAt, ws.UpdatedAt,
 	).Scan(
 		&result.ID, &result.Title, &result.Description, &result.PriceCents,
-		&result.EstimatedTimeMinutes, &result.Status, &result.Active, &result.CreatedAt, &result.UpdatedAt,
+		&result.EstimatedTimeMinutes, &result.Active, &result.CreatedAt, &result.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (r *workshopServiceRepository) FindByID(ctx context.Context, id uuid.UUID) 
 	var result domain.WorkshopService
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&result.ID, &result.Title, &result.Description, &result.PriceCents,
-		&result.EstimatedTimeMinutes, &result.Status, &result.Active, &result.CreatedAt, &result.UpdatedAt,
+		&result.EstimatedTimeMinutes, &result.Active, &result.CreatedAt, &result.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -102,7 +102,7 @@ func (r *workshopServiceRepository) List(ctx context.Context, filters domain.Wor
 
 	args = append(args, filters.Limit, (filters.Page-1)*filters.Limit)
 	listQuery := fmt.Sprintf(`
-		SELECT id, title, description, price_cents, estimated_time_minutes, status, active, created_at, updated_at
+		SELECT id, title, description, price_cents, estimated_time_minutes, active, created_at, updated_at
 		FROM services
 		WHERE %s
 		ORDER BY created_at DESC
@@ -119,7 +119,7 @@ func (r *workshopServiceRepository) List(ctx context.Context, filters domain.Wor
 		var item domain.WorkshopService
 		if err := rows.Scan(
 			&item.ID, &item.Title, &item.Description, &item.PriceCents,
-			&item.EstimatedTimeMinutes, &item.Status, &item.Active, &item.CreatedAt, &item.UpdatedAt,
+			&item.EstimatedTimeMinutes, &item.Active, &item.CreatedAt, &item.UpdatedAt,
 		); err != nil {
 			return nil, 0, err
 		}
@@ -145,10 +145,10 @@ func (r *workshopServiceRepository) Update(ctx context.Context, ws *domain.Works
 	var result domain.WorkshopService
 	err := r.db.QueryRow(ctx, query,
 		ws.Title, ws.Description, ws.PriceCents, ws.EstimatedTimeMinutes,
-		ws.Status, ws.Active, ws.UpdatedAt, ws.ID,
+		ws.Active, ws.UpdatedAt, ws.ID,
 	).Scan(
 		&result.ID, &result.Title, &result.Description, &result.PriceCents,
-		&result.EstimatedTimeMinutes, &result.Status, &result.Active, &result.CreatedAt, &result.UpdatedAt,
+		&result.EstimatedTimeMinutes,&result.Active, &result.CreatedAt, &result.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -177,7 +177,7 @@ func (r *workshopServiceRepository) Deactivate(ctx context.Context, id uuid.UUID
 	var result domain.WorkshopService
 	err := r.db.QueryRow(ctx, query, time.Now().UTC(), id).Scan(
 		&result.ID, &result.Title, &result.Description, &result.PriceCents,
-		&result.EstimatedTimeMinutes, &result.Status, &result.Active, &result.CreatedAt, &result.UpdatedAt,
+		&result.EstimatedTimeMinutes, &result.Active, &result.CreatedAt, &result.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err

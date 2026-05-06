@@ -13,7 +13,6 @@ func validWorkshopService() *WorkshopService {
 		Description:          "Troca de oleo do motor",
 		PriceCents:           5000,
 		EstimatedTimeMinutes: 30,
-		Status:               WorkshopServiceStatusWaiting,
 		Active:               true,
 	}
 }
@@ -103,12 +102,6 @@ func TestValidate_NegativeDuration(t *testing.T) {
 	ws := validWorkshopService()
 	ws.EstimatedTimeMinutes = -10
 	assert.ErrorIs(t, ws.Validate(), ErrWorkshopServiceDurationMustBePositive)
-}
-
-func TestValidate_InvalidStatus(t *testing.T) {
-	ws := validWorkshopService()
-	ws.Status = WorkshopServiceStatus("INVALIDO")
-	assert.ErrorIs(t, ws.Validate(), ErrWorkshopServiceInvalidStatus)
 }
 
 func TestNormalize_TrimsWhitespace(t *testing.T) {
