@@ -232,7 +232,7 @@ func (r *workshopServiceRepository) GetAvgExecutionTime(ctx context.Context, fil
 	}
 	if filters.TechnicianID != nil {
 		args = append(args, *filters.TechnicianID)
-		where = append(where, fmt.Sprintf("wos.technician_id = $%d", len(args)))
+		where = append(where, fmt.Sprintf("wo.assigned_technician_id = $%d", len(args)))
 	}
 
 	whereClause := strings.Join(where, " AND ")
@@ -246,6 +246,7 @@ func (r *workshopServiceRepository) GetAvgExecutionTime(ctx context.Context, fil
 			COUNT(*) AS execution_count
 		FROM work_order_services wos
 		JOIN services s ON s.id = wos.service_id
+		JOIN work_orders wo ON wo.id = wos.work_order_id
 		WHERE %s
 		GROUP BY s.id, s.title, s.estimated_time_minutes
 		ORDER BY s.title`, whereClause)

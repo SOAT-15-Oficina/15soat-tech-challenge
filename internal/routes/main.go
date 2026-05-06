@@ -109,7 +109,8 @@ func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string, em
 	workOrderSvc := service.NewWorkOrderService(workOrderRepo, vehicleRepo)
 	budgetSvc := service.NewBudgetService(workOrderRepo, wosRepo, customerRepo, emailProv, baseURL)
 	creationSvc := service.NewWorkOrderCreationService(workOrderRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
-	workOrderHandler := handler.NewWorkOrderHandler(workOrderSvc, budgetSvc, creationSvc, statusSvc)
+	userRepo := repository.NewUserRepository(db)
+	workOrderHandler := handler.NewWorkOrderHandler(workOrderSvc, budgetSvc, creationSvc, statusSvc, userRepo)
 
 	group := app.Group("/work-orders", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
 	group.Post("/", workOrderHandler.Create)
