@@ -12,12 +12,15 @@ import (
 var (
 	ErrCustomerNameRequired        = errors.New("name is required")
 	ErrCustomerEmailRequired       = errors.New("email is required")
+	ErrCustomerInvalidEmailFormat  = errors.New("invalid email format")
 	ErrCustomerInvalidDocumentType = errors.New("invalid document type")
 	ErrCustomerInvalidCPFFormat    = errors.New("invalid CPF format")
 	ErrCustomerInvalidCPFChecksum  = errors.New("invalid CPF checksum")
 	ErrCustomerInvalidCNPJFormat   = errors.New("invalid CNPJ format")
 	ErrCustomerInvalidCNPJChecksum = errors.New("invalid CNPJ checksum")
 )
+
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 type CustomerDocumentType string
 
@@ -52,6 +55,9 @@ func (c *Customer) ValidateDocument() error {
 	}
 	if c.Email == "" {
 		return ErrCustomerEmailRequired
+	}
+	if !emailRegex.MatchString(c.Email) {
+		return ErrCustomerInvalidEmailFormat
 	}
 
 	switch c.DocumentType {

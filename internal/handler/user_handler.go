@@ -26,9 +26,9 @@ func (h *UserHandler) GetAll(c fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	if users == nil {
-		return c.JSON([]domain.User{})
+		users = []domain.User{}
 	}
-	return c.JSON(users)
+	return c.JSON(fiber.Map{"data": users})
 }
 
 func (h *UserHandler) GetByID(c fiber.Ctx) error {

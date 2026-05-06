@@ -180,16 +180,16 @@ func TestIntegration_CreateAndGetByID(t *testing.T) {
 	resp, err := postJSON(app, "/services", map[string]any{
 		"title":                "Oil Change",
 		"description":          "Full engine oil change",
-		"price":                50.00,
-		"estimatedTimeMinutes": 30,
+		"price_cents":           5000,
+		"estimated_time_minutes": 30,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusCreated, resp.StatusCode)
 
 	created := readBody(t, resp)
 	assert.Equal(t, "Oil Change", created["title"])
-	assert.Equal(t, float64(50), created["price"])
-	assert.Equal(t, float64(30), created["estimatedTimeMinutes"])
+	assert.Equal(t, float64(5000), created["price_cents"])
+	assert.Equal(t, float64(30), created["estimated_time_minutes"])
 	assert.Equal(t, true, created["active"])
 
 	id := created["id"].(string)
@@ -209,8 +209,8 @@ func TestIntegration_CreateDuplicateTitle(t *testing.T) {
 
 	body := map[string]any{
 		"title":                "Wheel Alignment",
-		"price":                80.00,
-		"estimatedTimeMinutes": 45,
+		"price_cents":           8000,
+		"estimated_time_minutes": 45,
 	}
 
 	resp, err := postJSON(app, "/services", body)
@@ -238,8 +238,8 @@ func TestIntegration_ListPaginated(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		resp, err := postJSON(app, "/services", map[string]any{
 			"title":                fmt.Sprintf("Service %d", i),
-			"price":                float64(i * 10),
-			"estimatedTimeMinutes": i * 15,
+			"price_cents":           i * 1000,
+			"estimated_time_minutes": i * 15,
 		})
 		require.NoError(t, err)
 		require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -252,7 +252,7 @@ func TestIntegration_ListPaginated(t *testing.T) {
 
 	result := readBody(t, resp)
 	assert.Equal(t, float64(3), result["total"])
-	assert.Len(t, result["items"], 2)
+	assert.Len(t, result["data"], 2)
 	assert.Equal(t, float64(1), result["page"])
 	assert.Equal(t, float64(2), result["limit"])
 }
@@ -264,8 +264,8 @@ func TestIntegration_ListFilterByTitle(t *testing.T) {
 	for _, title := range []string{"Oil Change", "Alignment", "Tire Change"} {
 		resp, _ := postJSON(app, "/services", map[string]any{
 			"title":                title,
-			"price":                50.00,
-			"estimatedTimeMinutes": 30,
+			"price_cents":           5000,
+			"estimated_time_minutes": 30,
 		})
 		require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	}
@@ -283,7 +283,7 @@ func TestIntegration_ListFilterByActive(t *testing.T) {
 	app, _ := setupIntegrationApp(t)
 
 	resp, _ := postJSON(app, "/services", map[string]any{
-		"title": "Active One", "price": 10.00, "estimatedTimeMinutes": 10,
+		"title": "Active One", "price_cents": 1000, "estimated_time_minutes": 10,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	created := readBody(t, resp)
@@ -293,7 +293,7 @@ func TestIntegration_ListFilterByActive(t *testing.T) {
 	require.Equal(t, fiber.StatusOK, resp.StatusCode)
 
 	resp, _ = postJSON(app, "/services", map[string]any{
-		"title": "Active Two", "price": 20.00, "estimatedTimeMinutes": 20,
+		"title": "Active Two", "price_cents": 2000, "estimated_time_minutes": 20,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 
@@ -320,7 +320,7 @@ func TestIntegration_Update(t *testing.T) {
 	app, _ := setupIntegrationApp(t)
 
 	resp, _ := postJSON(app, "/services", map[string]any{
-		"title": "Original", "price": 10.00, "estimatedTimeMinutes": 10,
+		"title": "Original", "price_cents": 1000, "estimated_time_minutes": 10,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	created := readBody(t, resp)
@@ -328,14 +328,14 @@ func TestIntegration_Update(t *testing.T) {
 
 	resp, err := putJSON(app, "/services/"+id, map[string]any{
 		"title": "Updated",
-		"price": 99.99,
+		"price_cents": 9999,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
 	updated := readBody(t, resp)
 	assert.Equal(t, "Updated", updated["title"])
-	assert.Equal(t, 99.99, updated["price"])
+	assert.Equal(t, float64(9999), updated["price_cents"])
 
 	req, _ := http.NewRequest("GET", "/services/"+id, nil)
 	resp, _ = app.Test(req)
@@ -357,7 +357,7 @@ func TestIntegration_DeleteHard(t *testing.T) {
 	app, _ := setupIntegrationApp(t)
 
 	resp, _ := postJSON(app, "/services", map[string]any{
-		"title": "To Delete", "price": 10.00, "estimatedTimeMinutes": 10,
+		"title": "To Delete", "price_cents": 1000, "estimated_time_minutes": 10,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	created := readBody(t, resp)
@@ -378,7 +378,7 @@ func TestIntegration_DeleteSoft(t *testing.T) {
 	app, pool := setupIntegrationApp(t)
 
 	resp, _ := postJSON(app, "/services", map[string]any{
-		"title": "Linked Service", "price": 10.00, "estimatedTimeMinutes": 10,
+		"title": "Linked Service", "price_cents": 1000, "estimated_time_minutes": 10,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	created := readBody(t, resp)
@@ -429,7 +429,7 @@ func TestIntegration_AvgExecutionTime(t *testing.T) {
 	ctx := context.Background()
 
 	resp, _ := postJSON(app, "/services", map[string]any{
-		"title": "Oil Change", "price": 50.00, "estimatedTimeMinutes": 30,
+		"title": "Oil Change", "price_cents": 5000, "estimated_time_minutes": 30,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	created := readBody(t, resp)
@@ -469,12 +469,14 @@ func TestIntegration_AvgExecutionTime(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
-	items := readBodyArray(t, resp)
+	result := readBody(t, resp)
+	items := result["data"].([]any)
 	require.Len(t, items, 1)
-	assert.Equal(t, "Oil Change", items[0]["title"])
-	assert.Equal(t, float64(2), items[0]["executionCount"])
-	assert.Equal(t, float64(30), items[0]["avgRealTimeMinutes"])
-	assert.Equal(t, float64(30), items[0]["estimatedTimeMinutes"])
+	first := items[0].(map[string]any)
+	assert.Equal(t, "Oil Change", first["title"])
+	assert.Equal(t, float64(2), first["execution_count"])
+	assert.Equal(t, float64(30), first["avg_real_time_minutes"])
+	assert.Equal(t, float64(30), first["estimated_time_minutes"])
 }
 
 func TestIntegration_AvgExecutionTime_FilterByTechnician(t *testing.T) {
@@ -483,7 +485,7 @@ func TestIntegration_AvgExecutionTime_FilterByTechnician(t *testing.T) {
 	ctx := context.Background()
 
 	resp, _ := postJSON(app, "/services", map[string]any{
-		"title": "Alignment", "price": 80.00, "estimatedTimeMinutes": 60,
+		"title": "Alignment", "price_cents": 8000, "estimated_time_minutes": 60,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	created := readBody(t, resp)
@@ -522,10 +524,12 @@ func TestIntegration_AvgExecutionTime_FilterByTechnician(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
-	items := readBodyArray(t, resp)
+	result := readBody(t, resp)
+	items := result["data"].([]any)
 	require.Len(t, items, 1)
-	assert.Equal(t, float64(1), items[0]["executionCount"])
-	assert.Equal(t, float64(60), items[0]["avgRealTimeMinutes"])
+	first := items[0].(map[string]any)
+	assert.Equal(t, float64(1), first["execution_count"])
+	assert.Equal(t, float64(60), first["avg_real_time_minutes"])
 }
 
 func TestIntegration_AvgExecutionTime_Empty(t *testing.T) {
@@ -537,6 +541,7 @@ func TestIntegration_AvgExecutionTime_Empty(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
-	items := readBodyArray(t, resp)
+	result := readBody(t, resp)
+	items := result["data"].([]any)
 	assert.Len(t, items, 0)
 }

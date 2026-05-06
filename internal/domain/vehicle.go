@@ -28,8 +28,8 @@ type VehicleListFilters struct {
 
 type Vehicle struct {
 	ID           uuid.UUID `json:"id"`
-	LicensePlate string    `json:"licensePlate"`
-	CustomerID   uuid.UUID `json:"customerId"`
+	LicensePlate string    `json:"license_plate"`
+	CustomerID   uuid.UUID `json:"customer_id"`
 	Model        string    `json:"model"`
 	Year         int       `json:"year"`
 	Brand        string    `json:"brand"`
