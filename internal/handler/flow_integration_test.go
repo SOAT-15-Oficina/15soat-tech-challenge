@@ -36,12 +36,15 @@ import (
 	"strings"
 	"sync"
 
+	dbmigrations "github.com/ESSantana/15soat-tech-challenge-step-1/database"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/auth"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -298,137 +301,19 @@ func envOrDefault(key, fallback string) string {
 
 func setupFlowSchema(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	ctx := context.Background()
 
-	// Drop all tables in reverse dependency order
-	tables := []string{
-		"work_order_service_status_history",
-		"work_order_service_supplies",
-		"work_order_services",
-		"work_orders",
-		"supplies",
-		"services",
-		"vehicles",
-		"customers",
-		"users",
-	}
-	for _, table := range tables {
-		pool.Exec(ctx, fmt.Sprintf(`DROP TABLE IF EXISTS "%s" CASCADE`, table))
-	}
+	goose.SetBaseFS(dbmigrations.Migrations)
+	require.NoError(t, goose.SetDialect("postgres"))
 
-	// Recreate full schema
-	_, err := pool.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS "users" (
-			"id" uuid PRIMARY KEY,
-			"username" varchar(150) NOT NULL UNIQUE,
-			"password_hash" varchar(255) NOT NULL,
-			"role" varchar(30) NOT NULL,
-			"created_at" timestamp NOT NULL DEFAULT NOW(),
-			"updated_at" timestamp NOT NULL DEFAULT NOW()
-		);
+	db := stdlib.OpenDBFromPool(pool)
 
-		CREATE TABLE IF NOT EXISTS "customers" (
-			"id" uuid PRIMARY KEY,
-			"name" varchar(150) NOT NULL,
-			"document" varchar(20) UNIQUE NOT NULL,
-			"document_type" varchar(10) NOT NULL,
-			"phone" varchar(20),
-			"email" varchar(150),
-			"created_at" timestamp NOT NULL,
-			"updated_at" timestamp NOT NULL
-		);
-
-		CREATE TABLE IF NOT EXISTS "vehicles" (
-			"id" uuid PRIMARY KEY,
-			"customer_id" uuid NOT NULL REFERENCES "customers" ("id"),
-			"license_plate" varchar(10) UNIQUE NOT NULL,
-			"brand" varchar(80) NOT NULL,
-			"model" varchar(120) NOT NULL,
-			"year" int NOT NULL,
-			"created_at" timestamp NOT NULL,
-			"updated_at" timestamp NOT NULL
-		);
-
-		CREATE TABLE IF NOT EXISTS "services" (
-			"id" uuid PRIMARY KEY,
-			"title" varchar(120) NOT NULL,
-			"description" text,
-			"price_cents" int NOT NULL,
-			"estimated_time_minutes" int NOT NULL,
-			"active" boolean NOT NULL DEFAULT true,
-			"created_at" timestamp NOT NULL,
-			"updated_at" timestamp NOT NULL
-		);
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_services_title_unique ON services (LOWER(title));
-
-		CREATE TABLE IF NOT EXISTS "supplies" (
-			"id" uuid PRIMARY KEY,
-			"title" varchar(120) NOT NULL,
-			"type" varchar(20) NOT NULL,
-			"price_cents" int NOT NULL,
-			"stock_quantity" int NOT NULL DEFAULT 0,
-			"minimum_stock" int NOT NULL DEFAULT 0,
-			"active" boolean NOT NULL DEFAULT true,
-			"created_at" timestamp NOT NULL,
-			"updated_at" timestamp NOT NULL
-		);
-
-		CREATE TABLE IF NOT EXISTS "work_orders" (
-			"id" uuid PRIMARY KEY,
-			"code" varchar(30) UNIQUE NOT NULL,
-			"title" varchar(150) NOT NULL,
-			"description" text,
-			"customer_id" uuid NOT NULL REFERENCES "customers" ("id"),
-			"vehicle_id" uuid NOT NULL REFERENCES "vehicles" ("id"),
-			"opened_by_user_id" uuid NOT NULL REFERENCES "users" ("id"),
-			"assigned_technician_id" uuid REFERENCES "users" ("id"),
-			"status" varchar(30) NOT NULL,
-			"total_estimated_price_cents" int NOT NULL DEFAULT 0,
-			"received_at" timestamp NOT NULL,
-			"quote_sent_at" timestamp,
-			"approved_at" timestamp,
-			"started_at" timestamp,
-			"finished_at" timestamp,
-			"delivered_at" timestamp,
-			"created_at" timestamp NOT NULL,
-			"updated_at" timestamp NOT NULL
-		);
-
-		CREATE TABLE IF NOT EXISTS "work_order_services" (
-			"id" uuid PRIMARY KEY,
-			"work_order_id" uuid NOT NULL REFERENCES "work_orders" ("id"),
-			"service_id" uuid NOT NULL REFERENCES "services" ("id"),
-			"service_title_snapshot" varchar(120) NOT NULL,
-			"service_description_snapshot" text,
-			"service_price_cents_snapshot" int NOT NULL,
-			"service_estimated_time_minutes_snapshot" int NOT NULL,
-			"approval_status" varchar(20) NOT NULL DEFAULT 'PENDENTE',
-			"status" varchar(30) NOT NULL DEFAULT 'PENDENTE',
-			"started_at" timestamp,
-			"finished_at" timestamp,
-			"created_at" timestamp NOT NULL,
-			"updated_at" timestamp NOT NULL
-		);
-
-		CREATE TABLE IF NOT EXISTS "work_order_service_supplies" (
-			"id" uuid PRIMARY KEY,
-			"work_order_service_id" uuid NOT NULL REFERENCES "work_order_services" ("id"),
-			"supply_id" uuid NOT NULL REFERENCES "supplies" ("id"),
-			"supply_title_snapshot" varchar(120) NOT NULL,
-			"supply_price_cents_snapshot" int NOT NULL,
-			"supply_quantity" int NOT NULL,
-			"created_at" timestamp NOT NULL,
-			"updated_at" timestamp NOT NULL
-		);
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_work_order_service_supplies_wos_supply
-			ON "work_order_service_supplies" ("work_order_service_id", "supply_id");
-	`)
-	require.NoError(t, err)
+	// Reset: rollback all migrations then re-apply for a clean state
+	require.NoError(t, goose.DownTo(db, "migrations", 0))
+	require.NoError(t, goose.Up(db, "migrations"))
 
 	t.Cleanup(func() {
-		for _, table := range tables {
-			pool.Exec(ctx, fmt.Sprintf(`DROP TABLE IF EXISTS "%s" CASCADE`, table))
-		}
+		_ = goose.DownTo(db, "migrations", 0)
+		db.Close()
 		pool.Close()
 	})
 }
