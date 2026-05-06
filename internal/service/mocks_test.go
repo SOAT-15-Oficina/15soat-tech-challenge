@@ -153,6 +153,14 @@ func (m *mockWorkOrderServiceRepo) MarkAsFinishedByWorkOrderID(ctx context.Conte
 	return m.Called(ctx, workOrderID, finishedAt).Error(0)
 }
 
+func (m *mockWorkOrderServiceRepo) FindSupplyShortagesByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) (map[uuid.UUID]bool, error) {
+	args := m.Called(ctx, workOrderID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[uuid.UUID]bool), args.Error(1)
+}
+
 // mockVehicleRepo mocks repository.VehicleRepository
 type mockVehicleRepo struct {
 	mock.Mock
