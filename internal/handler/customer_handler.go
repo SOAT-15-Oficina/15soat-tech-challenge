@@ -7,7 +7,6 @@ import (
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type CustomerHandler struct {
@@ -53,8 +52,8 @@ func (h *CustomerHandler) GetByID(c fiber.Ctx) error {
 
 	customer, err := h.svc.GetByID(c.Context(), id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "customer not found"})
+		if handled, resp := dbErrResponse(c, err, "customer not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -83,9 +82,10 @@ func (h *CustomerHandler) Update(c fiber.Ctx) error {
 }
 
 func (h *CustomerHandler) handleServiceError(c fiber.Ctx, err error) error {
+	if handled, resp := dbErrResponse(c, err, "customer not found"); handled {
+		return resp
+	}
 	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "customer not found"})
 	case errors.Is(err, domain.ErrCustomerNameRequired),
 		errors.Is(err, domain.ErrCustomerEmailRequired),
 		errors.Is(err, domain.ErrCustomerInvalidDocumentType),

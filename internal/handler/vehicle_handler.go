@@ -7,7 +7,6 @@ import (
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type VehicleHandler struct {
@@ -29,6 +28,9 @@ func (h *VehicleHandler) Create(c fiber.Ctx) error {
 		var valErr *domain.VehicleValidationError
 		if errors.As(err, &valErr) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		if handled, resp := dbErrResponse(c, err, "vehicle not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -57,8 +59,8 @@ func (h *VehicleHandler) GetByID(c fiber.Ctx) error {
 
 	vehicle, err := h.svc.GetByID(c.Context(), id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "vehicle not found"})
+		if handled, resp := dbErrResponse(c, err, "vehicle not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -84,8 +86,8 @@ func (h *VehicleHandler) Update(c fiber.Ctx) error {
 		if errors.As(err, &valErr) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "vehicle not found"})
+		if handled, resp := dbErrResponse(c, err, "vehicle not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -100,6 +102,9 @@ func (h *VehicleHandler) Delete(c fiber.Ctx) error {
 	}
 
 	if err := h.svc.Delete(c.Context(), id); err != nil {
+		if handled, resp := dbErrResponse(c, err, "vehicle not found"); handled {
+			return resp
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 

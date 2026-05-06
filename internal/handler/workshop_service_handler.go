@@ -10,7 +10,6 @@ import (
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type WorkshopServiceHandler struct {
@@ -228,9 +227,10 @@ func parseAvgExecutionTimeFilters(c fiber.Ctx) (domain.AvgExecutionTimeFilters, 
 }
 
 func (h *WorkshopServiceHandler) handleServiceError(c fiber.Ctx, err error) error {
+	if handled, resp := dbErrResponse(c, err, "service not found"); handled {
+		return resp
+	}
 	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "service not found"})
 	case errors.Is(err, service.ErrWorkshopServiceTitleAlreadyExists):
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
 	case errors.Is(err, domain.ErrWorkshopServiceTitleRequired),

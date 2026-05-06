@@ -1,13 +1,10 @@
 package handler
 
 import (
-	"errors"
-
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type UpdateUserRequest struct {
@@ -42,8 +39,8 @@ func (h *UserHandler) GetByID(c fiber.Ctx) error {
 
 	user, err := h.svc.GetByID(c.Context(), id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "user not found"})
+		if handled, resp := dbErrResponse(c, err, "user not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -63,8 +60,8 @@ func (h *UserHandler) Update(c fiber.Ctx) error {
 
 	user, err := h.svc.Update(c.Context(), id, body.Username, body.Role)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "user not found"})
+		if handled, resp := dbErrResponse(c, err, "user not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -78,8 +75,8 @@ func (h *UserHandler) Delete(c fiber.Ctx) error {
 	}
 
 	if err := h.svc.Delete(c.Context(), id); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "user not found"})
+		if handled, resp := dbErrResponse(c, err, "user not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
