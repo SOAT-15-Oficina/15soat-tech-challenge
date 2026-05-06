@@ -9,7 +9,6 @@ import (
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type WorkOrderHandler struct {
@@ -41,6 +40,9 @@ func (h *WorkOrderHandler) Create(c fiber.Ctx) error {
 
 	result, err := h.svc.Create(c.Context(), &workOrder)
 	if err != nil {
+		if handled, resp := dbErrResponse(c, err, "work order not found"); handled {
+			return resp
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -119,8 +121,8 @@ func (h *WorkOrderHandler) GetByID(c fiber.Ctx) error {
 
 	workOrder, err := h.svc.GetByID(c.Context(), id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "work order not found"})
+		if handled, resp := dbErrResponse(c, err, "work order not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -140,15 +142,14 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 	}
 	workOrder.ID = id
 
-	// Handle status transition separately via state machine
 	if workOrder.Status != "" {
 		result, err := h.statusSvc.TransitionTo(c.Context(), id, workOrder.Status)
 		if err != nil {
 			if errors.Is(err, service.ErrInvalidStatusTransition) {
 				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
 			}
-			if errors.Is(err, pgx.ErrNoRows) {
-				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "work order not found"})
+			if handled, resp := dbErrResponse(c, err, "work order not found"); handled {
+				return resp
 			}
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -159,14 +160,13 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 			}
 		}
 
-		// Clear status so the field update below skips it
 		workOrder.Status = ""
 	}
 
 	result, err := h.svc.Update(c.Context(), &workOrder)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "work order not found"})
+		if handled, resp := dbErrResponse(c, err, "work order not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -201,8 +201,8 @@ func (h *WorkOrderHandler) AddServices(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrWorkshopServiceInactive) {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
 		}
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "resource not found"})
+		if handled, resp := dbErrResponse(c, err, "resource not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -228,8 +228,8 @@ func (h *WorkOrderHandler) RemoveService(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrWorkOrderInvalidStatusForItems) {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
 		}
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "resource not found"})
+		if handled, resp := dbErrResponse(c, err, "resource not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -266,8 +266,8 @@ func (h *WorkOrderHandler) AddSupplies(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrWorkOrderServiceOwnership) {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
 		}
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "resource not found"})
+		if handled, resp := dbErrResponse(c, err, "resource not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -298,8 +298,8 @@ func (h *WorkOrderHandler) RemoveSupplyFromService(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrWorkOrderInvalidStatusForItems) {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
 		}
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "resource not found"})
+		if handled, resp := dbErrResponse(c, err, "resource not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}

@@ -1,13 +1,10 @@
 package handler
 
 import (
-	"errors"
-
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type SupplyHandler struct {
@@ -26,6 +23,9 @@ func (h *SupplyHandler) Create(c fiber.Ctx) error {
 
 	result, err := h.svc.Create(c.Context(), &supply)
 	if err != nil {
+		if handled, resp := dbErrResponse(c, err, "supply not found"); handled {
+			return resp
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -53,8 +53,8 @@ func (h *SupplyHandler) GetByID(c fiber.Ctx) error {
 
 	supply, err := h.svc.GetByID(c.Context(), id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "supply not found"})
+		if handled, resp := dbErrResponse(c, err, "supply not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -76,8 +76,8 @@ func (h *SupplyHandler) Update(c fiber.Ctx) error {
 
 	result, err := h.svc.Update(c.Context(), &supply)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "supply not found"})
+		if handled, resp := dbErrResponse(c, err, "supply not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}

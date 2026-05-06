@@ -35,6 +35,9 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 
 	user, err := h.svc.Register(c.Context(), body.Username, body.Password, body.Role)
 	if err != nil {
+		if handled, resp := dbErrResponse(c, err, "user not found"); handled {
+			return resp
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
