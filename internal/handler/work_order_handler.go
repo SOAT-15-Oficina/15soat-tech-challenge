@@ -5,7 +5,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/auth"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
@@ -16,10 +18,26 @@ type WorkOrderHandler struct {
 	budgetSvc   service.BudgetService
 	creationSvc service.WorkOrderCreationService
 	statusSvc   service.WorkOrderStatusService
+	userRepo    repository.UserRepository
 }
 
-func NewWorkOrderHandler(svc service.WorkOrderService, budgetSvc service.BudgetService, creationSvc service.WorkOrderCreationService, statusSvc service.WorkOrderStatusService) *WorkOrderHandler {
-	return &WorkOrderHandler{svc: svc, budgetSvc: budgetSvc, creationSvc: creationSvc, statusSvc: statusSvc}
+func NewWorkOrderHandler(svc service.WorkOrderService, budgetSvc service.BudgetService, creationSvc service.WorkOrderCreationService, statusSvc service.WorkOrderStatusService, userRepo repository.UserRepository) *WorkOrderHandler {
+	return &WorkOrderHandler{svc: svc, budgetSvc: budgetSvc, creationSvc: creationSvc, statusSvc: statusSvc, userRepo: userRepo}
+}
+
+type createWorkOrderRequest struct {
+	Title                string     `json:"title"`
+	Description          *string    `json:"description,omitempty"`
+	CustomerID           uuid.UUID  `json:"customer_id"`
+	VehicleID            uuid.UUID  `json:"vehicle_id"`
+	AssignedTechnicianID *uuid.UUID `json:"assigned_technician_id,omitempty"`
+}
+
+type updateWorkOrderRequest struct {
+	Title                string                  `json:"title"`
+	Description          *string                 `json:"description,omitempty"`
+	Status               domain.WorkOrderStatus  `json:"status"`
+	AssignedTechnicianID *uuid.UUID              `json:"assigned_technician_id,omitempty"`
 }
 
 type addServiceRequest struct {
@@ -33,9 +51,28 @@ type addSupplyRequest struct {
 }
 
 func (h *WorkOrderHandler) Create(c fiber.Ctx) error {
-	var workOrder domain.WorkOrder
-	if err := c.Bind().JSON(&workOrder); err != nil {
+	var req createWorkOrderRequest
+	if err := c.Bind().JSON(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	claims, ok := c.Locals("token").(*auth.AppClaims)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "missing token claims"})
+	}
+
+	user, err := h.userRepo.FindByUsername(c.Context(), claims.User)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to resolve user"})
+	}
+
+	workOrder := domain.WorkOrder{
+		Title:                req.Title,
+		Description:          req.Description,
+		CustomerID:           req.CustomerID,
+		VehicleID:            req.VehicleID,
+		OpenedByUserID:       user.ID,
+		AssignedTechnicianID: req.AssignedTechnicianID,
 	}
 
 	result, err := h.svc.Create(c.Context(), &workOrder)
@@ -136,11 +173,10 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
 
-	var workOrder domain.WorkOrder
-	if err := c.Bind().JSON(&workOrder); err != nil {
+	var req updateWorkOrderRequest
+	if err := c.Bind().JSON(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	workOrder.ID = id
 
 	if workOrder.Status != "" {
 		result, err := h.statusSvc.TransitionTo(c.Context(), id, workOrder.Status)
@@ -159,9 +195,17 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to send budget email: " + err.Error()})
 			}
 		}
-
-		workOrder.Status = ""
 	}
+
+	workOrder := domain.WorkOrder{
+		ID:                   id,
+		Title:                req.Title,
+		Description:          req.Description,
+		AssignedTechnicianID: req.AssignedTechnicianID,
+
+	}
+  
+  workOrder.Status = ""
 
 	result, err := h.svc.Update(c.Context(), &workOrder)
 	if err != nil {

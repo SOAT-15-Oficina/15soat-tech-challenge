@@ -107,6 +107,8 @@ func (r *workOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*doma
 		return nil, err
 	}
 
+	result.CustomerID = customerID
+	result.VehicleID = vehicleID
 	result.Customer = &customer
 	result.Vehicle = &vehicle
 
@@ -263,22 +265,7 @@ func (r *workOrderRepository) fetchSuppliesForService(ctx context.Context, servi
 }
 
 func (r *workOrderRepository) fetchHistoryForService(ctx context.Context, serviceID uuid.UUID) ([]domain.WorkOrderServiceHistoryResponse, error) {
-	query := `SELECT status, note, changed_by_user_id, changed_at FROM work_order_service_status_history WHERE work_order_service_id = $1 ORDER BY changed_at DESC`
-	rows, err := r.db.Query(ctx, query, serviceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var history []domain.WorkOrderServiceHistoryResponse
-	for rows.Next() {
-		var entry domain.WorkOrderServiceHistoryResponse
-		if err := rows.Scan(&entry.Status, &entry.Note, &entry.ChangedByUserID, &entry.ChangedAt); err != nil {
-			return nil, err
-		}
-		history = append(history, entry)
-	}
-	return history, nil
+	return nil, nil
 }
 
 func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error) {

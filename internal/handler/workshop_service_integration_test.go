@@ -70,6 +70,7 @@ func setupSchema(t *testing.T, pool *pgxpool.Pool) {
 	ctx := context.Background()
 
 	pool.Exec(ctx, `DROP TABLE IF EXISTS work_order_services CASCADE`)
+	pool.Exec(ctx, `DROP TABLE IF EXISTS work_orders CASCADE`)
 	pool.Exec(ctx, `DROP TABLE IF EXISTS services CASCADE`)
 
 	_, err := pool.Exec(ctx, `
@@ -90,15 +91,37 @@ func setupSchema(t *testing.T, pool *pgxpool.Pool) {
 	require.NoError(t, err)
 
 	_, err = pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS "work_orders" (
+			"id" uuid PRIMARY KEY,
+			"code" varchar(30) NOT NULL,
+			"title" varchar(150) NOT NULL,
+			"description" text,
+			"customer_id" uuid NOT NULL,
+			"vehicle_id" uuid NOT NULL,
+			"opened_by_user_id" uuid NOT NULL,
+			"assigned_technician_id" uuid,
+			"status" varchar(30) NOT NULL,
+			"total_estimated_price_cents" int NOT NULL DEFAULT 0,
+			"received_at" timestamp NOT NULL,
+			"quote_sent_at" timestamp,
+			"approved_at" timestamp,
+			"started_at" timestamp,
+			"finished_at" timestamp,
+			"delivered_at" timestamp,
+			"created_at" timestamp NOT NULL,
+			"updated_at" timestamp NOT NULL
+		)`)
+	require.NoError(t, err)
+
+	_, err = pool.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS "work_order_services" (
 			"id" uuid PRIMARY KEY,
-			"work_order_id" uuid NOT NULL,
+			"work_order_id" uuid NOT NULL REFERENCES "work_orders" ("id"),
 			"service_id" uuid NOT NULL,
-			"technician_id" uuid,
-			"title_snapshot" varchar(120) NOT NULL,
-			"description_snapshot" text,
-			"price_cents_snapshot" int NOT NULL,
-			"estimated_time_minutes_snapshot" int NOT NULL,
+			"service_title_snapshot" varchar(120) NOT NULL,
+			"service_description_snapshot" text,
+			"service_price_cents_snapshot" int NOT NULL,
+			"service_estimated_time_minutes_snapshot" int NOT NULL,
 			"approval_status" varchar(20) NOT NULL DEFAULT 'PENDENTE',
 			"status" varchar(30) NOT NULL DEFAULT 'PENDENTE',
 			"started_at" timestamp,
@@ -110,6 +133,7 @@ func setupSchema(t *testing.T, pool *pgxpool.Pool) {
 
 	t.Cleanup(func() {
 		pool.Exec(ctx, `DROP TABLE IF EXISTS work_order_services CASCADE`)
+		pool.Exec(ctx, `DROP TABLE IF EXISTS work_orders CASCADE`)
 		pool.Exec(ctx, `DROP TABLE IF EXISTS services CASCADE`)
 		pool.Close()
 	})
@@ -360,11 +384,18 @@ func TestIntegration_DeleteSoft(t *testing.T) {
 	created := readBody(t, resp)
 	serviceID := created["id"].(string)
 
+	woID := uuid.New()
 	_, err := pool.Exec(context.Background(), `
+		INSERT INTO work_orders
+			(id, code, title, customer_id, vehicle_id, opened_by_user_id, status, received_at, created_at, updated_at)
+		VALUES ($1, 'WO-TEST', 'test', $2, $2, $2, 'RECEBIDA', NOW(), NOW(), NOW())`, woID, uuid.New())
+	require.NoError(t, err)
+
+	_, err = pool.Exec(context.Background(), `
 		INSERT INTO work_order_services
-			(id, work_order_id, service_id, title_snapshot, price_cents_snapshot, estimated_time_minutes_snapshot, created_at, updated_at)
+			(id, work_order_id, service_id, service_title_snapshot, service_price_cents_snapshot, service_estimated_time_minutes_snapshot, created_at, updated_at)
 		VALUES ($1, $2, $3, 'snap', 1000, 30, NOW(), NOW())`,
-		uuid.New(), uuid.New(), serviceID,
+		uuid.New(), woID, serviceID,
 	)
 	require.NoError(t, err)
 
@@ -405,19 +436,31 @@ func TestIntegration_AvgExecutionTime(t *testing.T) {
 	serviceID := created["id"].(string)
 
 	techID := uuid.New()
+	woID1 := uuid.New()
+	woID2 := uuid.New()
+
+	// create work orders for the services
+	for _, woID := range []uuid.UUID{woID1, woID2} {
+		_, err := pool.Exec(ctx, `
+			INSERT INTO work_orders
+				(id, code, title, customer_id, vehicle_id, opened_by_user_id, assigned_technician_id, status, received_at, created_at, updated_at)
+			VALUES ($1, $2, 'test', $3, $3, $3, $4, 'RECEBIDA', NOW(), NOW(), NOW())`,
+			woID, "WO-"+woID.String()[:8], uuid.New(), techID)
+		require.NoError(t, err)
+	}
 
 	// insert two finished work order services with known durations
 	_, err := pool.Exec(ctx, `
 		INSERT INTO work_order_services
-			(id, work_order_id, service_id, technician_id, title_snapshot, price_cents_snapshot,
-			 estimated_time_minutes_snapshot, status, started_at, finished_at, created_at, updated_at)
+			(id, work_order_id, service_id, service_title_snapshot, service_price_cents_snapshot,
+			 service_estimated_time_minutes_snapshot, status, started_at, finished_at, created_at, updated_at)
 		VALUES
-			($1, $2, $3, $4, 'Oil Change', 5000, 30, $5,
+			($1, $2, $3, 'Oil Change', 5000, 30, $4,
 			 '2026-04-01 10:00:00', '2026-04-01 10:25:00', NOW(), NOW()),
-			($6, $7, $3, $4, 'Oil Change', 5000, 30, $5,
+			($5, $6, $3, 'Oil Change', 5000, 30, $4,
 			 '2026-04-02 14:00:00', '2026-04-02 14:35:00', NOW(), NOW())`,
-		uuid.New(), uuid.New(), serviceID, techID, string(domain.WorkOrderServiceStatusFinished),
-		uuid.New(), uuid.New(),
+		uuid.New(), woID1, serviceID, string(domain.WorkOrderServiceStatusFinished),
+		uuid.New(), woID2,
 	)
 	require.NoError(t, err)
 
@@ -448,18 +491,29 @@ func TestIntegration_AvgExecutionTime_FilterByTechnician(t *testing.T) {
 
 	techA := uuid.New()
 	techB := uuid.New()
+	woID1 := uuid.New()
+	woID2 := uuid.New()
 
+	// create work orders assigned to different technicians
 	_, err := pool.Exec(ctx, `
-		INSERT INTO work_order_services
-			(id, work_order_id, service_id, technician_id, title_snapshot, price_cents_snapshot,
-			 estimated_time_minutes_snapshot, status, started_at, finished_at, created_at, updated_at)
+		INSERT INTO work_orders
+			(id, code, title, customer_id, vehicle_id, opened_by_user_id, assigned_technician_id, status, received_at, created_at, updated_at)
 		VALUES
-			($1, $2, $3, $4, 'Alignment', 8000, 60, $7,
+			($1, 'WO-A', 'test', $3, $3, $3, $4, 'RECEBIDA', NOW(), NOW(), NOW()),
+			($2, 'WO-B', 'test', $3, $3, $3, $5, 'RECEBIDA', NOW(), NOW(), NOW())`,
+		woID1, woID2, uuid.New(), techA, techB)
+	require.NoError(t, err)
+
+	_, err = pool.Exec(ctx, `
+		INSERT INTO work_order_services
+			(id, work_order_id, service_id, service_title_snapshot, service_price_cents_snapshot,
+			 service_estimated_time_minutes_snapshot, status, started_at, finished_at, created_at, updated_at)
+		VALUES
+			($1, $2, $3, 'Alignment', 8000, 60, $5,
 			 '2026-04-01 10:00:00', '2026-04-01 11:00:00', NOW(), NOW()),
-			($5, $6, $3, $8, 'Alignment', 8000, 60, $7,
+			($4, $6, $3, 'Alignment', 8000, 60, $5,
 			 '2026-04-02 10:00:00', '2026-04-02 10:45:00', NOW(), NOW())`,
-		uuid.New(), uuid.New(), serviceID, techA,
-		uuid.New(), uuid.New(), string(domain.WorkOrderServiceStatusFinished), techB,
+		uuid.New(), woID1, serviceID, uuid.New(), string(domain.WorkOrderServiceStatusFinished), woID2,
 	)
 	require.NoError(t, err)
 
