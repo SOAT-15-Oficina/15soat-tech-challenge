@@ -1,11 +1,11 @@
 package handler
 
 // Integration tests that validate the complete workshop DDD flow
-// from the event storming diagram (DDD-sequencia.pdf).
+// defined in the event storming.
 //
 // Each test maps to a step (or group of steps) in the flow:
 //
-//   PDF Step                          → API Route
+//   DDD Step                          → API Route
 //   ─────────────────────────────────────────────────────────────
 //   Consulta Cliente                  → GET  /customers?document=
 //   Cadastra Cliente                  → POST /customers
@@ -884,8 +884,8 @@ func TestIntegration_Flow_PartialApproval(t *testing.T) {
 
 // =============================================================================
 // Test: Full Rejection — All services rejected → OS canceled.
-// Maps to the PDF flow: "Nenhum serviço foi aprovado e o cliente é notificado
-// sobre a retirada do veículo"
+// Mapeia o passo do fluxo DDD: "Nenhum serviço foi aprovado e o cliente é
+// notificado sobre a retirada do veículo"
 // =============================================================================
 
 func TestIntegration_Flow_FullRejection(t *testing.T) {
@@ -1530,8 +1530,8 @@ func TestIntegration_Flow_OwnershipValidation(t *testing.T) {
 // =============================================================================
 // Test: Budget generation — transitioning to AGUARDANDO_APROVACAO triggers
 // budget calculation, sets quote_sent_at, calculates total, and sends email.
-// Covers PDF steps: "Gera orçamento com tempo estimado", "Envia notificação
-// para o cliente", "Atualiza OS para aguardando aprovação".
+// Cobre os passos do fluxo DDD: "Gera orçamento com tempo estimado",
+// "Envia notificação para o cliente", "Atualiza OS para aguardando aprovação".
 // =============================================================================
 
 func TestIntegration_Flow_BudgetGenerationAndNotification(t *testing.T) {
@@ -1621,8 +1621,8 @@ func TestIntegration_Flow_BudgetGenerationAndNotification(t *testing.T) {
 // =============================================================================
 // Test: Supply shortage detection — when supplies needed exceed stock_quantity,
 // the budget adds 2 extra days to estimated time for the affected services.
-// Covers PDF steps: "Calcula atraso do serviço porque nem todas as peças estão
-// em estoque", "Verifica se todas as peças estão disponíveis em estoque".
+// Cobre os passos do fluxo DDD: "Calcula atraso do serviço porque nem todas as
+// peças estão em estoque", "Verifica se todas as peças estão disponíveis".
 // =============================================================================
 
 func TestIntegration_Flow_SupplyShortageDelay(t *testing.T) {
@@ -1711,7 +1711,7 @@ func TestIntegration_Flow_NoShortageNormalTime(t *testing.T) {
 // =============================================================================
 // Test: Full flow with budget — happy path including budget generation, email
 // notification, and approval through the public links from the email.
-// Covers PDF: end-to-end from budget to approval via email links.
+// Cobre o fluxo DDD completo: orçamento → email → aprovação via link → entrega.
 // =============================================================================
 
 func TestIntegration_Flow_HappyPathWithBudgetAndEmail(t *testing.T) {
