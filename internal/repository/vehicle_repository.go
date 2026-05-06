@@ -12,6 +12,7 @@ type VehicleRepository interface {
 	Create(ctx context.Context, vehicle *domain.Vehicle) (*domain.Vehicle, error)
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.Vehicle, error)
 	FindAll(ctx context.Context) ([]domain.Vehicle, error)
+	FindAllWithFilters(ctx context.Context, filters domain.VehicleListFilters) ([]domain.Vehicle, error)
 	Update(ctx context.Context, vehicle *domain.Vehicle) (*domain.Vehicle, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -60,6 +61,32 @@ func (r *vehicleRepository) FindAll(ctx context.Context) ([]domain.Vehicle, erro
 	query := `SELECT id, license_plate, customer_id, model, year, brand FROM vehicles`
 
 	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var vehicles []domain.Vehicle
+	for rows.Next() {
+		var vehicle domain.Vehicle
+		if err := rows.Scan(&vehicle.ID, &vehicle.LicensePlate, &vehicle.CustomerID, &vehicle.Model, &vehicle.Year, &vehicle.Brand); err != nil {
+			return nil, err
+		}
+		vehicles = append(vehicles, vehicle)
+	}
+	return vehicles, nil
+}
+
+func (r *vehicleRepository) FindAllWithFilters(ctx context.Context, filters domain.VehicleListFilters) ([]domain.Vehicle, error) {
+	query := `SELECT id, license_plate, customer_id, model, year, brand FROM vehicles`
+	args := []any{}
+
+	if filters.CustomerID != uuid.Nil {
+		query += ` WHERE customer_id = $1`
+		args = append(args, filters.CustomerID)
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

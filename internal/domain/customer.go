@@ -26,6 +26,10 @@ const (
 	DocumentTypeCNPJ CustomerDocumentType = "CNPJ"
 )
 
+type CustomerListFilters struct {
+	Document string
+}
+
 type Customer struct {
 	ID           uuid.UUID            `json:"id"`
 	Name         string               `json:"name"`

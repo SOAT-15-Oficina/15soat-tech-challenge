@@ -12,6 +12,7 @@ type VehicleService interface {
 	Create(ctx context.Context, vehicle *domain.Vehicle) (*domain.Vehicle, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Vehicle, error)
 	GetAll(ctx context.Context) ([]domain.Vehicle, error)
+	GetAllWithFilters(ctx context.Context, filters domain.VehicleListFilters) ([]domain.Vehicle, error)
 	Update(ctx context.Context, vehicle *domain.Vehicle) (*domain.Vehicle, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -37,6 +38,10 @@ func (s *vehicleService) GetByID(ctx context.Context, id uuid.UUID) (*domain.Veh
 
 func (s *vehicleService) GetAll(ctx context.Context) ([]domain.Vehicle, error) {
 	return s.repo.FindAll(ctx)
+}
+
+func (s *vehicleService) GetAllWithFilters(ctx context.Context, filters domain.VehicleListFilters) ([]domain.Vehicle, error) {
+	return s.repo.FindAllWithFilters(ctx, filters)
 }
 
 func (s *vehicleService) Update(ctx context.Context, vehicle *domain.Vehicle) (*domain.Vehicle, error) {

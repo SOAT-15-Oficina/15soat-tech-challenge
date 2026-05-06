@@ -22,6 +22,10 @@ type VehicleValidationError struct {
 func (e *VehicleValidationError) Error() string { return e.Err.Error() }
 func (e *VehicleValidationError) Unwrap() error { return e.Err }
 
+type VehicleListFilters struct {
+	CustomerID uuid.UUID
+}
+
 type Vehicle struct {
 	ID           uuid.UUID `json:"id"`
 	LicensePlate string    `json:"licensePlate"`

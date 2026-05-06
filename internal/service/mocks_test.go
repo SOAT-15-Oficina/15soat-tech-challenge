@@ -182,6 +182,14 @@ func (m *mockVehicleRepo) FindAll(ctx context.Context) ([]domain.Vehicle, error)
 	return args.Get(0).([]domain.Vehicle), args.Error(1)
 }
 
+func (m *mockVehicleRepo) FindAllWithFilters(ctx context.Context, filters domain.VehicleListFilters) ([]domain.Vehicle, error) {
+	args := m.Called(ctx, filters)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.Vehicle), args.Error(1)
+}
+
 func (m *mockVehicleRepo) Update(ctx context.Context, vehicle *domain.Vehicle) (*domain.Vehicle, error) {
 	args := m.Called(ctx, vehicle)
 	if args.Get(0) == nil {

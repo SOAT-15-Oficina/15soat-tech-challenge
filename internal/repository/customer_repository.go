@@ -12,6 +12,7 @@ type CustomerRepository interface {
 	Create(ctx context.Context, customer *domain.Customer) (*domain.Customer, error)
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.Customer, error)
 	FindAll(ctx context.Context) ([]domain.Customer, error)
+	FindAllWithFilters(ctx context.Context, filters domain.CustomerListFilters) ([]domain.Customer, error)
 	Update(ctx context.Context, customer *domain.Customer) (*domain.Customer, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -59,6 +60,32 @@ func (r *customerRepository) FindAll(ctx context.Context) ([]domain.Customer, er
 	query := `SELECT id, name, email, document, document_type FROM customers`
 
 	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var customers []domain.Customer
+	for rows.Next() {
+		var customer domain.Customer
+		if err := rows.Scan(&customer.ID, &customer.Name, &customer.Email, &customer.Document, &customer.DocumentType); err != nil {
+			return nil, err
+		}
+		customers = append(customers, customer)
+	}
+	return customers, nil
+}
+
+func (r *customerRepository) FindAllWithFilters(ctx context.Context, filters domain.CustomerListFilters) ([]domain.Customer, error) {
+	query := `SELECT id, name, email, document, document_type FROM customers`
+	args := []any{}
+
+	if filters.Document != "" {
+		query += ` WHERE document = $1`
+		args = append(args, filters.Document)
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
