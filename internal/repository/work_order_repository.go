@@ -112,12 +112,6 @@ func (r *workOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*doma
 	result.Customer = &customer
 	result.Vehicle = &vehicle
 
-	services, err := r.fetchServicesForWorkOrder(ctx, result.ID)
-	if err != nil {
-		return nil, err
-	}
-	result.Services = services
-
 	return &result, nil
 }
 
@@ -210,62 +204,6 @@ func (r *workOrderRepository) Update(ctx context.Context, wo *domain.WorkOrder) 
 		return nil, err
 	}
 	return &result, nil
-}
-
-func (r *workOrderRepository) fetchServicesForWorkOrder(ctx context.Context, workOrderID uuid.UUID) ([]domain.WorkOrderServiceWithSupplies, error) {
-	query := `SELECT id, service_title_snapshot, service_price_cents_snapshot, status, approval_status FROM work_order_services WHERE work_order_id = $1`
-	rows, err := r.db.Query(ctx, query, workOrderID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var services []domain.WorkOrderServiceWithSupplies
-	for rows.Next() {
-		var svc domain.WorkOrderServiceWithSupplies
-		svc.Quantity = 1
-		if err := rows.Scan(&svc.ID, &svc.Description, &svc.ServicePriceCentsSnapshot, &svc.Status, &svc.ApprovalStatus); err != nil {
-			return nil, err
-		}
-
-		supplies, err := r.fetchSuppliesForService(ctx, svc.ID)
-		if err != nil {
-			return nil, err
-		}
-		svc.Supplies = supplies
-
-		history, err := r.fetchHistoryForService(ctx, svc.ID)
-		if err != nil {
-			return nil, err
-		}
-		svc.History = history
-
-		services = append(services, svc)
-	}
-	return services, nil
-}
-
-func (r *workOrderRepository) fetchSuppliesForService(ctx context.Context, serviceID uuid.UUID) ([]domain.WorkOrderServiceSupplyResponse, error) {
-	query := `SELECT id, supply_title_snapshot, supply_price_cents_snapshot, supply_quantity FROM work_order_service_supplies WHERE work_order_service_id = $1`
-	rows, err := r.db.Query(ctx, query, serviceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var supplies []domain.WorkOrderServiceSupplyResponse
-	for rows.Next() {
-		var sup domain.WorkOrderServiceSupplyResponse
-		if err := rows.Scan(&sup.ID, &sup.Description, &sup.SupplyPriceCentsSnapshot, &sup.SupplyQuantity); err != nil {
-			return nil, err
-		}
-		supplies = append(supplies, sup)
-	}
-	return supplies, nil
-}
-
-func (r *workOrderRepository) fetchHistoryForService(ctx context.Context, serviceID uuid.UUID) ([]domain.WorkOrderServiceHistoryResponse, error) {
-	return nil, nil
 }
 
 func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error) {
