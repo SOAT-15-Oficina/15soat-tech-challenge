@@ -234,12 +234,6 @@ func (r *workOrderRepository) fetchServicesForWorkOrder(ctx context.Context, wor
 		}
 		svc.Supplies = supplies
 
-		history, err := r.fetchHistoryForService(ctx, svc.ID)
-		if err != nil {
-			return nil, err
-		}
-		svc.History = history
-
 		services = append(services, svc)
 	}
 	return services, nil
@@ -262,10 +256,6 @@ func (r *workOrderRepository) fetchSuppliesForService(ctx context.Context, servi
 		supplies = append(supplies, sup)
 	}
 	return supplies, nil
-}
-
-func (r *workOrderRepository) fetchHistoryForService(ctx context.Context, serviceID uuid.UUID) ([]domain.WorkOrderServiceHistoryResponse, error) {
-	return nil, nil
 }
 
 func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error) {

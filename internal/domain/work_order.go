@@ -58,14 +58,13 @@ type WorkOrderVehicle struct {
 }
 
 type WorkOrderServiceWithSupplies struct {
-	ID                        uuid.UUID                         `json:"id"`
-	Description               string                            `json:"description"`
-	ServicePriceCentsSnapshot int                               `json:"service_price_cents_snapshot"`
-	Status                    string                            `json:"status"`
-	ApprovalStatus            string                            `json:"approval_status"`
-	Quantity                  int                               `json:"quantity"`
-	Supplies                  []WorkOrderServiceSupplyResponse  `json:"supplies"`
-	History                   []WorkOrderServiceHistoryResponse `json:"history"`
+	ID                        uuid.UUID                        `json:"id"`
+	Description               string                           `json:"description"`
+	ServicePriceCentsSnapshot int                              `json:"service_price_cents_snapshot"`
+	Status                    string                           `json:"status"`
+	ApprovalStatus            string                           `json:"approval_status"`
+	Quantity                  int                              `json:"quantity"`
+	Supplies                  []WorkOrderServiceSupplyResponse `json:"supplies"`
 }
 
 type WorkOrderServiceSupplyResponse struct {
@@ -73,13 +72,6 @@ type WorkOrderServiceSupplyResponse struct {
 	Description              string    `json:"description"`
 	SupplyPriceCentsSnapshot int       `json:"supply_price_cents_snapshot"`
 	SupplyQuantity           int       `json:"supply_quantity"`
-}
-
-type WorkOrderServiceHistoryResponse struct {
-	Status          string     `json:"status"`
-	Note            *string    `json:"note,omitempty"`
-	ChangedByUserID *uuid.UUID `json:"changed_by_user_id,omitempty"`
-	ChangedAt       time.Time  `json:"changed_at"`
 }
 
 type WorkOrderListFilters struct {
