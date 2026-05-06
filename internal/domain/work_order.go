@@ -40,7 +40,7 @@ type WorkOrder struct {
 	UpdatedAt                time.Time                      `json:"updated_at"`
 	Customer                 *WorkOrderCustomer             `json:"customer"`
 	Vehicle                  *WorkOrderVehicle              `json:"vehicle"`
-	Services                 []WorkOrderServiceWithSupplies `json:"services"`
+	Services                 []WorkOrderServiceWithSupplies `json:"services,omitempty"`
 }
 
 type WorkOrderCustomer struct {
