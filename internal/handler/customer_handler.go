@@ -2,12 +2,15 @@ package handler
 
 import (
 	"errors"
+	"regexp"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
+
+var onlyDigits = regexp.MustCompile(`\D`)
 
 type CustomerHandler struct {
 	svc service.CustomerService
@@ -32,7 +35,14 @@ func (h *CustomerHandler) Create(c fiber.Ctx) error {
 }
 
 func (h *CustomerHandler) GetAll(c fiber.Ctx) error {
-	customers, err := h.svc.GetAll(c.Context())
+	filters := domain.CustomerListFilters{}
+
+	if doc := c.Query("document"); doc != "" {
+		normalized := onlyDigits.ReplaceAllString(doc, "")
+		filters.Document = normalized
+	}
+
+	customers, err := h.svc.GetAllWithFilters(c.Context(), filters)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}

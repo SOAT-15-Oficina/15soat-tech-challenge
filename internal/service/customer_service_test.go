@@ -37,6 +37,14 @@ func (m *mockCustomerRepo) FindAll(ctx context.Context) ([]domain.Customer, erro
 	return args.Get(0).([]domain.Customer), args.Error(1)
 }
 
+func (m *mockCustomerRepo) FindAllWithFilters(ctx context.Context, filters domain.CustomerListFilters) ([]domain.Customer, error) {
+	args := m.Called(ctx, filters)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.Customer), args.Error(1)
+}
+
 func (m *mockCustomerRepo) Update(ctx context.Context, c *domain.Customer) (*domain.Customer, error) {
 	args := m.Called(ctx, c)
 	if args.Get(0) == nil {

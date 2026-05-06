@@ -45,6 +45,14 @@ func (m *mockCustomerService) GetAll(ctx context.Context) ([]domain.Customer, er
 	return args.Get(0).([]domain.Customer), args.Error(1)
 }
 
+func (m *mockCustomerService) GetAllWithFilters(ctx context.Context, filters domain.CustomerListFilters) ([]domain.Customer, error) {
+	args := m.Called(ctx, filters)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.Customer), args.Error(1)
+}
+
 func (m *mockCustomerService) Update(ctx context.Context, c *domain.Customer) (*domain.Customer, error) {
 	args := m.Called(ctx, c)
 	if args.Get(0) == nil {
@@ -114,9 +122,22 @@ func TestCustomerGetAll_Success(t *testing.T) {
 	svc := new(mockCustomerService)
 	app := setupCustomerApp(svc)
 
-	svc.On("GetAll", mock.Anything).Return([]domain.Customer{*sampleCustomer()}, nil)
+	svc.On("GetAllWithFilters", mock.Anything, domain.CustomerListFilters{}).Return([]domain.Customer{*sampleCustomer()}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/customers", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestCustomerGetAll_FilterByDocument(t *testing.T) {
+	svc := new(mockCustomerService)
+	app := setupCustomerApp(svc)
+	c := sampleCustomer()
+
+	svc.On("GetAllWithFilters", mock.Anything, domain.CustomerListFilters{Document: "11144477735"}).Return([]domain.Customer{*c}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/customers?document=111.444.777-35", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)

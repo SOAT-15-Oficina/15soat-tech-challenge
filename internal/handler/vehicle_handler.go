@@ -39,7 +39,15 @@ func (h *VehicleHandler) Create(c fiber.Ctx) error {
 }
 
 func (h *VehicleHandler) GetAll(c fiber.Ctx) error {
-	vehicles, err := h.svc.GetAll(c.Context())
+	filters := domain.VehicleListFilters{}
+
+	if customerID := c.Query("customerId"); customerID != "" {
+		if id, err := uuid.Parse(customerID); err == nil {
+			filters.CustomerID = id
+		}
+	}
+
+	vehicles, err := h.svc.GetAllWithFilters(c.Context(), filters)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}

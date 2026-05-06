@@ -12,6 +12,7 @@ type CustomerService interface {
 	Create(ctx context.Context, customer *domain.Customer) (*domain.Customer, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Customer, error)
 	GetAll(ctx context.Context) ([]domain.Customer, error)
+	GetAllWithFilters(ctx context.Context, filters domain.CustomerListFilters) ([]domain.Customer, error)
 	Update(ctx context.Context, customer *domain.Customer) (*domain.Customer, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -38,6 +39,10 @@ func (s *customerService) GetByID(ctx context.Context, id uuid.UUID) (*domain.Cu
 
 func (s *customerService) GetAll(ctx context.Context) ([]domain.Customer, error) {
 	return s.repo.FindAll(ctx)
+}
+
+func (s *customerService) GetAllWithFilters(ctx context.Context, filters domain.CustomerListFilters) ([]domain.Customer, error) {
+	return s.repo.FindAllWithFilters(ctx, filters)
 }
 
 func (s *customerService) Update(ctx context.Context, customer *domain.Customer) (*domain.Customer, error) {

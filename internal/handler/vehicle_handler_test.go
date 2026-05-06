@@ -45,6 +45,14 @@ func (m *mockVehicleService) GetAll(ctx context.Context) ([]domain.Vehicle, erro
 	return args.Get(0).([]domain.Vehicle), args.Error(1)
 }
 
+func (m *mockVehicleService) GetAllWithFilters(ctx context.Context, filters domain.VehicleListFilters) ([]domain.Vehicle, error) {
+	args := m.Called(ctx, filters)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.Vehicle), args.Error(1)
+}
+
 func (m *mockVehicleService) Update(ctx context.Context, v *domain.Vehicle) (*domain.Vehicle, error) {
 	args := m.Called(ctx, v)
 	if args.Get(0) == nil {
@@ -118,9 +126,23 @@ func TestVehicleGetAll_Success(t *testing.T) {
 	svc := new(mockVehicleService)
 	app := setupVehicleApp(svc)
 
-	svc.On("GetAll", mock.Anything).Return([]domain.Vehicle{*sampleVehicle()}, nil)
+	svc.On("GetAllWithFilters", mock.Anything, domain.VehicleListFilters{}).Return([]domain.Vehicle{*sampleVehicle()}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/vehicles", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestVehicleGetAll_FilterByCustomerID(t *testing.T) {
+	svc := new(mockVehicleService)
+	app := setupVehicleApp(svc)
+	v := sampleVehicle()
+	customerID := uuid.New()
+
+	svc.On("GetAllWithFilters", mock.Anything, domain.VehicleListFilters{CustomerID: customerID}).Return([]domain.Vehicle{*v}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/vehicles?customerId="+customerID.String(), nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
