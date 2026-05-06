@@ -19,8 +19,8 @@ type WorkshopServiceHandler struct {
 type workshopServiceRequest struct {
 	Title                *string  `json:"title"`
 	Description          *string  `json:"description"`
-	Price                *float64 `json:"price"`
-	EstimatedTimeMinutes *int     `json:"estimatedTimeMinutes"`
+	PriceCents           *int     `json:"price_cents"`
+	EstimatedTimeMinutes *int     `json:"estimated_time_minutes"`
 	Status               *domain.WorkshopServiceStatus `json:"status"`
 	Active               *bool    `json:"active"`
 }
@@ -29,12 +29,12 @@ type workshopServiceResponse struct {
 	ID                   uuid.UUID `json:"id"`
 	Title                string    `json:"title"`
 	Description          string    `json:"description"`
-	Price                float64   `json:"price"`
-	EstimatedTimeMinutes int       `json:"estimatedTimeMinutes"`
+	PriceCents           int       `json:"price_cents"`
+	EstimatedTimeMinutes int       `json:"estimated_time_minutes"`
 	Status               domain.WorkshopServiceStatus `json:"status"`
 	Active               bool      `json:"active"`
-	CreatedAt            string    `json:"createdAt"`
-	UpdatedAt            string    `json:"updatedAt"`
+	CreatedAt            string    `json:"created_at"`
+	UpdatedAt            string    `json:"updated_at"`
 }
 
 type workshopServiceListResponse struct {
@@ -45,12 +45,12 @@ type workshopServiceListResponse struct {
 }
 
 type avgExecutionTimeResponse struct {
-	ServiceID            uuid.UUID `json:"serviceId"`
+	ServiceID            uuid.UUID `json:"service_id"`
 	Title                string    `json:"title"`
-	EstimatedTimeMinutes int       `json:"estimatedTimeMinutes"`
-	AvgRealTimeMinutes   float64   `json:"avgRealTimeMinutes"`
-	ExecutionCount       int       `json:"executionCount"`
-	DifferenceMinutes    float64   `json:"differenceMinutes"`
+	EstimatedTimeMinutes int       `json:"estimated_time_minutes"`
+	AvgRealTimeMinutes   float64   `json:"avg_real_time_minutes"`
+	ExecutionCount       int       `json:"execution_count"`
+	DifferenceMinutes    float64   `json:"difference_minutes"`
 }
 
 func NewWorkshopServiceHandler(svc service.WorkshopServiceService) *WorkshopServiceHandler {
@@ -285,14 +285,14 @@ func parseListFilters(c fiber.Ctx) (domain.WorkshopServiceListFilters, error) {
 }
 
 func (r workshopServiceRequest) toCreateDomain() (*domain.WorkshopService, error) {
-	if r.Title == nil || r.Price == nil || r.EstimatedTimeMinutes == nil {
-		return nil, errors.New("title, price and estimatedTimeMinutes are required")
+	if r.Title == nil || r.PriceCents == nil || r.EstimatedTimeMinutes == nil {
+		return nil, errors.New("title, price_cents and estimatedTimeMinutes are required")
 	}
 
 	return &domain.WorkshopService{
 		Title:                *r.Title,
 		Description:          ptrString(r.Description),
-		PriceCents:           priceToCents(*r.Price),
+		PriceCents:           *r.PriceCents,
 		EstimatedTimeMinutes: *r.EstimatedTimeMinutes,
 	}, nil
 }
@@ -306,9 +306,8 @@ func (r workshopServiceRequest) toUpdateInput() (service.WorkshopServiceUpdateIn
 	if r.Description != nil {
 		input.Description = r.Description
 	}
-	if r.Price != nil {
-		cents := priceToCents(*r.Price)
-		input.PriceCents = &cents
+	if r.PriceCents != nil {
+		input.PriceCents = r.PriceCents
 	}
 	if r.EstimatedTimeMinutes != nil {
 		input.EstimatedTimeMinutes = r.EstimatedTimeMinutes
@@ -332,7 +331,7 @@ func toResponse(item *domain.WorkshopService) workshopServiceResponse {
 		ID:                   item.ID,
 		Title:                item.Title,
 		Description:          item.Description,
-		Price:                centsToPrice(item.PriceCents),
+		PriceCents:           item.PriceCents,
 		EstimatedTimeMinutes: item.EstimatedTimeMinutes,
 		Status:               item.Status,
 		Active:               item.Active,
@@ -346,12 +345,4 @@ func ptrString(v *string) string {
 		return ""
 	}
 	return *v
-}
-
-func priceToCents(v float64) int {
-	return int(math.Round(v * 100))
-}
-
-func centsToPrice(v int) float64 {
-	return float64(v) / 100
 }

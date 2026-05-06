@@ -116,8 +116,8 @@ func TestCreateRoute_201(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"title":                "Oil Change",
 		"description":          "Full oil change",
-		"price":                50.00,
-		"estimatedTimeMinutes": 30,
+		"price_cents":           5000,
+		"estimated_time_minutes": 30,
 	})
 
 	req, _ := http.NewRequest("POST", "/services", bytes.NewReader(body))
@@ -129,7 +129,7 @@ func TestCreateRoute_201(t *testing.T) {
 
 	result := parseBody(t, resp)
 	assert.Equal(t, "Oil Change", result["title"])
-	assert.Equal(t, float64(50), result["price"])
+	assert.Equal(t, float64(5000), result["price_cents"])
 }
 
 func TestCreateRoute_400_MissingFields(t *testing.T) {
@@ -168,8 +168,8 @@ func TestCreateRoute_409_DuplicateTitle(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]any{
 		"title":                "Duplicate",
-		"price":                10.00,
-		"estimatedTimeMinutes": 15,
+		"price_cents":           1000,
+		"estimated_time_minutes": 15,
 	})
 	req, _ := http.NewRequest("POST", "/services", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -188,8 +188,8 @@ func TestCreateRoute_400_ValidationError(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]any{
 		"title":                "Test",
-		"price":                -1.0,
-		"estimatedTimeMinutes": 30,
+		"price_cents":           -100,
+		"estimated_time_minutes": 30,
 	})
 	req, _ := http.NewRequest("POST", "/services", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -471,9 +471,9 @@ func TestGetAvgExecutionTime_200(t *testing.T) {
 	items := parseBodyArray(t, resp)
 	assert.Len(t, items, 1)
 	assert.Equal(t, "Oil Change", items[0]["title"])
-	assert.Equal(t, float64(25.5), items[0]["avgRealTimeMinutes"])
-	assert.Equal(t, float64(3), items[0]["executionCount"])
-	assert.Equal(t, float64(-4.5), items[0]["differenceMinutes"])
+	assert.Equal(t, float64(25.5), items[0]["avg_real_time_minutes"])
+	assert.Equal(t, float64(3), items[0]["execution_count"])
+	assert.Equal(t, float64(-4.5), items[0]["difference_minutes"])
 }
 
 func TestGetAvgExecutionTime_200_Empty(t *testing.T) {

@@ -98,6 +98,7 @@ func (h *CustomerHandler) handleServiceError(c fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, domain.ErrCustomerNameRequired),
 		errors.Is(err, domain.ErrCustomerEmailRequired),
+		errors.Is(err, domain.ErrCustomerInvalidEmailFormat),
 		errors.Is(err, domain.ErrCustomerInvalidDocumentType),
 		errors.Is(err, domain.ErrCustomerInvalidCPFFormat),
 		errors.Is(err, domain.ErrCustomerInvalidCPFChecksum),

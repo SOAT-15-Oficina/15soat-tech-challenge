@@ -1087,12 +1087,12 @@ components:
     # ── Vehicle ───────────────────────────────────────
     VehicleRequest:
       type: object
-      required: [licensePlate, customerId, model, year, brand]
+      required: [license_plate, customer_id, model, year, brand]
       properties:
-        licensePlate:
+        license_plate:
           type: string
           example: ABC1D23
-        customerId:
+        customer_id:
           type: string
           format: uuid
         model:
@@ -1111,9 +1111,9 @@ components:
         id:
           type: string
           format: uuid
-        licensePlate:
+        license_plate:
           type: string
-        customerId:
+        customer_id:
           type: string
           format: uuid
         model:
@@ -1182,7 +1182,7 @@ components:
     # ── Workshop Service ──────────────────────────────
     WorkshopServiceCreateRequest:
       type: object
-      required: [title, price, estimatedTimeMinutes]
+      required: [title, price_cents, estimated_time_minutes]
       properties:
         title:
           type: string
@@ -1193,13 +1193,12 @@ components:
           type: string
           maxLength: 500
           example: Troca completa de oleo do motor com filtro
-        price:
-          type: number
-          format: double
-          minimum: 0.01
-          description: Preco em BRL (ex. 50.00)
-          example: 50.00
-        estimatedTimeMinutes:
+        price_cents:
+          type: integer
+          minimum: 1
+          description: Preco em centavos (ex. 5000 = R$50.00)
+          example: 5000
+        estimated_time_minutes:
           type: integer
           minimum: 1
           example: 30
@@ -1215,11 +1214,10 @@ components:
         description:
           type: string
           maxLength: 500
-        price:
-          type: number
-          format: double
-          minimum: 0.01
-        estimatedTimeMinutes:
+        price_cents:
+          type: integer
+          minimum: 1
+        estimated_time_minutes:
           type: integer
           minimum: 1
         active:
@@ -1235,17 +1233,16 @@ components:
           type: string
         description:
           type: string
-        price:
-          type: number
-          format: double
-        estimatedTimeMinutes:
+        price_cents:
+          type: integer
+        estimated_time_minutes:
           type: integer
         active:
           type: boolean
-        createdAt:
+        created_at:
           type: string
           format: date-time
-        updatedAt:
+        updated_at:
           type: string
           format: date-time
 
@@ -1266,23 +1263,23 @@ components:
     AvgExecutionTimeResponse:
       type: object
       properties:
-        serviceId:
+        service_id:
           type: string
           format: uuid
         title:
           type: string
           example: Troca de Oleo
-        estimatedTimeMinutes:
+        estimated_time_minutes:
           type: integer
           example: 30
-        avgRealTimeMinutes:
+        avg_real_time_minutes:
           type: number
           format: double
           example: 25.5
-        executionCount:
+        execution_count:
           type: integer
           example: 3
-        differenceMinutes:
+        difference_minutes:
           type: number
           format: double
           example: -4.5
@@ -1290,6 +1287,7 @@ components:
     # ── Work Order ────────────────────────────────────
     WorkOrderCreateRequest:
       type: object
+      description: "O campo opened_by_user_id e preenchido automaticamente a partir do token JWT."
       required: [title, customer_id, vehicle_id]
       properties:
         title:
