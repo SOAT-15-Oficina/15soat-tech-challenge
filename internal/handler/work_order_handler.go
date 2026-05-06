@@ -178,8 +178,8 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	if workOrder.Status != "" {
-		result, err := h.statusSvc.TransitionTo(c.Context(), id, workOrder.Status)
+	if req.Status != "" {
+		result, err := h.statusSvc.TransitionTo(c.Context(), id, req.Status)
 		if err != nil {
 			if errors.Is(err, service.ErrInvalidStatusTransition) {
 				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
