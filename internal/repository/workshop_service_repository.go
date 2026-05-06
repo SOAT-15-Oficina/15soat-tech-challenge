@@ -35,9 +35,9 @@ func NewWorkshopServiceRepository(db *pgxpool.Pool) WorkshopServiceRepository {
 
 func (r *workshopServiceRepository) Create(ctx context.Context, ws *domain.WorkshopService) (*domain.WorkshopService, error) {
 	query := `
-		INSERT INTO services (id, title, description, price_cents, estimated_time_minutes, status, active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING id, title, description, price_cents, estimated_time_minutes, status, active, created_at, updated_at`
+		INSERT INTO services (id, title, description, price_cents, estimated_time_minutes, active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, title, description, price_cents, estimated_time_minutes, active, created_at, updated_at`
 
 	now := time.Now().UTC()
 	if ws.ID == uuid.Nil {
@@ -63,7 +63,7 @@ func (r *workshopServiceRepository) Create(ctx context.Context, ws *domain.Works
 
 func (r *workshopServiceRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkshopService, error) {
 	query := `
-		SELECT id, title, description, price_cents, estimated_time_minutes, status, active, created_at, updated_at
+		SELECT id, title, description, price_cents, estimated_time_minutes, active, created_at, updated_at
 		FROM services WHERE id = $1`
 
 	var result domain.WorkshopService
@@ -136,9 +136,9 @@ func (r *workshopServiceRepository) List(ctx context.Context, filters domain.Wor
 func (r *workshopServiceRepository) Update(ctx context.Context, ws *domain.WorkshopService) (*domain.WorkshopService, error) {
 	query := `
 		UPDATE services
-		SET title = $1, description = $2, price_cents = $3, estimated_time_minutes = $4, status = $5, active = $6, updated_at = $7
-		WHERE id = $8
-		RETURNING id, title, description, price_cents, estimated_time_minutes, status, active, created_at, updated_at`
+		SET title = $1, description = $2, price_cents = $3, estimated_time_minutes = $4, active = $5, updated_at = $6
+		WHERE id = $7
+		RETURNING id, title, description, price_cents, estimated_time_minutes, active, created_at, updated_at`
 
 	ws.UpdatedAt = time.Now().UTC()
 
@@ -148,7 +148,7 @@ func (r *workshopServiceRepository) Update(ctx context.Context, ws *domain.Works
 		ws.Active, ws.UpdatedAt, ws.ID,
 	).Scan(
 		&result.ID, &result.Title, &result.Description, &result.PriceCents,
-		&result.EstimatedTimeMinutes,&result.Active, &result.CreatedAt, &result.UpdatedAt,
+		&result.EstimatedTimeMinutes, &result.Active, &result.CreatedAt, &result.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -172,7 +172,7 @@ func (r *workshopServiceRepository) Delete(ctx context.Context, id uuid.UUID) er
 func (r *workshopServiceRepository) Deactivate(ctx context.Context, id uuid.UUID) (*domain.WorkshopService, error) {
 	query := `
 		UPDATE services SET active = false, updated_at = $1 WHERE id = $2
-		RETURNING id, title, description, price_cents, estimated_time_minutes, status, active, created_at, updated_at`
+		RETURNING id, title, description, price_cents, estimated_time_minutes, active, created_at, updated_at`
 
 	var result domain.WorkshopService
 	err := r.db.QueryRow(ctx, query, time.Now().UTC(), id).Scan(
