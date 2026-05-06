@@ -1235,6 +1235,9 @@ components:
         estimated_time_minutes:
           type: integer
           minimum: 1
+        status:
+          type: string
+          enum: [AGUARDANDO, EM_EXECUCAO, CONCLUIDA]
         active:
           type: boolean
 
@@ -1252,6 +1255,9 @@ components:
           type: integer
         estimated_time_minutes:
           type: integer
+        status:
+          type: string
+          enum: [AGUARDANDO, EM_EXECUCAO, CONCLUIDA]
         active:
           type: boolean
         created_at:
