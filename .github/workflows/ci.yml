@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: techchallenge
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: techchallenge-db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U techchallenge -d techchallenge-db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...
+        env:
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_USER: techchallenge
+          DATABASE_PASSWORD: password
+          DATABASE_NAME: techchallenge-db
