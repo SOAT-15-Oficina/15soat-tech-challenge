@@ -33,14 +33,39 @@ import (
 	"os"
 	"testing"
 
+	"strings"
+	"sync"
+
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/auth"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// mockEmailProvider captures all sent emails for assertion in tests.
+type mockEmailProvider struct {
+	mu       sync.Mutex
+	messages []email.Message
+}
+
+func (m *mockEmailProvider) Send(_ context.Context, msg email.Message) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.messages = append(m.messages, msg)
+	return nil
+}
+
+func (m *mockEmailProvider) Messages() []email.Message {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cp := make([]email.Message, len(m.messages))
+	copy(cp, m.messages)
+	return cp
+}
 
 const testUsername = "mechanic_test"
 
@@ -154,6 +179,93 @@ func setupFlowApp(t *testing.T) (*fiber.App, *pgxpool.Pool) {
 	publicWO.Get("/:code", publicWoHandler.GetByCode)
 
 	return app, pool
+}
+
+// setupFlowAppWithBudget is like setupFlowApp but wires up the BudgetService
+// with a mock email provider, so budget generation and notification tests work.
+func setupFlowAppWithBudget(t *testing.T) (*fiber.App, *pgxpool.Pool, *mockEmailProvider) {
+	t.Helper()
+
+	pool := connectTestDB(t)
+	setupFlowSchema(t, pool)
+
+	mockEmail := &mockEmailProvider{}
+
+	// Repositories
+	customerRepo := repository.NewCustomerRepository(pool)
+	vehicleRepo := repository.NewVehicleRepository(pool)
+	supplyRepo := repository.NewSupplyRepository(pool)
+	wsRepo := repository.NewWorkshopServiceRepository(pool)
+	woRepo := repository.NewWorkOrderRepository(pool)
+	wosRepo := repository.NewWorkOrderServiceRepository(pool)
+	userRepo := repository.NewUserRepository(pool)
+
+	// Services
+	customerSvc := service.NewCustomerService(customerRepo)
+	vehicleSvc := service.NewVehicleService(vehicleRepo)
+	supplySvc := service.NewSupplyService(supplyRepo)
+	wsSvc := service.NewWorkshopServiceService(wsRepo)
+	statusSvc := service.NewWorkOrderStatusService(woRepo, wosRepo)
+	woSvc := service.NewWorkOrderService(woRepo, vehicleRepo)
+	creationSvc := service.NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
+	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
+	userSvc := service.NewUserService(userRepo, "test-secret")
+	publicSvc := service.NewPublicWorkOrderService(woRepo, customerRepo, wosRepo)
+	budgetSvc := service.NewBudgetService(woRepo, wosRepo, customerRepo, mockEmail, "http://localhost:8080")
+
+	// Handlers
+	customerHandler := NewCustomerHandler(customerSvc)
+	vehicleHandler := NewVehicleHandler(vehicleSvc)
+	supplyHandler := NewSupplyHandler(supplySvc)
+	wsHandler := NewWorkshopServiceHandler(wsSvc)
+	woHandler := NewWorkOrderHandler(woSvc, budgetSvc, creationSvc, statusSvc, userRepo)
+	wosHandler := NewWorkOrderServiceHandler(itemSvc)
+	authHandler := NewAuthHandler(userSvc)
+	publicWoHandler := NewPublicWorkOrderHandler(publicSvc)
+
+	app := fiber.New()
+
+	app.Post("/auth/register", authHandler.Register)
+	app.Post("/auth/login", authHandler.Login)
+
+	fakeAuth := func(c fiber.Ctx) error {
+		c.Locals("token", &auth.AppClaims{User: testUsername, Role: "employee"})
+		return c.Next()
+	}
+
+	customers := app.Group("/customers", fakeAuth)
+	customers.Post("/", customerHandler.Create)
+	customers.Get("/", customerHandler.GetAll)
+	customers.Get("/:id", customerHandler.GetByID)
+
+	vehicles := app.Group("/vehicles", fakeAuth)
+	vehicles.Post("/", vehicleHandler.Create)
+	vehicles.Get("/", vehicleHandler.GetAll)
+
+	supplies := app.Group("/supplies", fakeAuth)
+	supplies.Post("/", supplyHandler.Create)
+
+	services := app.Group("/services", fakeAuth)
+	services.Post("/", wsHandler.Create)
+
+	workOrders := app.Group("/work-orders", fakeAuth)
+	workOrders.Post("/", woHandler.Create)
+	workOrders.Get("/", woHandler.GetAll)
+	workOrders.Get("/:id", woHandler.GetByID)
+	workOrders.Put("/:id", woHandler.Update)
+	workOrders.Post("/:id/services", woHandler.AddServices)
+	workOrders.Post("/:id/services/:wosId/supplies", woHandler.AddSupplies)
+
+	approval := app.Group("/public/approvals")
+	approval.Get("/services/:workOrderServiceId/approve", wosHandler.Approve)
+	approval.Get("/services/:workOrderServiceId/reject", wosHandler.Reject)
+	approval.Get("/work-orders/:workOrderId/approve-all", wosHandler.ApproveAll)
+	approval.Get("/work-orders/:workOrderId/reject-all", wosHandler.RejectAll)
+
+	publicWO := app.Group("/public/work-orders")
+	publicWO.Get("/:code", publicWoHandler.GetByCode)
+
+	return app, pool, mockEmail
 }
 
 func connectTestDB(t *testing.T) *pgxpool.Pool {
@@ -1412,6 +1524,247 @@ func TestIntegration_Flow_OwnershipValidation(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusUnprocessableEntity, resp.StatusCode,
 			"should not allow removing service that belongs to another work order")
+	})
+}
+
+// =============================================================================
+// Test: Budget generation — transitioning to AGUARDANDO_APROVACAO triggers
+// budget calculation, sets quote_sent_at, calculates total, and sends email.
+// Covers PDF steps: "Gera orçamento com tempo estimado", "Envia notificação
+// para o cliente", "Atualiza OS para aguardando aprovação".
+// =============================================================================
+
+func TestIntegration_Flow_BudgetGenerationAndNotification(t *testing.T) {
+	app, _, mockEmail := setupFlowAppWithBudget(t)
+	seedTestUser(t, app)
+
+	customerID := createTestCustomer(t, app, "Cliente Orçamento", "orcamento@example.com", "12345678909", "CPF")
+	vehicleID := createTestVehicle(t, app, customerID, "ORC1A23", "Fiat", "Strada", 2022)
+	workOrderID := createTestWorkOrder(t, app, "Orçamento test", customerID, vehicleID)
+
+	// Add two services: 15000 + 12000 = 27000 cents
+	svc1ID := createTestWorkshopService(t, app, "Serviço Orçamento A", 15000, 30)
+	svc2ID := createTestWorkshopService(t, app, "Serviço Orçamento B", 12000, 60)
+	wosIDs := addServicesToWorkOrder(t, app, workOrderID, []string{svc1ID, svc2ID})
+
+	// Add supplies to service 1: 3500*1 + 4500*4 = 21500 cents
+	supply1ID := createTestSupply(t, app, "Filtro Orçamento", "PECA", 3500, 10, 2)
+	supply2ID := createTestSupply(t, app, "Óleo Orçamento", "INSUMO", 4500, 20, 5)
+	resp, err := flowPostJSON(app,
+		fmt.Sprintf("/work-orders/%s/services/%s/supplies", workOrderID, wosIDs[0]),
+		[]map[string]any{
+			{"supply_id": supply1ID, "quantity": 1},
+			{"supply_id": supply2ID, "quantity": 4},
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
+
+	// Transition to AGUARDANDO_APROVACAO — triggers budget generation
+	t.Run("TransicaoGeraOrcamento", func(t *testing.T) {
+		resp, err := flowPutJSON(app, "/work-orders/"+workOrderID, map[string]any{
+			"status": "AGUARDANDO_APROVACAO",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+	})
+
+	// Verify quote_sent_at was set
+	t.Run("QuoteSentAtDefinido", func(t *testing.T) {
+		resp, err := flowGet(app, "/work-orders/"+workOrderID)
+		require.NoError(t, err)
+		body := flowReadBody(t, resp)
+		assert.Equal(t, "AGUARDANDO_APROVACAO", body["status"])
+		assert.NotNil(t, body["quote_sent_at"], "quote_sent_at should be set after budget generation")
+	})
+
+	// Verify total was calculated: services(15000+12000) + supplies(3500+18000) = 48500
+	t.Run("TotalCalculadoCorretamente", func(t *testing.T) {
+		resp, err := flowGet(app, "/work-orders/"+workOrderID)
+		require.NoError(t, err)
+		body := flowReadBody(t, resp)
+		assert.Equal(t, float64(48500), body["total_estimated_price_cents"],
+			"total should be sum of services + supplies: 15000+12000+3500+(4500*4)=48500")
+	})
+
+	// Verify email was sent to customer
+	t.Run("EmailEnviadoParaCliente", func(t *testing.T) {
+		msgs := mockEmail.Messages()
+		require.Len(t, msgs, 1, "should have sent exactly one email")
+
+		msg := msgs[0]
+		assert.Contains(t, msg.To, "orcamento@example.com", "email should be sent to customer")
+		assert.Contains(t, msg.Subject, "Orçamento", "subject should mention orçamento")
+		assert.True(t, msg.HTML, "email should be HTML")
+	})
+
+	// Verify email body contains approval links
+	t.Run("EmailContemLinksDeAprovacao", func(t *testing.T) {
+		msgs := mockEmail.Messages()
+		require.Len(t, msgs, 1)
+
+		body := msgs[0].Body
+		assert.Contains(t, body, "Cliente Orçamento", "email should contain customer name")
+		assert.Contains(t, body, "approve-all", "email should contain approve-all link")
+		assert.Contains(t, body, "reject-all", "email should contain reject-all link")
+
+		// Should contain individual service approve/reject links
+		for _, wosID := range wosIDs {
+			assert.Contains(t, body, fmt.Sprintf("/services/%s/approve", wosID),
+				"email should contain individual approve link for each service")
+			assert.Contains(t, body, fmt.Sprintf("/services/%s/reject", wosID),
+				"email should contain individual reject link for each service")
+		}
+	})
+}
+
+// =============================================================================
+// Test: Supply shortage detection — when supplies needed exceed stock_quantity,
+// the budget adds 2 extra days to estimated time for the affected services.
+// Covers PDF steps: "Calcula atraso do serviço porque nem todas as peças estão
+// em estoque", "Verifica se todas as peças estão disponíveis em estoque".
+// =============================================================================
+
+func TestIntegration_Flow_SupplyShortageDelay(t *testing.T) {
+	app, _, mockEmail := setupFlowAppWithBudget(t)
+	seedTestUser(t, app)
+
+	customerID := createTestCustomer(t, app, "Cliente Shortage", "shortage@example.com", "12345678909", "CPF")
+	vehicleID := createTestVehicle(t, app, customerID, "SHR1A23", "VW", "Polo", 2023)
+	workOrderID := createTestWorkOrder(t, app, "Shortage test", customerID, vehicleID)
+
+	// Service with 30min estimated time
+	svcID := createTestWorkshopService(t, app, "Serviço com Falta", 10000, 30)
+	wosIDs := addServicesToWorkOrder(t, app, workOrderID, []string{svcID})
+
+	// Create a supply with stock_quantity=2 but request quantity=5 → shortage
+	supplyID := createTestSupply(t, app, "Peça Rara", "PECA", 5000, 2, 1)
+	resp, err := flowPostJSON(app,
+		fmt.Sprintf("/work-orders/%s/services/%s/supplies", workOrderID, wosIDs[0]),
+		[]map[string]any{{"supply_id": supplyID, "quantity": 5}},
+	)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
+
+	// Transition to AGUARDANDO_APROVACAO — triggers budget with shortage
+	resp, err = flowPutJSON(app, "/work-orders/"+workOrderID, map[string]any{
+		"status": "AGUARDANDO_APROVACAO",
+	})
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	// Verify the email body contains extended time (30min + 2 days = "2 dias")
+	t.Run("EmailContemAtrasoDeEstoque", func(t *testing.T) {
+		msgs := mockEmail.Messages()
+		require.Len(t, msgs, 1)
+		body := msgs[0].Body
+		assert.Contains(t, body, "2 dias",
+			"email should show extended estimated time when supply has shortage (+2 days)")
+	})
+}
+
+// =============================================================================
+// Test: No shortage — when all supplies are in stock, budget shows only the
+// normal estimated time without extra delay.
+// =============================================================================
+
+func TestIntegration_Flow_NoShortageNormalTime(t *testing.T) {
+	app, _, mockEmail := setupFlowAppWithBudget(t)
+	seedTestUser(t, app)
+
+	customerID := createTestCustomer(t, app, "Cliente Estoque OK", "estoque@example.com", "12345678909", "CPF")
+	vehicleID := createTestVehicle(t, app, customerID, "STK1A23", "Toyota", "Yaris", 2024)
+	workOrderID := createTestWorkOrder(t, app, "No shortage test", customerID, vehicleID)
+
+	// Service with 90min estimated time
+	svcID := createTestWorkshopService(t, app, "Serviço Estoque OK", 8000, 90)
+	wosIDs := addServicesToWorkOrder(t, app, workOrderID, []string{svcID})
+	_ = wosIDs
+
+	// Supply with stock=50, quantity=2 → no shortage
+	supplyID := createTestSupply(t, app, "Peça Abundante", "PECA", 2000, 50, 5)
+	resp, err := flowPostJSON(app,
+		fmt.Sprintf("/work-orders/%s/services/%s/supplies", workOrderID, wosIDs[0]),
+		[]map[string]any{{"supply_id": supplyID, "quantity": 2}},
+	)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
+
+	resp, err = flowPutJSON(app, "/work-orders/"+workOrderID, map[string]any{
+		"status": "AGUARDANDO_APROVACAO",
+	})
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	t.Run("EmailSemAtraso", func(t *testing.T) {
+		msgs := mockEmail.Messages()
+		require.Len(t, msgs, 1)
+		body := msgs[0].Body
+		// 90 min = "1 hora e 30 min", should NOT contain "dias"
+		assert.Contains(t, body, "1 hora",
+			"email should show normal estimated time without delay")
+		assert.NotContains(t, body, "dias",
+			"email should NOT contain extra days when stock is sufficient")
+	})
+}
+
+// =============================================================================
+// Test: Full flow with budget — happy path including budget generation, email
+// notification, and approval through the public links from the email.
+// Covers PDF: end-to-end from budget to approval via email links.
+// =============================================================================
+
+func TestIntegration_Flow_HappyPathWithBudgetAndEmail(t *testing.T) {
+	app, _, mockEmail := setupFlowAppWithBudget(t)
+	seedTestUser(t, app)
+
+	customerID := createTestCustomer(t, app, "João Completo", "joao.completo@example.com", "12345678909", "CPF")
+	vehicleID := createTestVehicle(t, app, customerID, "FUL1A23", "Honda", "City", 2023)
+	workOrderID := createTestWorkOrder(t, app, "Fluxo completo com email", customerID, vehicleID)
+
+	svcID := createTestWorkshopService(t, app, "Revisão Completa Email", 20000, 60)
+	addServicesToWorkOrder(t, app, workOrderID, []string{svcID})
+
+	// Transition to AGUARDANDO_APROVACAO → sends email
+	transitionWorkOrder(t, app, workOrderID, "AGUARDANDO_APROVACAO")
+
+	// Extract the approve-all link from the email body
+	t.Run("ClienteAprovaViaLinkDoEmail", func(t *testing.T) {
+		msgs := mockEmail.Messages()
+		require.Len(t, msgs, 1)
+		body := msgs[0].Body
+
+		// Find the approve-all URL in the email
+		approveAllSuffix := fmt.Sprintf("/public/approvals/work-orders/%s/approve-all", workOrderID)
+		assert.True(t, strings.Contains(body, approveAllSuffix),
+			"email should contain approve-all link")
+
+		// Use the link to approve — same as the client would
+		resp, err := flowGet(app, approveAllSuffix)
+		require.NoError(t, err)
+		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+	})
+
+	// After approval via email link, work order should be APROVADO
+	t.Run("OSAprovadaAposCliqueLinkEmail", func(t *testing.T) {
+		resp, err := flowGet(app, "/work-orders/"+workOrderID)
+		require.NoError(t, err)
+		body := flowReadBody(t, resp)
+		assert.Equal(t, "APROVADO", body["status"])
+		assert.NotNil(t, body["approved_at"])
+		assert.NotNil(t, body["quote_sent_at"])
+	})
+
+	// Continue the flow: EM_EXECUCAO → FINALIZADA → ENTREGUE
+	t.Run("FluxoContinuaAteEntrega", func(t *testing.T) {
+		transitionWorkOrder(t, app, workOrderID, "EM_EXECUCAO")
+		transitionWorkOrder(t, app, workOrderID, "FINALIZADA")
+		transitionWorkOrder(t, app, workOrderID, "ENTREGUE")
+
+		resp, err := flowGet(app, "/work-orders/"+workOrderID)
+		require.NoError(t, err)
+		body := flowReadBody(t, resp)
+		assert.Equal(t, "ENTREGUE", body["status"])
 	})
 }
 
