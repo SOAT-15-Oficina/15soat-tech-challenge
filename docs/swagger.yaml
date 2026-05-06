@@ -107,9 +107,12 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/User"
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
 
   /users/{id}:
     parameters:
@@ -188,9 +191,12 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Customer"
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Customer"
 
   /customers/{id}:
     parameters:
@@ -267,9 +273,12 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Vehicle"
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Vehicle"
 
   /vehicles/{id}:
     parameters:
@@ -346,9 +355,12 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Supply"
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Supply"
 
   /supplies/{id}:
     parameters:
@@ -544,9 +556,12 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AvgExecutionTimeResponse"
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AvgExecutionTimeResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
 
@@ -1249,7 +1264,7 @@ components:
     WorkshopServiceListResponse:
       type: object
       properties:
-        items:
+        data:
           type: array
           items:
             $ref: "#/components/schemas/WorkshopServiceResponse"

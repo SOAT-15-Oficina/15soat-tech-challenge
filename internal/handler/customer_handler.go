@@ -48,10 +48,10 @@ func (h *CustomerHandler) GetAll(c fiber.Ctx) error {
 	}
 
 	if customers == nil {
-		return c.JSON([]domain.Customer{})
+		customers = []domain.Customer{}
 	}
 
-	return c.JSON(customers)
+	return c.JSON(fiber.Map{"data": customers})
 }
 
 func (h *CustomerHandler) GetByID(c fiber.Ctx) error {

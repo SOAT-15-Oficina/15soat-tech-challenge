@@ -214,7 +214,7 @@ func TestGetAllRoute_200(t *testing.T) {
 
 	result := parseBody(t, resp)
 	assert.Equal(t, float64(1), result["total"])
-	assert.Len(t, result["items"], 1)
+	assert.Len(t, result["data"], 1)
 }
 
 func TestGetAllRoute_200_EmptyList(t *testing.T) {
@@ -231,7 +231,7 @@ func TestGetAllRoute_200_EmptyList(t *testing.T) {
 
 	result := parseBody(t, resp)
 	assert.Equal(t, float64(0), result["total"])
-	assert.Len(t, result["items"], 0)
+	assert.Len(t, result["data"], 0)
 }
 
 func TestGetAllRoute_200_WithFilters(t *testing.T) {
@@ -468,12 +468,14 @@ func TestGetAvgExecutionTime_200(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
-	items := parseBodyArray(t, resp)
+	result := parseBody(t, resp)
+	items := result["data"].([]any)
 	assert.Len(t, items, 1)
-	assert.Equal(t, "Oil Change", items[0]["title"])
-	assert.Equal(t, float64(25.5), items[0]["avg_real_time_minutes"])
-	assert.Equal(t, float64(3), items[0]["execution_count"])
-	assert.Equal(t, float64(-4.5), items[0]["difference_minutes"])
+	first := items[0].(map[string]any)
+	assert.Equal(t, "Oil Change", first["title"])
+	assert.Equal(t, float64(25.5), first["avg_real_time_minutes"])
+	assert.Equal(t, float64(3), first["execution_count"])
+	assert.Equal(t, float64(-4.5), first["difference_minutes"])
 }
 
 func TestGetAvgExecutionTime_200_Empty(t *testing.T) {
@@ -488,7 +490,8 @@ func TestGetAvgExecutionTime_200_Empty(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
-	items := parseBodyArray(t, resp)
+	result := parseBody(t, resp)
+	items := result["data"].([]any)
 	assert.Len(t, items, 0)
 }
 

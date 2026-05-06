@@ -38,7 +38,7 @@ type workshopServiceResponse struct {
 }
 
 type workshopServiceListResponse struct {
-	Items []workshopServiceResponse `json:"items"`
+	Data  []workshopServiceResponse `json:"data"`
 	Page  int                       `json:"page"`
 	Limit int                       `json:"limit"`
 	Total int                       `json:"total"`
@@ -103,7 +103,7 @@ func (h *WorkshopServiceHandler) GetAll(c fiber.Ctx) error {
 	}
 
 	return c.JSON(workshopServiceListResponse{
-		Items: responseItems,
+		Data:  responseItems,
 		Page:  filters.Page,
 		Limit: filters.Limit,
 		Total: total,
@@ -192,7 +192,7 @@ func (h *WorkshopServiceHandler) GetAvgExecutionTime(c fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(items)
+	return c.JSON(fiber.Map{"data": items})
 }
 
 func parseAvgExecutionTimeFilters(c fiber.Ctx) (domain.AvgExecutionTimeFilters, error) {

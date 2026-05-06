@@ -252,7 +252,7 @@ func TestIntegration_ListPaginated(t *testing.T) {
 
 	result := readBody(t, resp)
 	assert.Equal(t, float64(3), result["total"])
-	assert.Len(t, result["items"], 2)
+	assert.Len(t, result["data"], 2)
 	assert.Equal(t, float64(1), result["page"])
 	assert.Equal(t, float64(2), result["limit"])
 }
@@ -469,12 +469,14 @@ func TestIntegration_AvgExecutionTime(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
-	items := readBodyArray(t, resp)
+	result := readBody(t, resp)
+	items := result["data"].([]any)
 	require.Len(t, items, 1)
-	assert.Equal(t, "Oil Change", items[0]["title"])
-	assert.Equal(t, float64(2), items[0]["execution_count"])
-	assert.Equal(t, float64(30), items[0]["avg_real_time_minutes"])
-	assert.Equal(t, float64(30), items[0]["estimated_time_minutes"])
+	first := items[0].(map[string]any)
+	assert.Equal(t, "Oil Change", first["title"])
+	assert.Equal(t, float64(2), first["execution_count"])
+	assert.Equal(t, float64(30), first["avg_real_time_minutes"])
+	assert.Equal(t, float64(30), first["estimated_time_minutes"])
 }
 
 func TestIntegration_AvgExecutionTime_FilterByTechnician(t *testing.T) {
@@ -522,10 +524,12 @@ func TestIntegration_AvgExecutionTime_FilterByTechnician(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
-	items := readBodyArray(t, resp)
+	result := readBody(t, resp)
+	items := result["data"].([]any)
 	require.Len(t, items, 1)
-	assert.Equal(t, float64(1), items[0]["execution_count"])
-	assert.Equal(t, float64(60), items[0]["avg_real_time_minutes"])
+	first := items[0].(map[string]any)
+	assert.Equal(t, float64(1), first["execution_count"])
+	assert.Equal(t, float64(60), first["avg_real_time_minutes"])
 }
 
 func TestIntegration_AvgExecutionTime_Empty(t *testing.T) {
@@ -537,6 +541,7 @@ func TestIntegration_AvgExecutionTime_Empty(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
-	items := readBodyArray(t, resp)
+	result := readBody(t, resp)
+	items := result["data"].([]any)
 	assert.Len(t, items, 0)
 }
