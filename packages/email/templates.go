@@ -15,6 +15,7 @@ var templates = template.Must(template.ParseFS(templatesFS, "templates/*.html"))
 type BudgetServiceItem struct {
 	Title       string
 	Amount      string
+	Estimated   string
 	ApproveLink string
 	RejectLink  string
 }
