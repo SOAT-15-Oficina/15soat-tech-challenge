@@ -53,10 +53,10 @@ func (h *VehicleHandler) GetAll(c fiber.Ctx) error {
 	}
 
 	if vehicles == nil {
-		return c.JSON([]domain.Vehicle{})
+		vehicles = []domain.Vehicle{}
 	}
 
-	return c.JSON(vehicles)
+	return c.JSON(fiber.Map{"data": vehicles})
 }
 
 func (h *VehicleHandler) GetByID(c fiber.Ctx) error {

@@ -39,10 +39,10 @@ func (h *SupplyHandler) GetAll(c fiber.Ctx) error {
 	}
 
 	if supplies == nil {
-		return c.JSON([]domain.Supply{})
+		supplies = []domain.Supply{}
 	}
 
-	return c.JSON(supplies)
+	return c.JSON(fiber.Map{"data": supplies})
 }
 
 func (h *SupplyHandler) GetByID(c fiber.Ctx) error {

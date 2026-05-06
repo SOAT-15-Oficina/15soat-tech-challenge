@@ -48,10 +48,10 @@ func (h *CustomerHandler) GetAll(c fiber.Ctx) error {
 	}
 
 	if customers == nil {
-		return c.JSON([]domain.Customer{})
+		customers = []domain.Customer{}
 	}
 
-	return c.JSON(customers)
+	return c.JSON(fiber.Map{"data": customers})
 }
 
 func (h *CustomerHandler) GetByID(c fiber.Ctx) error {
@@ -98,6 +98,7 @@ func (h *CustomerHandler) handleServiceError(c fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, domain.ErrCustomerNameRequired),
 		errors.Is(err, domain.ErrCustomerEmailRequired),
+		errors.Is(err, domain.ErrCustomerInvalidEmailFormat),
 		errors.Is(err, domain.ErrCustomerInvalidDocumentType),
 		errors.Is(err, domain.ErrCustomerInvalidCPFFormat),
 		errors.Is(err, domain.ErrCustomerInvalidCPFChecksum),

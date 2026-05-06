@@ -46,6 +46,12 @@ func TestValidateDocument_EmailRequired(t *testing.T) {
 	assert.ErrorIs(t, c.ValidateDocument(), ErrCustomerEmailRequired)
 }
 
+func TestValidateDocument_InvalidEmailFormat(t *testing.T) {
+	c := validCustomerCPF()
+	c.Email = "not-an-email"
+	assert.ErrorIs(t, c.ValidateDocument(), ErrCustomerInvalidEmailFormat)
+}
+
 func TestValidateDocument_InvalidDocumentType(t *testing.T) {
 	c := validCustomerCPF()
 	c.DocumentType = "RG"
