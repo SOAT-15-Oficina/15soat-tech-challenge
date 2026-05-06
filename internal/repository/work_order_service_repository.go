@@ -21,6 +21,7 @@ type WorkOrderServiceRepository interface {
 	DeleteByID(ctx context.Context, id uuid.UUID) error
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrderService, error)
 	FindByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) ([]domain.WorkOrderService, error)
+	FindSupplyShortagesByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) (map[uuid.UUID]bool, error)
 	UpdateApprovalStatus(ctx context.Context, id uuid.UUID, status domain.WorkOrderServiceApprovalStatus) error
 	UpdateApprovalStatusByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, status domain.WorkOrderServiceApprovalStatus) error
 	CalculateTotalForWorkOrder(ctx context.Context, workOrderID uuid.UUID) (int, error)
@@ -255,6 +256,37 @@ func (r *workOrderServiceRepository) MarkAsFinishedByWorkOrderID(ctx context.Con
 		workOrderID, domain.WorkOrderServiceStatusInProgress,
 	)
 	return err
+}
+
+func (r *workOrderServiceRepository) FindSupplyShortagesByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) (map[uuid.UUID]bool, error) {
+	query := `
+		SELECT DISTINCT wos.id
+		FROM work_order_services wos
+		JOIN work_order_service_supplies woss ON woss.work_order_service_id = wos.id
+		JOIN supplies s ON s.id = woss.supply_id
+		WHERE wos.work_order_id = $1
+		  AND woss.supply_quantity > s.stock_quantity`
+
+	rows, err := r.db.Query(ctx, query, workOrderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	shortages := make(map[uuid.UUID]bool)
+	for rows.Next() {
+		var serviceID uuid.UUID
+		if err := rows.Scan(&serviceID); err != nil {
+			return nil, err
+		}
+		shortages[serviceID] = true
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return shortages, nil
 }
 
 func (r *workOrderServiceRepository) CreateSupplyBatch(ctx context.Context, items []*domain.WorkOrderServiceSupply) ([]*domain.WorkOrderServiceSupply, error) {

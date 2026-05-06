@@ -651,6 +651,8 @@ paths:
       description: |
         Se o campo `status` for enviado, a transicao de status e processada via maquina de estados.
         Ao transitar para AGUARDANDO_APROVACAO, o orcamento e enviado por e-mail.
+        Na geracao do orcamento, quando houver insumo com quantidade necessaria maior que o estoque,
+        o prazo estimado do servico no orcamento recebe acrescimo padrao de 2 dias.
       requestBody:
         required: true
         content:
@@ -1336,7 +1338,17 @@ components:
           type: string
         status:
           type: string
-          enum: [RECEBIDA, EM_DIAGNOSTICO, AGUARDANDO_APROVACAO, APROVADO, EM_EXECUCAO, FINALIZADA, ENTREGUE, CANCELADA]
+          enum:
+            [
+              RECEBIDA,
+              EM_DIAGNOSTICO,
+              AGUARDANDO_APROVACAO,
+              APROVADO,
+              EM_EXECUCAO,
+              FINALIZADA,
+              ENTREGUE,
+              CANCELADA,
+            ]
           description: Transiciona o status via maquina de estados
         assigned_technician_id:
           type: string
@@ -1363,7 +1375,17 @@ components:
           format: uuid
         status:
           type: string
-          enum: [RECEBIDA, EM_DIAGNOSTICO, AGUARDANDO_APROVACAO, APROVADO, EM_EXECUCAO, FINALIZADA, ENTREGUE, CANCELADA]
+          enum:
+            [
+              RECEBIDA,
+              EM_DIAGNOSTICO,
+              AGUARDANDO_APROVACAO,
+              APROVADO,
+              EM_EXECUCAO,
+              FINALIZADA,
+              ENTREGUE,
+              CANCELADA,
+            ]
         total_estimated_price_cents:
           type: integer
         received_at:
@@ -1497,6 +1519,7 @@ components:
           type: integer
         service_estimated_time_minutes_snapshot:
           type: integer
+          description: Tempo base estimado do servico em minutos (antes de eventuais acrescimos de prazo no orcamento).
         approval_status:
           type: string
           enum: [PENDENTE, APROVADO, REPROVADO]
@@ -1541,7 +1564,7 @@ components:
           format: uuid
         estimated_time_minutes:
           type: integer
-          description: Override do tempo estimado (opcional)
+          description: Override do tempo estimado base em minutos (opcional).
 
     AddSupplyRequest:
       type: object
