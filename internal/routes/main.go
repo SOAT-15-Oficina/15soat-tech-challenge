@@ -8,6 +8,7 @@ import (
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/static"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -15,6 +16,8 @@ func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config, emailP
 	app.Get("/ping", func(c fiber.Ctx) error {
 		return c.SendString("Pong")
 	})
+
+	app.Get("/web*", static.New("./web"))
 
 	registerSwagger(app)
 	registerAuth(app, db, cfg.JWT.SecretKey)
