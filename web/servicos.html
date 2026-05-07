@@ -27,6 +27,7 @@
                 <th class="px-4 py-3 font-medium">Titulo</th>
                 <th class="px-4 py-3 font-medium">Preco</th>
                 <th class="px-4 py-3 font-medium">Tempo Est.</th>
+                <th class="px-4 py-3 font-medium">Tempo Medio Real</th>
                 <th class="px-4 py-3 font-medium">Ativo</th>
                 <th class="px-4 py-3 font-medium">Acoes</th>
               </tr>
@@ -45,10 +46,23 @@
     initLayout();
     setPageTitle('Servicos');
 
+    let avgData = {};
+
+    async function loadAvgTimes() {
+      try {
+        const resp = await api.get('/services/avg-execution-time');
+        const data = await api.json(resp);
+        (data.data || []).forEach(item => {
+          avgData[item.service_id] = item;
+        });
+      } catch { /* ignore */ }
+    }
+
     async function loadServices() {
       const title = document.getElementById('search').value.trim();
       const query = title ? `?title=${encodeURIComponent(title)}` : '';
       try {
+        await loadAvgTimes();
         const resp = await api.get('/services' + query);
         const data = await api.json(resp);
         const list = data.data || [];
@@ -56,18 +70,32 @@
         const empty = document.getElementById('empty');
         if (list.length === 0) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
         empty.classList.add('hidden');
-        tbody.innerHTML = list.map(s => `
-          <tr class="hover:bg-gray-50">
-            <td class="px-4 py-3 font-medium">${s.title}</td>
-            <td class="px-4 py-3">${formatCents(s.price_cents)}</td>
-            <td class="px-4 py-3">${s.estimated_time_minutes} min</td>
-            <td class="px-4 py-3">
-              <span class="inline-block px-2 py-0.5 text-xs rounded-full ${s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${s.active ? 'Sim' : 'Nao'}</span>
-            </td>
-            <td class="px-4 py-3">
-              <button onclick="openEditModal('${s.id}', ${JSON.stringify(s).replace(/"/g, '&quot;')})" class="text-blue-600 hover:underline text-xs">Editar</button>
-            </td>
-          </tr>`).join('');
+        tbody.innerHTML = list.map(s => {
+          const avg = avgData[s.id];
+          let avgCell = '<span class="text-gray-400">—</span>';
+          if (avg && avg.execution_count > 0) {
+            const diff = avg.avg_real_time_minutes - avg.estimated_time_minutes;
+            const diffColor = diff > 0 ? 'text-red-600' : diff < 0 ? 'text-green-600' : 'text-gray-600';
+            const diffLabel = diff > 0 ? `+${diff}` : `${diff}`;
+            avgCell = `
+              <span class="font-medium">${avg.avg_real_time_minutes} min</span>
+              <span class="text-xs ${diffColor} ml-1">(${diffLabel})</span>
+              <span class="text-xs text-gray-400 ml-1">${avg.execution_count}x</span>`;
+          }
+          return `
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3 font-medium">${s.title}</td>
+              <td class="px-4 py-3">${formatCents(s.price_cents)}</td>
+              <td class="px-4 py-3">${s.estimated_time_minutes} min</td>
+              <td class="px-4 py-3">${avgCell}</td>
+              <td class="px-4 py-3">
+                <span class="inline-block px-2 py-0.5 text-xs rounded-full ${s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${s.active ? 'Sim' : 'Nao'}</span>
+              </td>
+              <td class="px-4 py-3">
+                <button onclick="openEditModal('${s.id}', ${JSON.stringify(s).replace(/"/g, '&quot;')})" class="text-blue-600 hover:underline text-xs">Editar</button>
+              </td>
+            </tr>`;
+        }).join('');
       } catch (e) { showError(e.message); }
     }
 

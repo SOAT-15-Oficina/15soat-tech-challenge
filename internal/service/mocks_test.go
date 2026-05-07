@@ -153,6 +153,10 @@ func (m *mockWorkOrderServiceRepo) MarkAsFinishedByWorkOrderID(ctx context.Conte
 	return m.Called(ctx, workOrderID, finishedAt).Error(0)
 }
 
+func (m *mockWorkOrderServiceRepo) MarkServiceAsFinished(ctx context.Context, id uuid.UUID, finishedAt time.Time) error {
+	return m.Called(ctx, id, finishedAt).Error(0)
+}
+
 func (m *mockWorkOrderServiceRepo) FindSupplyShortagesByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) (map[uuid.UUID]bool, error) {
 	args := m.Called(ctx, workOrderID)
 	if args.Get(0) == nil {

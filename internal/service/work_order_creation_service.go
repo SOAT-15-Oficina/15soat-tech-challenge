@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
@@ -14,6 +15,8 @@ var (
 	ErrWorkOrderInvalidStatusForItems = errors.New("work order status does not allow adding services")
 	ErrWorkshopServiceInactive        = errors.New("workshop service is inactive")
 	ErrWorkOrderServiceOwnership      = errors.New("work order service does not belong to this work order")
+	ErrWorkOrderNotInProgress         = errors.New("work order must be in EM_EXECUCAO status")
+	ErrServiceNotInProgress           = errors.New("service must be in EM_EXECUCAO status to finalize")
 )
 
 type AddWorkOrderServiceInput struct {
@@ -31,6 +34,7 @@ type WorkOrderCreationService interface {
 	AddSupplies(ctx context.Context, workOrderID, wosID uuid.UUID, items []AddWorkOrderSupplyInput) ([]domain.WorkOrderServiceSupply, error)
 	RemoveSupplyFromService(ctx context.Context, workOrderID, wosID, supplyID uuid.UUID) error
 	RemoveService(ctx context.Context, workOrderID, wosID uuid.UUID) error
+	FinalizeService(ctx context.Context, workOrderID, wosID uuid.UUID) error
 }
 
 type workOrderCreationService struct {
@@ -206,4 +210,52 @@ func (s *workOrderCreationService) AddSupplies(ctx context.Context, workOrderID,
 		result[i] = *item
 	}
 	return result, nil
+}
+
+func (s *workOrderCreationService) FinalizeService(ctx context.Context, workOrderID, wosID uuid.UUID) error {
+	wos, err := s.wosRepo.FindByID(ctx, wosID)
+	if err != nil {
+		return fmt.Errorf("finalize service: find: %w", err)
+	}
+	if wos.WorkOrderID != workOrderID {
+		return ErrWorkOrderServiceOwnership
+	}
+
+	wo, err := s.woRepo.FindByID(ctx, workOrderID)
+	if err != nil {
+		return fmt.Errorf("finalize service: find work order: %w", err)
+	}
+	if wo.Status != domain.WorkOrderStatusInProgress {
+		return ErrWorkOrderNotInProgress
+	}
+	if wos.Status != domain.WorkOrderServiceStatusInProgress {
+		return ErrServiceNotInProgress
+	}
+
+	if err := s.wosRepo.MarkServiceAsFinished(ctx, wosID, time.Now()); err != nil {
+		return fmt.Errorf("finalize service: update: %w", err)
+	}
+
+	// Check if all approved services are now finalized → auto-finalize WO
+	services, err := s.wosRepo.FindByWorkOrderID(ctx, workOrderID)
+	if err != nil {
+		return fmt.Errorf("finalize service: check completion: %w", err)
+	}
+
+	allFinished := true
+	for _, svc := range services {
+		if svc.ApprovalStatus == domain.WorkOrderServiceApprovalApproved &&
+			svc.Status != domain.WorkOrderServiceStatusFinished {
+			allFinished = false
+			break
+		}
+	}
+
+	if allFinished {
+		if _, err := s.statusSvc.TransitionTo(ctx, workOrderID, domain.WorkOrderStatusFinished); err != nil {
+			return fmt.Errorf("finalize service: auto-transition: %w", err)
+		}
+	}
+
+	return nil
 }

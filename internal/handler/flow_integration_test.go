@@ -301,18 +301,35 @@ func envOrDefault(key, fallback string) string {
 
 func setupFlowSchema(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
+	ctx := context.Background()
 
+	// Drop all tables for a clean slate (order respects FK dependencies)
+	tables := []string{
+		"work_order_service_status_history",
+		"work_order_service_supplies",
+		"work_order_services",
+		"work_orders",
+		"supplies",
+		"services",
+		"vehicles",
+		"customers",
+		"users",
+		"goose_db_version",
+	}
+	for _, table := range tables {
+		pool.Exec(ctx, fmt.Sprintf(`DROP TABLE IF EXISTS %q CASCADE`, table))
+	}
+
+	// Apply all migrations via goose
 	goose.SetBaseFS(dbmigrations.Migrations)
 	require.NoError(t, goose.SetDialect("postgres"))
-
 	db := stdlib.OpenDBFromPool(pool)
-
-	// Reset: rollback all migrations then re-apply for a clean state
-	require.NoError(t, goose.DownTo(db, "migrations", 0))
 	require.NoError(t, goose.Up(db, "migrations"))
 
 	t.Cleanup(func() {
-		_ = goose.DownTo(db, "migrations", 0)
+		for _, table := range tables {
+			pool.Exec(ctx, fmt.Sprintf(`DROP TABLE IF EXISTS %q CASCADE`, table))
+		}
 		db.Close()
 		pool.Close()
 	})
