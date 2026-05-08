@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
@@ -158,24 +157,36 @@ func (s *workOrderItemService) sendPurchaseAlertIfNeeded(ctx context.Context, wo
 		return
 	}
 
-	var lines []string
-	for _, a := range alerts {
-		lines = append(lines, fmt.Sprintf("- %s (%s): %s — precisa %d, em estoque %d",
-			a.WorkOrderCode, a.ServiceTitle, a.SupplyTitle, a.Required, a.InStock))
-	}
-
 	wo, err := s.woRepo.FindByID(ctx, workOrderID)
 	if err != nil {
 		return
 	}
 
-	body := fmt.Sprintf("OS %s foi aprovada mas possui insumos em falta.\n\nItens pendentes de compra:\n%s\n\nProvidenciar compra para liberar execucao.",
-		wo.Code, strings.Join(lines, "\n"))
+	var items []email.PurchaseAlertItem
+	for _, a := range alerts {
+		items = append(items, email.PurchaseAlertItem{
+			ServiceTitle: a.ServiceTitle,
+			SupplyTitle:  a.SupplyTitle,
+			Required:     a.Required,
+			InStock:      a.InStock,
+			ToBuy:        a.Required - a.InStock,
+		})
+	}
+
+	body, err := email.RenderPurchaseAlertEmail(email.PurchaseAlertEmailData{
+		WorkOrderCode:  wo.Code,
+		WorkOrderTitle: wo.Title,
+		Items:          items,
+	})
+	if err != nil {
+		return
+	}
 
 	msg := email.Message{
 		To:      []string{s.emailTo},
 		Subject: fmt.Sprintf("Alerta de Compra - OS %s", wo.Code),
 		Body:    body,
+		HTML:    true,
 	}
 	_ = s.emailProv.Send(ctx, msg)
 }

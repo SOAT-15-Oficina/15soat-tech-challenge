@@ -36,3 +36,25 @@ func RenderBudgetEmail(data BudgetEmailData) (string, error) {
 	}
 	return buf.String(), nil
 }
+
+type PurchaseAlertItem struct {
+	ServiceTitle string
+	SupplyTitle  string
+	Required     int
+	InStock      int
+	ToBuy        int
+}
+
+type PurchaseAlertEmailData struct {
+	WorkOrderCode  string
+	WorkOrderTitle string
+	Items          []PurchaseAlertItem
+}
+
+func RenderPurchaseAlertEmail(data PurchaseAlertEmailData) (string, error) {
+	var buf bytes.Buffer
+	if err := templates.ExecuteTemplate(&buf, "purchase-alert.html", data); err != nil {
+		return "", fmt.Errorf("email: render purchase-alert template: %w", err)
+	}
+	return buf.String(), nil
+}
