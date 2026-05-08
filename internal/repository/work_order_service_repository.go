@@ -29,6 +29,7 @@ type WorkOrderServiceRepository interface {
 	MarkAsStartedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, startedAt time.Time) error
 	MarkAsFinishedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, finishedAt time.Time) error
 	MarkServiceAsFinished(ctx context.Context, id uuid.UUID, finishedAt time.Time) error
+	MarkServiceAsStarted(ctx context.Context, id uuid.UUID, startedAt time.Time) error
 }
 
 type workOrderServiceRepository struct {
@@ -255,6 +256,20 @@ func (r *workOrderServiceRepository) MarkAsFinishedByWorkOrderID(ctx context.Con
 	_, err := r.db.Exec(ctx, query,
 		domain.WorkOrderServiceStatusFinished, finishedAt,
 		workOrderID, domain.WorkOrderServiceStatusInProgress,
+	)
+	return err
+}
+
+func (r *workOrderServiceRepository) MarkServiceAsStarted(ctx context.Context, id uuid.UUID, startedAt time.Time) error {
+	query := `
+		UPDATE work_order_services
+		SET status = $1, started_at = $2, updated_at = $2
+		WHERE id = $3
+		  AND status = $4
+		  AND started_at IS NULL`
+	_, err := r.db.Exec(ctx, query,
+		domain.WorkOrderServiceStatusInProgress, startedAt,
+		id, domain.WorkOrderServiceStatusPending,
 	)
 	return err
 }

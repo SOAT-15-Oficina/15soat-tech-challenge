@@ -78,7 +78,6 @@ const STATUS_ACTIONS = {
   RECEBIDA:       { next: 'EM_DIAGNOSTICO',       label: 'Iniciar Diagnostico',  cls: 'bg-yellow-500 hover:bg-yellow-600' },
   EM_DIAGNOSTICO: { next: 'AGUARDANDO_APROVACAO', label: 'Enviar Orcamento',     cls: 'bg-orange-500 hover:bg-orange-600' },
   APROVADO:       { next: 'EM_EXECUCAO',          label: 'Iniciar Execucao',     cls: 'bg-purple-500 hover:bg-purple-600' },
-  EM_EXECUCAO:    { next: 'FINALIZADA',           label: 'Finalizar OS',         cls: 'bg-teal-500 hover:bg-teal-600'     },
   FINALIZADA:     { next: 'ENTREGUE',             label: 'Registrar Entrega',    cls: 'bg-emerald-500 hover:bg-emerald-600' },
 };
 

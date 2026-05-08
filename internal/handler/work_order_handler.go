@@ -319,6 +319,30 @@ func (h *WorkOrderHandler) AddSupplies(c fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(result)
 }
 
+func (h *WorkOrderHandler) StartService(c fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid work order id"})
+	}
+	wosID, err := uuid.Parse(c.Params("wosId"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid work order service id"})
+	}
+	if err := h.creationSvc.StartService(c.Context(), id, wosID); err != nil {
+		if errors.Is(err, service.ErrWorkOrderServiceOwnership) ||
+			errors.Is(err, service.ErrWorkOrderNotInProgress) ||
+			errors.Is(err, service.ErrServiceNotPending) ||
+			errors.Is(err, service.ErrServiceNotApproved) {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
+		}
+		if handled, resp := dbErrResponse(c, err, "resource not found"); handled {
+			return resp
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"message": "Servico iniciado com sucesso"})
+}
+
 func (h *WorkOrderHandler) FinalizeService(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {

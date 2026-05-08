@@ -167,6 +167,8 @@ func setupFlowApp(t *testing.T) (*fiber.App, *pgxpool.Pool) {
 	workOrders.Put("/:id", woHandler.Update)
 	workOrders.Post("/:id/services", woHandler.AddServices)
 	workOrders.Delete("/:id/services/:wosId", woHandler.RemoveService)
+	workOrders.Put("/:id/services/:wosId/start", woHandler.StartService)
+	workOrders.Put("/:id/services/:wosId/finalize", woHandler.FinalizeService)
 	workOrders.Post("/:id/services/:wosId/supplies", woHandler.AddSupplies)
 	workOrders.Delete("/:id/services/:wosId/supplies/:supplyId", woHandler.RemoveSupplyFromService)
 
@@ -257,6 +259,8 @@ func setupFlowAppWithBudget(t *testing.T) (*fiber.App, *pgxpool.Pool, *mockEmail
 	workOrders.Get("/:id", woHandler.GetByID)
 	workOrders.Put("/:id", woHandler.Update)
 	workOrders.Post("/:id/services", woHandler.AddServices)
+	workOrders.Put("/:id/services/:wosId/start", woHandler.StartService)
+	workOrders.Put("/:id/services/:wosId/finalize", woHandler.FinalizeService)
 	workOrders.Post("/:id/services/:wosId/supplies", woHandler.AddSupplies)
 
 	approval := app.Group("/public/approvals")
@@ -680,37 +684,62 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 		assert.NotNil(t, body["started_at"], "started_at should be set")
 	})
 
-	// ── Step 16: Verificar que serviços foram marcados como iniciados ──
-	t.Run("Step16_VerificaServicosIniciados", func(t *testing.T) {
+	// ── Step 16: Serviços continuam PENDENTE após EM_EXECUCAO ──
+	t.Run("Step16_ServicosContinuamPendentes", func(t *testing.T) {
 		resp, err := flowGet(app, "/work-orders/"+workOrderID)
 		require.NoError(t, err)
-		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
-
 		body := flowReadBody(t, resp)
-		services, ok := body["services"].([]any)
-		if ok && len(services) > 0 {
-			for _, svc := range services {
-				s := svc.(map[string]any)
-				assert.Equal(t, "APROVADO", s["approval_status"])
-			}
+		services := body["services"].([]any)
+		for _, svc := range services {
+			s := svc.(map[string]any)
+			assert.Equal(t, "APROVADO", s["approval_status"])
+			assert.Equal(t, "PENDENTE", s["status"],
+				"services should remain PENDENTE after WO transitions to EM_EXECUCAO")
 		}
 	})
 
-	// ── Step 17: Transição para FINALIZADA ──
-	t.Run("Step17_TransicaoFinalizada", func(t *testing.T) {
-		resp, err := flowPutJSON(app, "/work-orders/"+workOrderID, map[string]any{
-			"status": "FINALIZADA",
-		})
+	// ── Step 17: Iniciar e finalizar cada serviço individualmente ──
+	t.Run("Step17_IniciarServicosIndividualmente", func(t *testing.T) {
+		// Start first service
+		resp, err := flowPutJSON(app, fmt.Sprintf("/work-orders/%s/services/%s/start", workOrderID, wosOilChangeID), map[string]any{})
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
-		body := flowReadBody(t, resp)
-		assert.Equal(t, "FINALIZADA", body["status"])
-		assert.NotNil(t, body["finished_at"], "finished_at should be set")
+		// Start second service
+		resp, err = flowPutJSON(app, fmt.Sprintf("/work-orders/%s/services/%s/start", workOrderID, wosAlignmentID), map[string]any{})
+		require.NoError(t, err)
+		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 	})
 
-	// ── Step 18: Transição para ENTREGUE (cliente retira veículo) ──
-	t.Run("Step18_TransicaoEntregue_ClienteRetiraVeiculo", func(t *testing.T) {
+	t.Run("Step18_FinalizarPrimeiroServico", func(t *testing.T) {
+		resp, err := flowPutJSON(app, fmt.Sprintf("/work-orders/%s/services/%s/finalize", workOrderID, wosOilChangeID), map[string]any{})
+		require.NoError(t, err)
+		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+		// WO should still be EM_EXECUCAO (not all services finalized)
+		resp, err = flowGet(app, "/work-orders/"+workOrderID)
+		require.NoError(t, err)
+		body := flowReadBody(t, resp)
+		assert.Equal(t, "EM_EXECUCAO", body["status"],
+			"WO should stay EM_EXECUCAO while there are unfinished services")
+	})
+
+	t.Run("Step19_FinalizarUltimoServico_AutoFinalizaOS", func(t *testing.T) {
+		resp, err := flowPutJSON(app, fmt.Sprintf("/work-orders/%s/services/%s/finalize", workOrderID, wosAlignmentID), map[string]any{})
+		require.NoError(t, err)
+		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+		// WO should auto-transition to FINALIZADA
+		resp, err = flowGet(app, "/work-orders/"+workOrderID)
+		require.NoError(t, err)
+		body := flowReadBody(t, resp)
+		assert.Equal(t, "FINALIZADA", body["status"],
+			"WO should auto-transition to FINALIZADA when all services are finalized")
+		assert.NotNil(t, body["finished_at"])
+	})
+
+	// ── Step 20: Transição para ENTREGUE (cliente retira veículo) ──
+	t.Run("Step20_TransicaoEntregue_ClienteRetiraVeiculo", func(t *testing.T) {
 		resp, err := flowPutJSON(app, "/work-orders/"+workOrderID, map[string]any{
 			"status": "ENTREGUE",
 		})
@@ -770,15 +799,24 @@ func TestIntegration_Flow_PartialApproval(t *testing.T) {
 		assert.Equal(t, float64(8000), body["total_estimated_price_cents"])
 	})
 
-	// Can continue flow: APROVADO → EM_EXECUCAO → FINALIZADA → ENTREGUE
+	// Can continue flow: APROVADO → EM_EXECUCAO → start/finalize services → auto-FINALIZADA → ENTREGUE
 	t.Run("FluxoContinuaAteEntrega", func(t *testing.T) {
 		transitionWorkOrder(t, app, workOrderID, "EM_EXECUCAO")
-		transitionWorkOrder(t, app, workOrderID, "FINALIZADA")
-		transitionWorkOrder(t, app, workOrderID, "ENTREGUE")
 
+		// Start and finalize the approved service individually
+		startAndFinalizeService(t, app, workOrderID, wos1ID)
+
+		// WO should auto-transition to FINALIZADA
 		resp, err := flowGet(app, "/work-orders/"+workOrderID)
 		require.NoError(t, err)
 		body := flowReadBody(t, resp)
+		assert.Equal(t, "FINALIZADA", body["status"])
+
+		transitionWorkOrder(t, app, workOrderID, "ENTREGUE")
+
+		resp, err = flowGet(app, "/work-orders/"+workOrderID)
+		require.NoError(t, err)
+		body = flowReadBody(t, resp)
 		assert.Equal(t, "ENTREGUE", body["status"])
 		assert.NotNil(t, body["delivered_at"])
 	})
@@ -1625,7 +1663,7 @@ func TestIntegration_Flow_HappyPathWithBudgetAndEmail(t *testing.T) {
 	workOrderID := createTestWorkOrder(t, app, "Fluxo completo com email", customerID, vehicleID)
 
 	svcID := createTestWorkshopService(t, app, "Revisão Completa Email", 20000, 60)
-	addServicesToWorkOrder(t, app, workOrderID, []string{svcID})
+	wosIDs := addServicesToWorkOrder(t, app, workOrderID, []string{svcID})
 
 	// Transition to AGUARDANDO_APROVACAO → sends email
 	transitionWorkOrder(t, app, workOrderID, "AGUARDANDO_APROVACAO")
@@ -1657,16 +1695,17 @@ func TestIntegration_Flow_HappyPathWithBudgetAndEmail(t *testing.T) {
 		assert.NotNil(t, body["quote_sent_at"])
 	})
 
-	// Continue the flow: EM_EXECUCAO → FINALIZADA → ENTREGUE
+	// Continue the flow: EM_EXECUCAO → start/finalize services → auto-FINALIZADA → ENTREGUE
 	t.Run("FluxoContinuaAteEntrega", func(t *testing.T) {
 		transitionWorkOrder(t, app, workOrderID, "EM_EXECUCAO")
-		transitionWorkOrder(t, app, workOrderID, "FINALIZADA")
-		transitionWorkOrder(t, app, workOrderID, "ENTREGUE")
+		startAndFinalizeService(t, app, workOrderID, wosIDs[0])
 
 		resp, err := flowGet(app, "/work-orders/"+workOrderID)
 		require.NoError(t, err)
 		body := flowReadBody(t, resp)
-		assert.Equal(t, "ENTREGUE", body["status"])
+		assert.Equal(t, "FINALIZADA", body["status"])
+
+		transitionWorkOrder(t, app, workOrderID, "ENTREGUE")
 	})
 }
 
@@ -1761,6 +1800,17 @@ func addServicesToWorkOrder(t *testing.T, app *fiber.App, workOrderID string, se
 		ids[i] = item["id"].(string)
 	}
 	return ids
+}
+
+func startAndFinalizeService(t *testing.T, app *fiber.App, workOrderID, wosID string) {
+	t.Helper()
+	resp, err := flowPutJSON(app, fmt.Sprintf("/work-orders/%s/services/%s/start", workOrderID, wosID), map[string]any{})
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode, "failed to start service %s", wosID)
+
+	resp, err = flowPutJSON(app, fmt.Sprintf("/work-orders/%s/services/%s/finalize", workOrderID, wosID), map[string]any{})
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode, "failed to finalize service %s", wosID)
 }
 
 func transitionWorkOrder(t *testing.T, app *fiber.App, workOrderID, status string) {

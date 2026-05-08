@@ -16,6 +16,8 @@ var (
 	ErrWorkshopServiceInactive        = errors.New("workshop service is inactive")
 	ErrWorkOrderServiceOwnership      = errors.New("work order service does not belong to this work order")
 	ErrWorkOrderNotInProgress         = errors.New("work order must be in EM_EXECUCAO status")
+	ErrServiceNotPending              = errors.New("service must be PENDENTE to start")
+	ErrServiceNotApproved             = errors.New("service must be approved to start")
 	ErrServiceNotInProgress           = errors.New("service must be in EM_EXECUCAO status to finalize")
 )
 
@@ -34,6 +36,7 @@ type WorkOrderCreationService interface {
 	AddSupplies(ctx context.Context, workOrderID, wosID uuid.UUID, items []AddWorkOrderSupplyInput) ([]domain.WorkOrderServiceSupply, error)
 	RemoveSupplyFromService(ctx context.Context, workOrderID, wosID, supplyID uuid.UUID) error
 	RemoveService(ctx context.Context, workOrderID, wosID uuid.UUID) error
+	StartService(ctx context.Context, workOrderID, wosID uuid.UUID) error
 	FinalizeService(ctx context.Context, workOrderID, wosID uuid.UUID) error
 }
 
@@ -210,6 +213,35 @@ func (s *workOrderCreationService) AddSupplies(ctx context.Context, workOrderID,
 		result[i] = *item
 	}
 	return result, nil
+}
+
+func (s *workOrderCreationService) StartService(ctx context.Context, workOrderID, wosID uuid.UUID) error {
+	wos, err := s.wosRepo.FindByID(ctx, wosID)
+	if err != nil {
+		return fmt.Errorf("start service: find: %w", err)
+	}
+	if wos.WorkOrderID != workOrderID {
+		return ErrWorkOrderServiceOwnership
+	}
+
+	wo, err := s.woRepo.FindByID(ctx, workOrderID)
+	if err != nil {
+		return fmt.Errorf("start service: find work order: %w", err)
+	}
+	if wo.Status != domain.WorkOrderStatusInProgress {
+		return ErrWorkOrderNotInProgress
+	}
+	if wos.ApprovalStatus != domain.WorkOrderServiceApprovalApproved {
+		return ErrServiceNotApproved
+	}
+	if wos.Status != domain.WorkOrderServiceStatusPending {
+		return ErrServiceNotPending
+	}
+
+	if err := s.wosRepo.MarkServiceAsStarted(ctx, wosID, time.Now()); err != nil {
+		return fmt.Errorf("start service: update: %w", err)
+	}
+	return nil
 }
 
 func (s *workOrderCreationService) FinalizeService(ctx context.Context, workOrderID, wosID uuid.UUID) error {
