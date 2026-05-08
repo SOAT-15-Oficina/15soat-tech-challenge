@@ -1389,6 +1389,79 @@ func TestIntegration_Flow_CannotAddInactiveService(t *testing.T) {
 }
 
 // =============================================================================
+// Test: Cannot start service when supplies exceed stock.
+// Reproduces: add service with 1000 units of a supply that has stock=10,
+// approve, transition to EM_EXECUCAO, then try to start → must fail 422.
+// =============================================================================
+
+func TestIntegration_Flow_CannotStartServiceWithoutStock(t *testing.T) {
+	app, _ := setupFlowApp(t)
+	seedTestUser(t, app)
+
+	customerID := createTestCustomer(t, app, "Stock Test", "stock@example.com", "12345678909", "CPF")
+	vehicleID := createTestVehicle(t, app, customerID, "STK2B34", "Fiat", "Argo", 2023)
+	workOrderID := createTestWorkOrder(t, app, "Stock block test", customerID, vehicleID)
+
+	svcID := createTestWorkshopService(t, app, "Servico Sem Estoque", 5000, 30)
+	wosIDs := addServicesToWorkOrder(t, app, workOrderID, []string{svcID})
+
+	// Supply with stock=10, but we request quantity=1000
+	supplyID := createTestSupply(t, app, "Peca Escassa", "PECA", 100, 10, 2)
+	resp, err := flowPostJSON(app,
+		fmt.Sprintf("/work-orders/%s/services/%s/supplies", workOrderID, wosIDs[0]),
+		[]map[string]any{{"supply_id": supplyID, "quantity": 1000}},
+	)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
+
+	// Advance: EM_DIAGNOSTICO → AGUARDANDO_APROVACAO → approve → APROVADO → EM_EXECUCAO
+	transitionWorkOrder(t, app, workOrderID, "AGUARDANDO_APROVACAO")
+
+	resp, err = flowGet(app, fmt.Sprintf("/public/approvals/work-orders/%s/approve-all", workOrderID))
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	transitionWorkOrder(t, app, workOrderID, "EM_EXECUCAO")
+
+	// Try to start the service — must be blocked because stock=10 < quantity=1000
+	t.Run("IniciarBloqueadoPorEstoque", func(t *testing.T) {
+		resp, err := flowPutJSON(app,
+			fmt.Sprintf("/work-orders/%s/services/%s/start", workOrderID, wosIDs[0]),
+			map[string]any{},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, fiber.StatusUnprocessableEntity, resp.StatusCode,
+			"should block starting service when supply stock is insufficient")
+
+		body := flowReadBody(t, resp)
+		assert.Contains(t, body["error"], "insufficient stock")
+	})
+
+	// After increasing stock, start should succeed
+	t.Run("IniciarLiberadoAposReporEstoque", func(t *testing.T) {
+		// Update supply stock to 1000
+		resp, err := flowPutJSON(app, "/supplies/"+supplyID, map[string]any{
+			"title":          "Peca Escassa",
+			"type":           "PECA",
+			"price_cents":    100,
+			"stock_quantity": 1000,
+			"minimum_stock":  2,
+		})
+		require.NoError(t, err)
+		require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+		// Now start should work
+		resp, err = flowPutJSON(app,
+			fmt.Sprintf("/work-orders/%s/services/%s/start", workOrderID, wosIDs[0]),
+			map[string]any{},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, fiber.StatusOK, resp.StatusCode,
+			"should allow starting service after stock is replenished")
+	})
+}
+
+// =============================================================================
 // Test: Not found errors — GET/PUT/DELETE on non-existent resources return 404.
 // =============================================================================
 
