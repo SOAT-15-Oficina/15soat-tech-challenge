@@ -332,7 +332,8 @@ func (h *WorkOrderHandler) StartService(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrWorkOrderServiceOwnership) ||
 			errors.Is(err, service.ErrWorkOrderNotInProgress) ||
 			errors.Is(err, service.ErrServiceNotPending) ||
-			errors.Is(err, service.ErrServiceNotApproved) {
+			errors.Is(err, service.ErrServiceNotApproved) ||
+			errors.Is(err, service.ErrInsufficientStock) {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
 		}
 		if handled, resp := dbErrResponse(c, err, "resource not found"); handled {

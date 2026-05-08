@@ -19,6 +19,7 @@ var (
 	ErrServiceNotPending              = errors.New("service must be PENDENTE to start")
 	ErrServiceNotApproved             = errors.New("service must be approved to start")
 	ErrServiceNotInProgress           = errors.New("service must be in EM_EXECUCAO status to finalize")
+	ErrInsufficientStock              = errors.New("insufficient stock for service supplies")
 )
 
 type AddWorkOrderServiceInput struct {
@@ -236,6 +237,14 @@ func (s *workOrderCreationService) StartService(ctx context.Context, workOrderID
 	}
 	if wos.Status != domain.WorkOrderServiceStatusPending {
 		return ErrServiceNotPending
+	}
+
+	hasShortage, err := s.wosRepo.HasSupplyShortagesForService(ctx, wosID)
+	if err != nil {
+		return fmt.Errorf("start service: check stock: %w", err)
+	}
+	if hasShortage {
+		return ErrInsufficientStock
 	}
 
 	if err := s.wosRepo.MarkServiceAsStarted(ctx, wosID, time.Now()); err != nil {

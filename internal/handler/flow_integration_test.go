@@ -105,7 +105,7 @@ func setupFlowApp(t *testing.T) (*fiber.App, *pgxpool.Pool) {
 	// Handlers
 	customerHandler := NewCustomerHandler(customerSvc)
 	vehicleHandler := NewVehicleHandler(vehicleSvc)
-	supplyHandler := NewSupplyHandler(supplySvc)
+	supplyHandler := NewSupplyHandler(supplySvc, wosRepo)
 	wsHandler := NewWorkshopServiceHandler(wsSvc)
 	woHandler := NewWorkOrderHandler(woSvc, nil, creationSvc, statusSvc, userRepo)
 	wosHandler := NewWorkOrderServiceHandler(itemSvc)
@@ -221,7 +221,7 @@ func setupFlowAppWithBudget(t *testing.T) (*fiber.App, *pgxpool.Pool, *mockEmail
 	// Handlers
 	customerHandler := NewCustomerHandler(customerSvc)
 	vehicleHandler := NewVehicleHandler(vehicleSvc)
-	supplyHandler := NewSupplyHandler(supplySvc)
+	supplyHandler := NewSupplyHandler(supplySvc, wosRepo)
 	wsHandler := NewWorkshopServiceHandler(wsSvc)
 	woHandler := NewWorkOrderHandler(woSvc, budgetSvc, creationSvc, statusSvc, userRepo)
 	wosHandler := NewWorkOrderServiceHandler(itemSvc)

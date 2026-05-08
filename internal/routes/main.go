@@ -24,7 +24,7 @@ func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config, emailP
 	registerCustomer(app, db, cfg.JWT.SecretKey)
 	registerVehicle(app, db, cfg.JWT.SecretKey)
 	registerSupply(app, db, cfg.JWT.SecretKey)
-	registerWorkOrderServicePublic(app, db)
+	registerWorkOrderServicePublic(app, db, emailProv)
 	registerPublicWorkOrder(app, db)
 	registerWorkOrder(app, db, cfg.JWT.SecretKey, emailProv, cfg.Server.BaseURL)
 	registerWorkshopService(app, db, cfg.JWT.SecretKey)
@@ -89,10 +89,12 @@ func registerWorkshopService(app *fiber.App, db *pgxpool.Pool, jwtSecretKey stri
 
 func registerSupply(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
 	supplyRepo := repository.NewSupplyRepository(db)
+	wosRepo := repository.NewWorkOrderServiceRepository(db)
 	supplySvc := service.NewSupplyService(supplyRepo)
-	supplyHandler := handler.NewSupplyHandler(supplySvc)
+	supplyHandler := handler.NewSupplyHandler(supplySvc, wosRepo)
 
 	group := app.Group("/supplies", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
+	group.Get("/pending-purchases", supplyHandler.PendingPurchases)
 	group.Post("/", supplyHandler.Create)
 	group.Get("/", supplyHandler.GetAll)
 	group.Get("/:id", supplyHandler.GetByID)
@@ -139,11 +141,12 @@ func registerPublicWorkOrder(app *fiber.App, db *pgxpool.Pool) {
 	public.Get("/:code", publicHandler.GetByCode)
 }
 
-func registerWorkOrderServicePublic(app *fiber.App, db *pgxpool.Pool) {
+func registerWorkOrderServicePublic(app *fiber.App, db *pgxpool.Pool, emailProv email.Provider) {
 	wosRepo := repository.NewWorkOrderServiceRepository(db)
 	woRepo := repository.NewWorkOrderRepository(db)
 	statusSvc := service.NewWorkOrderStatusService(woRepo, wosRepo)
-	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
+	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo, statusSvc,
+		service.WithPurchaseAlert(emailProv, "compras@oficina.com"))
 	wosHandler := handler.NewWorkOrderServiceHandler(itemSvc)
 
 	approval := app.Group("/public/approvals")

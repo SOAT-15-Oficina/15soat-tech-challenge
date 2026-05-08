@@ -12,6 +12,8 @@
       <header id="header" class="bg-white shadow px-6 py-3 flex justify-between items-center"></header>
       <main class="flex-1 p-6">
 
+        <div id="purchase-alerts" class="hidden mb-6"></div>
+
         <div class="flex items-center justify-between mb-6">
           <div></div>
           <button onclick="openCreateModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Novo Insumo</button>
@@ -161,6 +163,45 @@
       } catch (e) { showError(e.message); }
     }
 
+    async function loadPurchaseAlerts() {
+      try {
+        const resp = await api.get('/supplies/pending-purchases');
+        const data = await api.json(resp);
+        const alerts = data.data || [];
+        const el = document.getElementById('purchase-alerts');
+        if (alerts.length === 0) { el.classList.add('hidden'); return; }
+        el.classList.remove('hidden');
+        el.innerHTML = `
+          <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+            <h3 class="text-red-800 font-semibold mb-2">Alerta de Compra — Insumos em falta para servicos aprovados</h3>
+            <table class="w-full text-sm">
+              <thead class="text-left text-red-700">
+                <tr>
+                  <th class="pb-1 font-medium">OS</th>
+                  <th class="pb-1 font-medium">Servico</th>
+                  <th class="pb-1 font-medium">Insumo</th>
+                  <th class="pb-1 font-medium">Necessario</th>
+                  <th class="pb-1 font-medium">Em Estoque</th>
+                  <th class="pb-1 font-medium">Faltam</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${alerts.map(a => `
+                  <tr>
+                    <td class="py-1 font-mono text-xs">${a.WorkOrderCode}</td>
+                    <td class="py-1">${a.ServiceTitle}</td>
+                    <td class="py-1 font-medium">${a.SupplyTitle}</td>
+                    <td class="py-1 text-center">${a.Required}</td>
+                    <td class="py-1 text-center">${a.InStock}</td>
+                    <td class="py-1 text-center text-red-700 font-bold">${a.Required - a.InStock}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      } catch { /* ignore */ }
+    }
+
+    loadPurchaseAlerts();
     loadSupplies();
   </script>
 </body>
