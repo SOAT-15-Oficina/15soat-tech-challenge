@@ -340,3 +340,7 @@ func (m *mockSupplyRepo) Update(ctx context.Context, supply *domain.Supply) (*do
 func (m *mockSupplyRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return m.Called(ctx, id).Error(0)
 }
+
+func (m *mockSupplyRepo) DecrementStockForService(ctx context.Context, workOrderServiceID uuid.UUID) error {
+	return m.Called(ctx, workOrderServiceID).Error(0)
+}

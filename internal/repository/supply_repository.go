@@ -14,6 +14,7 @@ type SupplyRepository interface {
 	FindAll(ctx context.Context) ([]domain.Supply, error)
 	Update(ctx context.Context, supply *domain.Supply) (*domain.Supply, error)
 	Delete(ctx context.Context, id uuid.UUID) error
+	DecrementStockForService(ctx context.Context, workOrderServiceID uuid.UUID) error
 }
 
 type supplyRepository struct {
@@ -150,5 +151,17 @@ func (r *supplyRepository) Update(ctx context.Context, supply *domain.Supply) (*
 func (r *supplyRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM supplies WHERE id = $1`
 	_, err := r.db.Exec(ctx, query, id)
+	return err
+}
+
+func (r *supplyRepository) DecrementStockForService(ctx context.Context, workOrderServiceID uuid.UUID) error {
+	query := `
+		UPDATE supplies s
+		SET stock_quantity = s.stock_quantity - woss.supply_quantity,
+		    updated_at = NOW()
+		FROM work_order_service_supplies woss
+		WHERE woss.supply_id = s.id
+		  AND woss.work_order_service_id = $1`
+	_, err := r.db.Exec(ctx, query, workOrderServiceID)
 	return err
 }

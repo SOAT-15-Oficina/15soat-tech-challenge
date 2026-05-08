@@ -268,6 +268,11 @@ func (s *workOrderCreationService) FinalizeService(ctx context.Context, workOrde
 		return fmt.Errorf("finalize service: update: %w", err)
 	}
 
+	// Decrement stock for supplies used in this service
+	if err := s.supplyRepo.DecrementStockForService(ctx, wosID); err != nil {
+		return fmt.Errorf("finalize service: decrement stock: %w", err)
+	}
+
 	// Check if all approved services are now finalized → auto-finalize WO
 	services, err := s.wosRepo.FindByWorkOrderID(ctx, workOrderID)
 	if err != nil {
