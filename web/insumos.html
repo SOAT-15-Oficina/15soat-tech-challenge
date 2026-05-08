@@ -26,6 +26,7 @@
                 <th class="px-4 py-3 font-medium">Preco</th>
                 <th class="px-4 py-3 font-medium">Estoque</th>
                 <th class="px-4 py-3 font-medium">Estoque Min.</th>
+                <th class="px-4 py-3 font-medium">Acoes</th>
               </tr>
             </thead>
             <tbody id="table-body" class="divide-y divide-gray-100"></tbody>
@@ -60,6 +61,9 @@
               <td class="px-4 py-3">${formatCents(s.price_cents)}</td>
               <td class="px-4 py-3 ${low ? 'text-red-600 font-semibold' : ''}">${s.stock_quantity}</td>
               <td class="px-4 py-3 text-gray-500">${s.minimum_stock}</td>
+              <td class="px-4 py-3">
+                <button onclick='openEditModal(${JSON.stringify(s)})' class="text-blue-600 hover:underline text-xs">Editar</button>
+              </td>
             </tr>`;
         }).join('');
       } catch (e) { showError(e.message); }
@@ -108,6 +112,52 @@
         });
         await api.json(resp);
         closeModal(); showToast('Insumo cadastrado'); loadSupplies();
+      } catch (e) { showError(e.message); }
+    }
+
+    function openEditModal(s) {
+      openModal('Editar Insumo', `
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Titulo</label>
+            <input id="m-e-title" type="text" value="${s.title}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+            <select id="m-e-type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <option value="PECA" ${s.type === 'PECA' ? 'selected' : ''}>Peca</option>
+              <option value="INSUMO" ${s.type === 'INSUMO' ? 'selected' : ''}>Insumo</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Preco (centavos)</label>
+              <input id="m-e-price" type="number" value="${s.price_cents}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Estoque</label>
+              <input id="m-e-stock" type="number" value="${s.stock_quantity}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Estoque Min.</label>
+              <input id="m-e-min" type="number" value="${s.minimum_stock}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            </div>
+          </div>
+          <button onclick="updateSupply('${s.id}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg text-sm">Salvar</button>
+        </div>`);
+    }
+
+    async function updateSupply(id) {
+      try {
+        const resp = await api.put('/supplies/' + id, {
+          title: document.getElementById('m-e-title').value,
+          type: document.getElementById('m-e-type').value,
+          price_cents: parseInt(document.getElementById('m-e-price').value),
+          stock_quantity: parseInt(document.getElementById('m-e-stock').value),
+          minimum_stock: parseInt(document.getElementById('m-e-min').value),
+        });
+        await api.json(resp);
+        closeModal(); showToast('Insumo atualizado'); loadSupplies();
       } catch (e) { showError(e.message); }
     }
 
