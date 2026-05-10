@@ -9,5 +9,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -buildvcs=false -ldflags="-s -w"
 FROM scratch AS release-stage
 COPY --from=build-stage /techchallenge /techchallenge
 COPY --from=build-stage /app/docs/swagger.yaml /docs/swagger.yaml
+COPY --from=build-stage /app/web /web
 
 ENTRYPOINT ["/techchallenge"]
