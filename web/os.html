@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Oficina - Detalhe OS</title>
+  <title>Oficina - Detalhe da OS</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -73,12 +73,12 @@
               <p class="text-xs text-gray-400">${wo.customer?.document || ''}</p>
             </div>
             <div>
-              <span class="text-gray-500">Veiculo</span>
+              <span class="text-gray-500">Veículo</span>
               <p class="font-medium">${wo.vehicle ? wo.vehicle.brand + ' ' + wo.vehicle.model : '—'}</p>
               <p class="text-xs text-gray-400">${wo.vehicle?.license_plate || ''}</p>
             </div>
             <div>
-              <span class="text-gray-500">Total Estimado</span>
+              <span class="text-gray-500">Total estimado</span>
               <p class="font-medium">${formatCents(wo.total_estimated_price_cents)}</p>
             </div>
             <div>
@@ -89,7 +89,7 @@
 
           <!-- Timestamps -->
           <div class="flex flex-wrap gap-4 mt-4 text-xs text-gray-500">
-            ${wo.quote_sent_at ? `<span>Orcamento: ${formatDate(wo.quote_sent_at)}</span>` : ''}
+            ${wo.quote_sent_at ? `<span>Orçamento: ${formatDate(wo.quote_sent_at)}</span>` : ''}
             ${wo.approved_at ? `<span>Aprovada: ${formatDate(wo.approved_at)}</span>` : ''}
             ${wo.started_at ? `<span>Iniciada: ${formatDate(wo.started_at)}</span>` : ''}
             ${wo.finished_at ? `<span>Finalizada: ${formatDate(wo.finished_at)}</span>` : ''}
@@ -98,7 +98,7 @@
 
           ${wo.status === 'AGUARDANDO_APROVACAO' ? `
           <div class="mt-4 p-3 bg-blue-50 rounded-lg text-sm">
-            <span class="text-blue-700 font-medium">Link publico para o cliente:</span>
+            <span class="text-blue-700 font-medium">Link público para o cliente:</span>
             <a href="${publicUrl}" target="_blank" class="text-blue-600 hover:underline break-all ml-1">${publicUrl}</a>
           </div>` : ''}
         </div>
@@ -106,25 +106,25 @@
         <!-- Services -->
         <div class="bg-white rounded-xl shadow p-6 mb-6">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold">Servicos</h3>
-            ${canAddServices ? `<button onclick="openAddServiceModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm">Adicionar Servico</button>` : ''}
+            <h3 class="text-lg font-semibold">Serviços</h3>
+            ${canAddServices ? `<button onclick="openAddServiceModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm">Adicionar serviço</button>` : ''}
           </div>
           <div id="services-list" class="space-y-3">
             ${renderServices(wo.services || [])}
           </div>
-          ${(wo.services || []).length === 0 ? '<p class="text-gray-400 text-sm">Nenhum servico adicionado</p>' : ''}
+          ${(wo.services || []).length === 0 ? '<p class="text-gray-400 text-sm">Nenhum serviço adicionado</p>' : ''}
         </div>
       `;
     }
 
     function svcStatusBadge(status) {
       const map = {
-        PENDENTE: 'bg-gray-100 text-gray-600',
-        EM_EXECUCAO: 'bg-purple-100 text-purple-700',
-        FINALIZADO: 'bg-green-100 text-green-700',
+        PENDENTE: { cls: 'bg-gray-100 text-gray-600', label: 'Pendente' },
+        EM_EXECUCAO: { cls: 'bg-purple-100 text-purple-700', label: 'Em execução' },
+        FINALIZADO: { cls: 'bg-green-100 text-green-700', label: 'Finalizado' },
       };
-      const cls = map[status] || 'bg-gray-100 text-gray-600';
-      return `<span class="inline-block px-2 py-0.5 text-xs rounded-full ${cls}">${status}</span>`;
+      const meta = map[status] || { cls: 'bg-gray-100 text-gray-600', label: status };
+      return `<span class="inline-block px-2 py-0.5 text-xs rounded-full ${meta.cls}">${meta.label}</span>`;
     }
 
     function renderServices(services) {
@@ -133,13 +133,14 @@
         const canRemove = currentWO.status !== 'FINALIZADA' && currentWO.status !== 'ENTREGUE' && currentWO.status !== 'CANCELADA';
         const canStart = currentWO.status === 'EM_EXECUCAO' && s.status === 'PENDENTE' && s.approval_status === 'APROVADO';
         const canFinalize = currentWO.status === 'EM_EXECUCAO' && s.status === 'EM_EXECUCAO' && s.approval_status === 'APROVADO';
+        const approvalLabel = { APROVADO: 'Aprovado', REPROVADO: 'Reprovado', PENDENTE: 'Pendente' }[s.approval_status] || s.approval_status;
         return `
           <div class="border border-gray-200 rounded-lg p-4">
             <div class="flex items-center justify-between">
               <div>
                 <span class="font-medium">${s.description || s.service_title_snapshot || '—'}</span>
                 <span class="ml-2 text-gray-500 text-sm">${formatCents(s.service_price_cents_snapshot)}</span>
-                <span class="ml-2 inline-block px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">${s.approval_status}</span>
+                <span class="ml-2 inline-block px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">${approvalLabel}</span>
                 ${svcStatusBadge(s.status)}
               </div>
               <div class="flex items-center gap-2">
@@ -168,7 +169,7 @@
       try {
         const resp = await api.put(`/work-orders/${woId}/services/${wosId}/start`, {});
         await api.json(resp);
-        showToast('Servico iniciado');
+        showToast('Serviço iniciado');
         loadWO();
       } catch (e) { showError(e.message); }
     }
@@ -177,7 +178,7 @@
       try {
         const resp = await api.put(`/work-orders/${woId}/services/${wosId}/finalize`, {});
         await api.json(resp);
-        showToast('Servico finalizado');
+        showToast('Serviço finalizado');
         loadWO();
       } catch (e) { showError(e.message); }
     }
@@ -199,10 +200,10 @@
         const opts = list.map(s =>
           `<option value="${s.id}">${s.title} — ${formatCents(s.price_cents)} (${s.estimated_time_minutes} min)</option>`
         ).join('');
-        openModal('Adicionar Servico', `
+        openModal('Adicionar serviço', `
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Servico</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Serviço</label>
               <select id="m-service" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                 <option value="">Selecione...</option>${opts}
               </select>
@@ -214,20 +215,20 @@
 
     async function addService() {
       const serviceId = document.getElementById('m-service').value;
-      if (!serviceId) { showError('Selecione um servico'); return; }
+      if (!serviceId) { showError('Selecione um serviço'); return; }
       try {
         const resp = await api.post(`/work-orders/${woId}/services`, [{ service_id: serviceId }]);
         await api.json(resp);
-        closeModal(); showToast('Servico adicionado'); loadWO();
+        closeModal(); showToast('Serviço adicionado'); loadWO();
       } catch (e) { showError(e.message); }
     }
 
     async function removeService(wosId) {
-      if (!confirm('Remover este servico?')) return;
+      if (!confirm('Remover este serviço?')) return;
       try {
         const resp = await api.del(`/work-orders/${woId}/services/${wosId}`);
         if (!resp.ok && resp.status !== 204) { const e = await resp.json(); throw new Error(e.error); }
-        showToast('Servico removido'); loadWO();
+        showToast('Serviço removido'); loadWO();
       } catch (e) { showError(e.message); }
     }
 
@@ -259,7 +260,7 @@
     async function addSupply(wosId) {
       const supplyId = document.getElementById('m-supply').value;
       const qty = parseInt(document.getElementById('m-qty').value);
-      if (!supplyId || !qty) { showError('Selecione insumo e quantidade'); return; }
+      if (!supplyId || !qty) { showError('Selecione o insumo e a quantidade'); return; }
       try {
         const resp = await api.post(`/work-orders/${woId}/services/${wosId}/supplies`, [{ supply_id: supplyId, quantity: qty }]);
         await api.json(resp);

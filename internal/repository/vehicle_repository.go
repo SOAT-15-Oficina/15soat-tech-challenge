@@ -108,7 +108,7 @@ func (r *vehicleRepository) Update(ctx context.Context, vehicle *domain.Vehicle)
 		UPDATE vehicles
 		SET license_plate = $1, customer_id = $2, model = $3, year = $4, brand = $5, updated_at = NOW()
 		WHERE id = $6
-		RETURNING id, license_plate, customer_id, model, year, brand`
+		RETURNING id, license_plate, customer_id, model, year, brand, created_at, updated_at`
 
 	var result domain.Vehicle
 	err := r.db.QueryRow(ctx, query, vehicle.LicensePlate, vehicle.CustomerID, vehicle.Model, vehicle.Year, vehicle.Brand, vehicle.ID).

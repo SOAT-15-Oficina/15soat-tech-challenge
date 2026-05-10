@@ -33,6 +33,14 @@ const api = {
       throw new Error(err.error || resp.statusText);
     }
     return resp.json();
+  },
+
+  async ensureOk(resp) {
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      throw new Error(err.error || err.message || resp.statusText);
+    }
+    return resp;
   }
 };
 
@@ -61,10 +69,10 @@ function logout() { api.clearToken(); window.location.href = '/web/index.html'; 
 
 const STATUS_META = {
   RECEBIDA:             { label: 'Recebida',          bg: 'bg-blue-100',    text: 'text-blue-800'    },
-  EM_DIAGNOSTICO:       { label: 'Em Diagnostico',    bg: 'bg-yellow-100',  text: 'text-yellow-800'  },
-  AGUARDANDO_APROVACAO: { label: 'Aguard. Aprovacao', bg: 'bg-orange-100',  text: 'text-orange-800'  },
+  EM_DIAGNOSTICO:       { label: 'Em diagnóstico',    bg: 'bg-yellow-100',  text: 'text-yellow-800'  },
+  AGUARDANDO_APROVACAO: { label: 'Aguardando aprovação', bg: 'bg-orange-100',  text: 'text-orange-800'  },
   APROVADO:             { label: 'Aprovado',          bg: 'bg-green-100',   text: 'text-green-800'   },
-  EM_EXECUCAO:          { label: 'Em Execucao',       bg: 'bg-purple-100',  text: 'text-purple-800'  },
+  EM_EXECUCAO:          { label: 'Em execução',       bg: 'bg-purple-100',  text: 'text-purple-800'  },
   FINALIZADA:           { label: 'Finalizada',        bg: 'bg-teal-100',    text: 'text-teal-800'    },
   ENTREGUE:             { label: 'Entregue',          bg: 'bg-emerald-100', text: 'text-emerald-800' },
   CANCELADA:            { label: 'Cancelada',         bg: 'bg-red-100',     text: 'text-red-800'     },
@@ -75,10 +83,10 @@ const STATUS_ORDER = [
 ];
 
 const STATUS_ACTIONS = {
-  RECEBIDA:       { next: 'EM_DIAGNOSTICO',       label: 'Iniciar Diagnostico',  cls: 'bg-yellow-500 hover:bg-yellow-600' },
-  EM_DIAGNOSTICO: { next: 'AGUARDANDO_APROVACAO', label: 'Enviar Orcamento',     cls: 'bg-orange-500 hover:bg-orange-600' },
-  APROVADO:       { next: 'EM_EXECUCAO',          label: 'Iniciar Execucao',     cls: 'bg-purple-500 hover:bg-purple-600' },
-  FINALIZADA:     { next: 'ENTREGUE',             label: 'Registrar Entrega',    cls: 'bg-emerald-500 hover:bg-emerald-600' },
+  RECEBIDA:       { next: 'EM_DIAGNOSTICO',       label: 'Iniciar diagnóstico',  cls: 'bg-yellow-500 hover:bg-yellow-600' },
+  EM_DIAGNOSTICO: { next: 'AGUARDANDO_APROVACAO', label: 'Enviar orçamento',     cls: 'bg-orange-500 hover:bg-orange-600' },
+  APROVADO:       { next: 'EM_EXECUCAO',          label: 'Iniciar execução',     cls: 'bg-purple-500 hover:bg-purple-600' },
+  FINALIZADA:     { next: 'ENTREGUE',             label: 'Registrar entrega',    cls: 'bg-emerald-500 hover:bg-emerald-600' },
 };
 
 function statusBadge(status) {
@@ -88,6 +96,19 @@ function statusBadge(status) {
 
 function formatCents(c) { return 'R$ ' + (c / 100).toFixed(2).replace('.', ','); }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value);
+}
+
 function formatDate(d) {
   if (!d) return '';
   return new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
@@ -96,10 +117,10 @@ function formatDate(d) {
 // ── Layout ──────────────────────────────────────────────────────────────────
 
 const NAV = [
-  { href: '/web/board.html',    label: 'Board'     },
+  { href: '/web/board.html',    label: 'Painel'    },
   { href: '/web/clientes.html', label: 'Clientes'  },
-  { href: '/web/veiculos.html', label: 'Veiculos'  },
-  { href: '/web/servicos.html', label: 'Servicos'  },
+  { href: '/web/veiculos.html', label: 'Veículos'  },
+  { href: '/web/servicos.html', label: 'Serviços'  },
   { href: '/web/insumos.html',  label: 'Insumos'   },
   { href: '/web/nova-os.html',  label: 'Nova OS'   },
 ];
@@ -114,7 +135,7 @@ function initLayout() {
     sidebar.innerHTML = `
       <div class="p-5 border-b border-gray-700">
         <h1 class="text-lg font-bold tracking-wide">Oficina</h1>
-        <p class="text-xs text-gray-400 mt-1">Sistema de Gestao</p>
+        <p class="text-xs text-gray-400 mt-1">Sistema de gestão</p>
       </div>
       <nav class="flex-1 p-3 space-y-1">
         ${NAV.map(n => `

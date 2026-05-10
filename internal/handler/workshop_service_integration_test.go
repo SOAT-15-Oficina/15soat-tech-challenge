@@ -178,9 +178,9 @@ func TestIntegration_CreateAndGetByID(t *testing.T) {
 	app, _ := setupIntegrationApp(t)
 
 	resp, err := postJSON(app, "/services", map[string]any{
-		"title":                "Oil Change",
-		"description":          "Full engine oil change",
-		"price_cents":           5000,
+		"title":                  "Oil Change",
+		"description":            "Full engine oil change",
+		"price_cents":            5000,
 		"estimated_time_minutes": 30,
 	})
 	require.NoError(t, err)
@@ -208,8 +208,8 @@ func TestIntegration_CreateDuplicateTitle(t *testing.T) {
 	app, _ := setupIntegrationApp(t)
 
 	body := map[string]any{
-		"title":                "Wheel Alignment",
-		"price_cents":           8000,
+		"title":                  "Wheel Alignment",
+		"price_cents":            8000,
 		"estimated_time_minutes": 45,
 	}
 
@@ -237,8 +237,8 @@ func TestIntegration_ListPaginated(t *testing.T) {
 
 	for i := 1; i <= 3; i++ {
 		resp, err := postJSON(app, "/services", map[string]any{
-			"title":                fmt.Sprintf("Service %d", i),
-			"price_cents":           i * 1000,
+			"title":                  fmt.Sprintf("Service %d", i),
+			"price_cents":            i * 1000,
 			"estimated_time_minutes": i * 15,
 		})
 		require.NoError(t, err)
@@ -263,8 +263,8 @@ func TestIntegration_ListFilterByTitle(t *testing.T) {
 
 	for _, title := range []string{"Oil Change", "Alignment", "Tire Change"} {
 		resp, _ := postJSON(app, "/services", map[string]any{
-			"title":                title,
-			"price_cents":           5000,
+			"title":                  title,
+			"price_cents":            5000,
 			"estimated_time_minutes": 30,
 		})
 		require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -327,7 +327,7 @@ func TestIntegration_Update(t *testing.T) {
 	id := created["id"].(string)
 
 	resp, err := putJSON(app, "/services/"+id, map[string]any{
-		"title": "Updated",
+		"title":       "Updated",
 		"price_cents": 9999,
 	})
 	require.NoError(t, err)
@@ -477,6 +477,50 @@ func TestIntegration_AvgExecutionTime(t *testing.T) {
 	assert.Equal(t, float64(2), first["execution_count"])
 	assert.Equal(t, float64(30), first["avg_real_time_minutes"])
 	assert.Equal(t, float64(30), first["estimated_time_minutes"])
+}
+
+func TestIntegration_AvgExecutionTime_ConvertsSecondsToMinutes(t *testing.T) {
+	// should expose real execution time in minutes, not raw seconds
+	app, pool := setupIntegrationApp(t)
+	ctx := context.Background()
+
+	resp, _ := postJSON(app, "/services", map[string]any{
+		"title": "Quick Check", "price_cents": 1500, "estimated_time_minutes": 2,
+	})
+	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
+	created := readBody(t, resp)
+	serviceID := created["id"].(string)
+
+	woID := uuid.New()
+	_, err := pool.Exec(ctx, `
+		INSERT INTO work_orders
+			(id, code, title, customer_id, vehicle_id, opened_by_user_id, status, received_at, created_at, updated_at)
+		VALUES ($1, 'WO-SECONDS', 'test', $2, $2, $2, 'RECEBIDA', NOW(), NOW(), NOW())`,
+		woID, uuid.New())
+	require.NoError(t, err)
+
+	_, err = pool.Exec(ctx, `
+		INSERT INTO work_order_services
+			(id, work_order_id, service_id, service_title_snapshot, service_price_cents_snapshot,
+			 service_estimated_time_minutes_snapshot, status, started_at, finished_at, created_at, updated_at)
+		VALUES
+			($1, $2, $3, 'Quick Check', 1500, 2, $4,
+			 '2026-04-01 10:00:00', '2026-04-01 10:01:30', NOW(), NOW())`,
+		uuid.New(), woID, serviceID, string(domain.WorkOrderServiceStatusFinished),
+	)
+	require.NoError(t, err)
+
+	req, _ := http.NewRequest("GET", "/services/avg-execution-time", nil)
+	resp, err = app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	result := readBody(t, resp)
+	items := result["data"].([]any)
+	require.Len(t, items, 1)
+	first := items[0].(map[string]any)
+	assert.Equal(t, float64(1.5), first["avg_real_time_minutes"])
+	assert.Equal(t, float64(-0.5), first["difference_minutes"])
 }
 
 func TestIntegration_AvgExecutionTime_FilterByTechnician(t *testing.T) {

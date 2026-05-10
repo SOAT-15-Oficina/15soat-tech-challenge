@@ -16,19 +16,19 @@
 
         <div class="flex items-center justify-between mb-6">
           <div></div>
-          <button onclick="openCreateModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Novo Insumo</button>
+          <button onclick="openCreateModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Novo insumo</button>
         </div>
 
-        <div class="bg-white rounded-xl shadow overflow-hidden">
-          <table class="w-full text-sm">
+        <div class="bg-white rounded-xl shadow overflow-x-auto">
+          <table class="w-full min-w-[760px] text-sm">
             <thead class="bg-gray-50 text-left text-gray-600">
               <tr>
-                <th class="px-4 py-3 font-medium">Titulo</th>
+                <th class="px-4 py-3 font-medium">Título</th>
                 <th class="px-4 py-3 font-medium">Tipo</th>
-                <th class="px-4 py-3 font-medium">Preco</th>
-                <th class="px-4 py-3 font-medium">Estoque</th>
-                <th class="px-4 py-3 font-medium">Estoque Min.</th>
-                <th class="px-4 py-3 font-medium">Acoes</th>
+                <th class="px-4 py-3 font-medium text-right">Preço</th>
+                <th class="px-4 py-3 font-medium text-right">Estoque</th>
+                <th class="px-4 py-3 font-medium text-right">Estoque mín.</th>
+                <th class="px-4 py-3 font-medium text-right">Ações</th>
               </tr>
             </thead>
             <tbody id="table-body" class="divide-y divide-gray-100"></tbody>
@@ -58,13 +58,16 @@
           const low = s.stock_quantity <= s.minimum_stock;
           return `
             <tr class="hover:bg-gray-50">
-              <td class="px-4 py-3 font-medium">${s.title}</td>
-              <td class="px-4 py-3">${s.type}</td>
-              <td class="px-4 py-3">${formatCents(s.price_cents)}</td>
-              <td class="px-4 py-3 ${low ? 'text-red-600 font-semibold' : ''}">${s.stock_quantity}</td>
-              <td class="px-4 py-3 text-gray-500">${s.minimum_stock}</td>
-              <td class="px-4 py-3">
-                <button onclick='openEditModal(${JSON.stringify(s)})' class="text-blue-600 hover:underline text-xs">Editar</button>
+              <td class="px-4 py-3 align-middle font-medium">${s.title}</td>
+              <td class="px-4 py-3 align-middle">${s.type}</td>
+              <td class="px-4 py-3 align-middle text-right">${formatCents(s.price_cents)}</td>
+              <td class="px-4 py-3 align-middle text-right ${low ? 'text-red-600 font-semibold' : ''}">${s.stock_quantity}</td>
+              <td class="px-4 py-3 align-middle text-right text-gray-500">${s.minimum_stock}</td>
+              <td class="px-4 py-3 align-middle text-right">
+                <div class="flex justify-end gap-2">
+                  <button onclick='openEditModal(${JSON.stringify(s)})' class="bg-gray-200 hover:bg-gray-300 px-3 py-1.5 rounded-lg text-xs font-medium">Editar</button>
+                  <button onclick="deleteSupply('${s.id}')" class="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-lg text-xs font-medium">Excluir</button>
+                </div>
               </td>
             </tr>`;
         }).join('');
@@ -72,22 +75,22 @@
     }
 
     function openCreateModal() {
-      openModal('Novo Insumo', `
+      openModal('Novo insumo', `
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Titulo</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Título</label>
             <input id="m-title" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
             <select id="m-type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-              <option value="PECA">Peca</option>
+              <option value="PECA">Peça</option>
               <option value="INSUMO">Insumo</option>
             </select>
           </div>
           <div class="grid grid-cols-3 gap-3">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Preco (centavos)</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Preço (centavos)</label>
               <input id="m-price" type="number" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
@@ -95,7 +98,7 @@
               <input id="m-stock" type="number" value="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Estoque Min.</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Estoque mín.</label>
               <input id="m-min" type="number" value="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
             </div>
           </div>
@@ -121,19 +124,19 @@
       openModal('Editar Insumo', `
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Titulo</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Título</label>
             <input id="m-e-title" type="text" value="${s.title}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
             <select id="m-e-type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-              <option value="PECA" ${s.type === 'PECA' ? 'selected' : ''}>Peca</option>
+              <option value="PECA" ${s.type === 'PECA' ? 'selected' : ''}>Peça</option>
               <option value="INSUMO" ${s.type === 'INSUMO' ? 'selected' : ''}>Insumo</option>
             </select>
           </div>
           <div class="grid grid-cols-3 gap-3">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Preco (centavos)</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Preço (centavos)</label>
               <input id="m-e-price" type="number" value="${s.price_cents}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
@@ -141,7 +144,7 @@
               <input id="m-e-stock" type="number" value="${s.stock_quantity}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Estoque Min.</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Estoque mín.</label>
               <input id="m-e-min" type="number" value="${s.minimum_stock}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
             </div>
           </div>
@@ -163,6 +166,17 @@
       } catch (e) { showError(e.message); }
     }
 
+    async function deleteSupply(id) {
+      if (!confirm('Tem certeza de que deseja excluir este insumo?')) return;
+      try {
+        const resp = await api.del('/supplies/' + id);
+        await api.ensureOk(resp);
+        showToast('Insumo excluído');
+        loadSupplies();
+        loadPurchaseAlerts();
+      } catch (e) { showError(e.message); }
+    }
+
     async function loadPurchaseAlerts() {
       try {
         const resp = await api.get('/supplies/pending-purchases');
@@ -173,14 +187,14 @@
         el.classList.remove('hidden');
         el.innerHTML = `
           <div class="bg-red-50 border border-red-200 rounded-xl p-4">
-            <h3 class="text-red-800 font-semibold mb-2">Alerta de Compra — Insumos em falta para servicos aprovados</h3>
+            <h3 class="text-red-800 font-semibold mb-2">Alerta de compra — Insumos em falta para serviços aprovados</h3>
             <table class="w-full text-sm">
               <thead class="text-left text-red-700">
                 <tr>
                   <th class="pb-1 font-medium">OS</th>
-                  <th class="pb-1 font-medium">Servico</th>
+                  <th class="pb-1 font-medium">Serviço</th>
                   <th class="pb-1 font-medium">Insumo</th>
-                  <th class="pb-1 font-medium">Necessario</th>
+                  <th class="pb-1 font-medium">Necessário</th>
                   <th class="pb-1 font-medium">Em Estoque</th>
                   <th class="pb-1 font-medium">Faltam</th>
                 </tr>

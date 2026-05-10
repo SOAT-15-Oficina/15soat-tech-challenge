@@ -242,7 +242,7 @@ func (r *workshopServiceRepository) GetAvgExecutionTime(ctx context.Context, fil
 			s.id,
 			s.title,
 			s.estimated_time_minutes,
-			AVG(EXTRACT(EPOCH FROM (wos.finished_at - wos.started_at)) / 60) AS avg_real_time_minutes,
+			AVG(EXTRACT(EPOCH FROM (wos.finished_at - wos.started_at)) / 60.0) AS avg_real_time_minutes,
 			COUNT(*) AS execution_count
 		FROM work_order_services wos
 		JOIN services s ON s.id = wos.service_id
