@@ -6,6 +6,7 @@ import (
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 	"github.com/google/uuid"
 )
 
@@ -20,17 +21,33 @@ type workOrderItemService struct {
 	wosRepo   repository.WorkOrderServiceRepository
 	woRepo    repository.WorkOrderRepository
 	statusSvc WorkOrderStatusService
+	emailProv email.Provider
+	emailTo   string
 }
 
 func NewWorkOrderItemService(
 	wosRepo repository.WorkOrderServiceRepository,
 	woRepo repository.WorkOrderRepository,
 	statusSvc WorkOrderStatusService,
+	opts ...WorkOrderItemServiceOption,
 ) WorkOrderItemService {
-	return &workOrderItemService{
+	svc := &workOrderItemService{
 		wosRepo:   wosRepo,
 		woRepo:    woRepo,
 		statusSvc: statusSvc,
+	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
+}
+
+type WorkOrderItemServiceOption func(*workOrderItemService)
+
+func WithPurchaseAlert(prov email.Provider, to string) WorkOrderItemServiceOption {
+	return func(s *workOrderItemService) {
+		s.emailProv = prov
+		s.emailTo = to
 	}
 }
 
@@ -122,5 +139,54 @@ func (s *workOrderItemService) evaluateWorkOrderCompletion(ctx context.Context, 
 		return fmt.Errorf("evaluate: update work order: %w", err)
 	}
 
+	if hasApproved && s.emailProv != nil {
+		s.sendPurchaseAlertIfNeeded(ctx, workOrderID)
+	}
+
 	return nil
+}
+
+func (s *workOrderItemService) sendPurchaseAlertIfNeeded(ctx context.Context, workOrderID uuid.UUID) {
+	shortages, err := s.wosRepo.FindSupplyShortagesByWorkOrderID(ctx, workOrderID)
+	if err != nil || len(shortages) == 0 {
+		return
+	}
+
+	alerts, err := s.wosRepo.FindApprovedServicesWithShortages(ctx)
+	if err != nil || len(alerts) == 0 {
+		return
+	}
+
+	wo, err := s.woRepo.FindByID(ctx, workOrderID)
+	if err != nil {
+		return
+	}
+
+	var items []email.PurchaseAlertItem
+	for _, a := range alerts {
+		items = append(items, email.PurchaseAlertItem{
+			ServiceTitle: a.ServiceTitle,
+			SupplyTitle:  a.SupplyTitle,
+			Required:     a.Required,
+			InStock:      a.InStock,
+			ToBuy:        a.Required - a.InStock,
+		})
+	}
+
+	body, err := email.RenderPurchaseAlertEmail(email.PurchaseAlertEmailData{
+		WorkOrderCode:  wo.Code,
+		WorkOrderTitle: wo.Title,
+		Items:          items,
+	})
+	if err != nil {
+		return
+	}
+
+	msg := email.Message{
+		To:      []string{s.emailTo},
+		Subject: fmt.Sprintf("Alerta de Compra - OS %s", wo.Code),
+		Body:    body,
+		HTML:    true,
+	}
+	_ = s.emailProv.Send(ctx, msg)
 }

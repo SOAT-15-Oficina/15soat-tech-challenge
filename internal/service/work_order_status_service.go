@@ -91,16 +91,5 @@ func (s *workOrderStatusService) TransitionTo(ctx context.Context, workOrderID u
 		return nil, fmt.Errorf("transition: update work order: %w", err)
 	}
 
-	switch newStatus {
-	case domain.WorkOrderStatusInProgress:
-		if err := s.wosRepo.MarkAsStartedByWorkOrderID(ctx, workOrderID, now); err != nil {
-			return nil, fmt.Errorf("transition: mark services as started: %w", err)
-		}
-	case domain.WorkOrderStatusFinished:
-		if err := s.wosRepo.MarkAsFinishedByWorkOrderID(ctx, workOrderID, now); err != nil {
-			return nil, fmt.Errorf("transition: mark services as finished: %w", err)
-		}
-	}
-
 	return updated, nil
 }

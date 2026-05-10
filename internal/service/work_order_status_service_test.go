@@ -84,25 +84,19 @@ func TestTransitionTo_SetsTimestamps(t *testing.T) {
 			},
 		},
 		{
-			name: "in_progress sets started_at and marks services",
+			name: "in_progress sets started_at",
 			from: domain.WorkOrderStatusApproved,
 			to:   domain.WorkOrderStatusInProgress,
 			checkFunc: func(t *testing.T, wo *domain.WorkOrder) {
 				assert.NotNil(t, wo.StartedAt)
 			},
-			mockWosSetup: func(wosRepo *mockWorkOrderServiceRepo, woID uuid.UUID) {
-				wosRepo.On("MarkAsStartedByWorkOrderID", mock.Anything, woID, mock.AnythingOfType("time.Time")).Return(nil)
-			},
 		},
 		{
-			name: "finished sets finished_at and marks services",
+			name: "finished sets finished_at",
 			from: domain.WorkOrderStatusInProgress,
 			to:   domain.WorkOrderStatusFinished,
 			checkFunc: func(t *testing.T, wo *domain.WorkOrder) {
 				assert.NotNil(t, wo.FinishedAt)
-			},
-			mockWosSetup: func(wosRepo *mockWorkOrderServiceRepo, woID uuid.UUID) {
-				wosRepo.On("MarkAsFinishedByWorkOrderID", mock.Anything, woID, mock.AnythingOfType("time.Time")).Return(nil)
 			},
 		},
 		{
@@ -141,7 +135,7 @@ func TestTransitionTo_SetsTimestamps(t *testing.T) {
 	}
 }
 
-func TestTransitionTo_InProgress_MarksServicesAsStarted(t *testing.T) {
+func TestTransitionTo_InProgress_DoesNotBulkMarkServices(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
 	wosRepo := new(mockWorkOrderServiceRepo)
 	svc := NewWorkOrderStatusService(woRepo, wosRepo)
@@ -152,14 +146,13 @@ func TestTransitionTo_InProgress_MarksServicesAsStarted(t *testing.T) {
 
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
-	wosRepo.On("MarkAsStartedByWorkOrderID", ctx, woID, mock.AnythingOfType("time.Time")).Return(nil)
 
 	_, err := svc.TransitionTo(ctx, woID, domain.WorkOrderStatusInProgress)
 	assert.NoError(t, err)
-	wosRepo.AssertCalled(t, "MarkAsStartedByWorkOrderID", ctx, woID, mock.AnythingOfType("time.Time"))
+	wosRepo.AssertNotCalled(t, "MarkAsStartedByWorkOrderID")
 }
 
-func TestTransitionTo_Finished_MarksServicesAsFinished(t *testing.T) {
+func TestTransitionTo_Finished_DoesNotBulkMarkServices(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
 	wosRepo := new(mockWorkOrderServiceRepo)
 	svc := NewWorkOrderStatusService(woRepo, wosRepo)
@@ -170,11 +163,10 @@ func TestTransitionTo_Finished_MarksServicesAsFinished(t *testing.T) {
 
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
-	wosRepo.On("MarkAsFinishedByWorkOrderID", ctx, woID, mock.AnythingOfType("time.Time")).Return(nil)
 
 	_, err := svc.TransitionTo(ctx, woID, domain.WorkOrderStatusFinished)
 	assert.NoError(t, err)
-	wosRepo.AssertCalled(t, "MarkAsFinishedByWorkOrderID", ctx, woID, mock.AnythingOfType("time.Time"))
+	wosRepo.AssertNotCalled(t, "MarkAsFinishedByWorkOrderID")
 }
 
 func TestIsValidTransition_AllowedTransitions(t *testing.T) {

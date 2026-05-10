@@ -28,6 +28,20 @@ type WorkOrderServiceRepository interface {
 	CalculateApprovedTotalForWorkOrder(ctx context.Context, workOrderID uuid.UUID) (int, error)
 	MarkAsStartedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, startedAt time.Time) error
 	MarkAsFinishedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, finishedAt time.Time) error
+	MarkServiceAsFinished(ctx context.Context, id uuid.UUID, finishedAt time.Time) error
+	MarkServiceAsStarted(ctx context.Context, id uuid.UUID, startedAt time.Time) error
+	HasSupplyShortagesForService(ctx context.Context, workOrderServiceID uuid.UUID) (bool, error)
+	FindApprovedServicesWithShortages(ctx context.Context) ([]SupplyShortageAlert, error)
+}
+
+type SupplyShortageAlert struct {
+	WorkOrderCode  string
+	WorkOrderTitle string
+	ServiceTitle   string
+	SupplyTitle    string
+	SupplyID       uuid.UUID
+	Required       int
+	InStock        int
 }
 
 type workOrderServiceRepository struct {
@@ -258,6 +272,34 @@ func (r *workOrderServiceRepository) MarkAsFinishedByWorkOrderID(ctx context.Con
 	return err
 }
 
+func (r *workOrderServiceRepository) MarkServiceAsStarted(ctx context.Context, id uuid.UUID, startedAt time.Time) error {
+	query := `
+		UPDATE work_order_services
+		SET status = $1, started_at = $2, updated_at = $2
+		WHERE id = $3
+		  AND status = $4
+		  AND started_at IS NULL`
+	_, err := r.db.Exec(ctx, query,
+		domain.WorkOrderServiceStatusInProgress, startedAt,
+		id, domain.WorkOrderServiceStatusPending,
+	)
+	return err
+}
+
+func (r *workOrderServiceRepository) MarkServiceAsFinished(ctx context.Context, id uuid.UUID, finishedAt time.Time) error {
+	query := `
+		UPDATE work_order_services
+		SET status = $1, finished_at = $2, updated_at = $2
+		WHERE id = $3
+		  AND status = $4
+		  AND finished_at IS NULL`
+	_, err := r.db.Exec(ctx, query,
+		domain.WorkOrderServiceStatusFinished, finishedAt,
+		id, domain.WorkOrderServiceStatusInProgress,
+	)
+	return err
+}
+
 func (r *workOrderServiceRepository) FindSupplyShortagesByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) (map[uuid.UUID]bool, error) {
 	query := `
 		SELECT DISTINCT wos.id
@@ -332,4 +374,48 @@ func (r *workOrderServiceRepository) CreateSupplyBatch(ctx context.Context, item
 		return nil, fmt.Errorf("create supply batch: commit: %w", err)
 	}
 	return results, nil
+}
+
+func (r *workOrderServiceRepository) HasSupplyShortagesForService(ctx context.Context, workOrderServiceID uuid.UUID) (bool, error) {
+	query := `
+		SELECT EXISTS (
+			SELECT 1
+			FROM work_order_service_supplies woss
+			JOIN supplies s ON s.id = woss.supply_id
+			WHERE woss.work_order_service_id = $1
+			  AND woss.supply_quantity > s.stock_quantity
+		)`
+	var has bool
+	err := r.db.QueryRow(ctx, query, workOrderServiceID).Scan(&has)
+	return has, err
+}
+
+func (r *workOrderServiceRepository) FindApprovedServicesWithShortages(ctx context.Context) ([]SupplyShortageAlert, error) {
+	query := `
+		SELECT wo.code, wo.title, wos.service_title_snapshot, s.title, s.id,
+		       woss.supply_quantity, s.stock_quantity
+		FROM work_order_services wos
+		JOIN work_orders wo ON wo.id = wos.work_order_id
+		JOIN work_order_service_supplies woss ON woss.work_order_service_id = wos.id
+		JOIN supplies s ON s.id = woss.supply_id
+		WHERE wos.approval_status = 'APROVADO'
+		  AND wos.status = 'PENDENTE'
+		  AND woss.supply_quantity > s.stock_quantity
+		ORDER BY wo.code, wos.service_title_snapshot`
+
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var alerts []SupplyShortageAlert
+	for rows.Next() {
+		var a SupplyShortageAlert
+		if err := rows.Scan(&a.WorkOrderCode, &a.WorkOrderTitle, &a.ServiceTitle, &a.SupplyTitle, &a.SupplyID, &a.Required, &a.InStock); err != nil {
+			return nil, err
+		}
+		alerts = append(alerts, a)
+	}
+	return alerts, rows.Err()
 }

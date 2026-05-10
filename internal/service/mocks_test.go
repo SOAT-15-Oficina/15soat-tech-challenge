@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 )
@@ -151,6 +152,27 @@ func (m *mockWorkOrderServiceRepo) MarkAsStartedByWorkOrderID(ctx context.Contex
 
 func (m *mockWorkOrderServiceRepo) MarkAsFinishedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, finishedAt time.Time) error {
 	return m.Called(ctx, workOrderID, finishedAt).Error(0)
+}
+
+func (m *mockWorkOrderServiceRepo) MarkServiceAsFinished(ctx context.Context, id uuid.UUID, finishedAt time.Time) error {
+	return m.Called(ctx, id, finishedAt).Error(0)
+}
+
+func (m *mockWorkOrderServiceRepo) MarkServiceAsStarted(ctx context.Context, id uuid.UUID, startedAt time.Time) error {
+	return m.Called(ctx, id, startedAt).Error(0)
+}
+
+func (m *mockWorkOrderServiceRepo) HasSupplyShortagesForService(ctx context.Context, workOrderServiceID uuid.UUID) (bool, error) {
+	args := m.Called(ctx, workOrderServiceID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *mockWorkOrderServiceRepo) FindApprovedServicesWithShortages(ctx context.Context) ([]repository.SupplyShortageAlert, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]repository.SupplyShortageAlert), args.Error(1)
 }
 
 func (m *mockWorkOrderServiceRepo) FindSupplyShortagesByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) (map[uuid.UUID]bool, error) {
@@ -331,4 +353,8 @@ func (m *mockSupplyRepo) Update(ctx context.Context, supply *domain.Supply) (*do
 
 func (m *mockSupplyRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return m.Called(ctx, id).Error(0)
+}
+
+func (m *mockSupplyRepo) DecrementStockForService(ctx context.Context, workOrderServiceID uuid.UUID) error {
+	return m.Called(ctx, workOrderServiceID).Error(0)
 }

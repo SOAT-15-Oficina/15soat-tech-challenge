@@ -327,6 +327,46 @@ paths:
           $ref: "#/components/responses/BadRequest"
 
   # ── Supplies ──────────────────────────────────────────
+  /supplies/pending-purchases:
+    get:
+      tags: [Supplies]
+      summary: Listar compras pendentes (insumos em falta para servicos aprovados)
+      description: Retorna todos os servicos aprovados que possuem insumos com quantidade necessaria maior que o estoque disponivel.
+      responses:
+        "200":
+          description: Lista de alertas de compra
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        WorkOrderCode:
+                          type: string
+                          example: "OS-20260507-0001"
+                        WorkOrderTitle:
+                          type: string
+                          example: "Revisao Corolla"
+                        ServiceTitle:
+                          type: string
+                          example: "Troca de Oleo"
+                        SupplyTitle:
+                          type: string
+                          example: "Oleo Motor 5W30"
+                        SupplyID:
+                          type: string
+                          format: uuid
+                        Required:
+                          type: integer
+                          example: 1000
+                        InStock:
+                          type: integer
+                          example: 10
+
   /supplies:
     post:
       tags: [Supplies]
@@ -731,6 +771,86 @@ paths:
           $ref: "#/components/responses/NotFound"
         "422":
           description: Status da OS nao permite remocao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /work-orders/{id}/services/{wosId}/start:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+      - name: wosId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      tags: [Work Orders]
+      summary: Iniciar execucao de um servico individual
+      description: |
+        Transiciona o servico de PENDENTE para EM_EXECUCAO.
+        Requer que a OS esteja em EM_EXECUCAO e que o servico esteja aprovado.
+        Bloqueia se os insumos vinculados excedem o estoque disponivel.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Servico iniciado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Servico iniciado com sucesso"
+        "422":
+          description: Estoque insuficiente, status invalido ou servico nao pertence a OS
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /work-orders/{id}/services/{wosId}/finalize:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+      - name: wosId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      tags: [Work Orders]
+      summary: Finalizar um servico individual
+      description: |
+        Transiciona o servico de EM_EXECUCAO para FINALIZADO.
+        Da baixa no estoque dos insumos vinculados.
+        Se todos os servicos aprovados estiverem finalizados, a OS auto-transiciona para FINALIZADA.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Servico finalizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Servico finalizado com sucesso"
+        "422":
+          description: Status invalido ou servico nao pertence a OS
           content:
             application/json:
               schema:
