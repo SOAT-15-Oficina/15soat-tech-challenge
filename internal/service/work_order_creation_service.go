@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	ErrWorkOrderInvalidStatusForItems = errors.New("work order status does not allow adding services")
+	ErrWorkOrderInvalidStatusForItems = errors.New("work order status does not allow changing services or supplies")
 	ErrWorkshopServiceInactive        = errors.New("workshop service is inactive")
 	ErrWorkOrderServiceOwnership      = errors.New("work order service does not belong to this work order")
 	ErrWorkOrderNotInProgress         = errors.New("work order must be in EM_EXECUCAO status")
@@ -67,14 +67,27 @@ func NewWorkOrderCreationService(
 	}
 }
 
-func (s *workOrderCreationService) AddServices(ctx context.Context, workOrderID uuid.UUID, items []AddWorkOrderServiceInput) ([]domain.WorkOrderService, error) {
+func canChangeWorkOrderItems(status domain.WorkOrderStatus) bool {
+	return status == domain.WorkOrderStatusReceived ||
+		status == domain.WorkOrderStatusInDiagnosis ||
+		status == domain.WorkOrderStatusWaitingApproval
+}
+
+func (s *workOrderCreationService) ensureWorkOrderItemsCanChange(ctx context.Context, workOrderID uuid.UUID, operation string) (*domain.WorkOrder, error) {
 	wo, err := s.woRepo.FindByID(ctx, workOrderID)
 	if err != nil {
-		return nil, fmt.Errorf("add services: find work order: %w", err)
+		return nil, fmt.Errorf("%s: find work order: %w", operation, err)
 	}
-
-	if wo.Status != domain.WorkOrderStatusReceived && wo.Status != domain.WorkOrderStatusInDiagnosis {
+	if !canChangeWorkOrderItems(wo.Status) {
 		return nil, ErrWorkOrderInvalidStatusForItems
+	}
+	return wo, nil
+}
+
+func (s *workOrderCreationService) AddServices(ctx context.Context, workOrderID uuid.UUID, items []AddWorkOrderServiceInput) ([]domain.WorkOrderService, error) {
+	wo, err := s.ensureWorkOrderItemsCanChange(ctx, workOrderID, "add services")
+	if err != nil {
+		return nil, err
 	}
 
 	batch := make([]*domain.WorkOrderService, 0, len(items))
@@ -132,15 +145,8 @@ func (s *workOrderCreationService) RemoveService(ctx context.Context, workOrderI
 		return ErrWorkOrderServiceOwnership
 	}
 
-	wo, err := s.woRepo.FindByID(ctx, workOrderID)
-	if err != nil {
-		return fmt.Errorf("remove service: find work order: %w", err)
-	}
-
-	if wo.Status == domain.WorkOrderStatusFinished ||
-		wo.Status == domain.WorkOrderStatusDelivered ||
-		wo.Status == domain.WorkOrderStatusCanceled {
-		return ErrWorkOrderInvalidStatusForItems
+	if _, err := s.ensureWorkOrderItemsCanChange(ctx, workOrderID, "remove service"); err != nil {
+		return err
 	}
 
 	if err := s.wosRepo.DeleteSuppliesByWorkOrderServiceID(ctx, wosID); err != nil {
@@ -163,15 +169,8 @@ func (s *workOrderCreationService) RemoveSupplyFromService(ctx context.Context, 
 		return ErrWorkOrderServiceOwnership
 	}
 
-	wo, err := s.woRepo.FindByID(ctx, workOrderID)
-	if err != nil {
-		return fmt.Errorf("remove supply: find work order: %w", err)
-	}
-
-	if wo.Status == domain.WorkOrderStatusFinished ||
-		wo.Status == domain.WorkOrderStatusDelivered ||
-		wo.Status == domain.WorkOrderStatusCanceled {
-		return ErrWorkOrderInvalidStatusForItems
+	if _, err := s.ensureWorkOrderItemsCanChange(ctx, workOrderID, "remove supply"); err != nil {
+		return err
 	}
 
 	if err := s.wosRepo.DeleteSupplyForWorkOrderService(ctx, wosID, supplyID); err != nil {
@@ -188,6 +187,10 @@ func (s *workOrderCreationService) AddSupplies(ctx context.Context, workOrderID,
 	}
 	if wos.WorkOrderID != workOrderID {
 		return nil, ErrWorkOrderServiceOwnership
+	}
+
+	if _, err := s.ensureWorkOrderItemsCanChange(ctx, workOrderID, "add supplies"); err != nil {
+		return nil, err
 	}
 
 	batch := make([]*domain.WorkOrderServiceSupply, 0, len(items))

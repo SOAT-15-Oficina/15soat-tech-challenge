@@ -965,11 +965,12 @@ func TestIntegration_Flow_CannotAddServicesInWrongStatus(t *testing.T) {
 	svcID := createTestWorkshopService(t, app, "Serviço de Teste", 5000, 15)
 	addServicesToWorkOrder(t, app, workOrderID, []string{svcID})
 
-	// Advance to AGUARDANDO_APROVACAO
+	// Advance through approval
 	transitionWorkOrder(t, app, workOrderID, "AGUARDANDO_APROVACAO")
+	transitionWorkOrder(t, app, workOrderID, "APROVADO")
 
 	// Try to add more services — should fail
-	t.Run("NaoPodeAdicionarServicosEmAguardandoAprovacao", func(t *testing.T) {
+	t.Run("NaoPodeAdicionarServicosAposAprovacao", func(t *testing.T) {
 		svc2ID := createTestWorkshopService(t, app, "Outro Serviço", 3000, 10)
 		resp, err := flowPostJSON(app,
 			fmt.Sprintf("/work-orders/%s/services", workOrderID),
@@ -977,7 +978,7 @@ func TestIntegration_Flow_CannotAddServicesInWrongStatus(t *testing.T) {
 		)
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusUnprocessableEntity, resp.StatusCode,
-			"should not allow adding services in AGUARDANDO_APROVACAO status")
+			"should not allow adding services after approval")
 	})
 }
 
@@ -1607,6 +1608,33 @@ func TestIntegration_Flow_BudgetGenerationAndNotification(t *testing.T) {
 				"email should contain individual reject link for each service")
 		}
 	})
+}
+
+func TestIntegration_Flow_AdjustmentWhileWaitingApprovalResendsBudget(t *testing.T) {
+	app, _, mockEmail := setupFlowAppWithBudget(t)
+	seedTestUser(t, app)
+
+	customerID := createTestCustomer(t, app, "Cliente Ajuste", "ajuste@example.com", "12345678909", "CPF")
+	vehicleID := createTestVehicle(t, app, customerID, "AJU1A23", "Fiat", "Toro", 2024)
+	workOrderID := createTestWorkOrder(t, app, "Ajuste orçamento", customerID, vehicleID)
+
+	svc1ID := createTestWorkshopService(t, app, "Serviço Ajuste A", 10000, 30)
+	addServicesToWorkOrder(t, app, workOrderID, []string{svc1ID})
+
+	transitionWorkOrder(t, app, workOrderID, "AGUARDANDO_APROVACAO")
+	require.Len(t, mockEmail.Messages(), 1)
+
+	svc2ID := createTestWorkshopService(t, app, "Serviço Ajuste B", 7000, 45)
+	resp, err := flowPostJSON(app,
+		fmt.Sprintf("/work-orders/%s/services", workOrderID),
+		[]map[string]any{{"service_id": svc2ID}},
+	)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
+
+	msgs := mockEmail.Messages()
+	require.Len(t, msgs, 2, "adjusting services while waiting approval should send a new budget")
+	assert.Contains(t, msgs[1].Body, "Serviço Ajuste B")
 }
 
 // =============================================================================
