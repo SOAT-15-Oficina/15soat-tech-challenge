@@ -68,6 +68,11 @@ func (m *mockRepo) HasWorkOrderLinks(ctx context.Context, id uuid.UUID) (bool, e
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *mockRepo) GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error) {
+	args := m.Called(ctx, filters)
+	return args.Get(0).([]domain.AvgExecutionTimeResult), args.Error(1)
+}
+
 func (m *mockRepo) SubtractSuppliesFromStock(ctx context.Context, serviceID uuid.UUID) error {
 	return m.Called(ctx, serviceID).Error(0)
 }
@@ -489,3 +494,34 @@ func TestCreate_RepoCreateError(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+func TestWorkshopService_GetAvgExecutionTime_Success(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+
+	filters := domain.AvgExecutionTimeFilters{}
+	expected := []domain.AvgExecutionTimeResult{
+		{ServiceID: uuid.New(), Title: "Troca de óleo", AvgRealTimeMinutes: 45.5, ExecutionCount: 10},
+	}
+
+	repo.On("GetAvgExecutionTime", ctx, filters).Return(expected, nil)
+
+	results, err := svc.GetAvgExecutionTime(ctx, filters)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, 45.5, results[0].AvgRealTimeMinutes)
+}
+
+func TestWorkshopService_GetAvgExecutionTime_RepoError(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+
+	filters := domain.AvgExecutionTimeFilters{}
+
+	repo.On("GetAvgExecutionTime", ctx, filters).Return([]domain.AvgExecutionTimeResult{}, errors.New("db error"))
+
+	results, err := svc.GetAvgExecutionTime(ctx, filters)
+	assert.Error(t, err)
+	assert.Empty(t, results)
+}

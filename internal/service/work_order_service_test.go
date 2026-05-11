@@ -367,35 +367,6 @@ func TestGetAllWithFilters_Error(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-func TestGetAvgExecutionTime_Success(t *testing.T) {
-	woRepo := new(mockWorkOrderRepo)
-	vehicleRepo := new(mockVehicleRepo)
-	svc := NewWorkOrderService(woRepo, vehicleRepo)
-	ctx := context.Background()
-
-	results := []domain.AvgExecutionTimeResult{
-		{ServiceID: uuid.New(), Title: "Service", EstimatedTimeMinutes: 30, AvgRealTimeMinutes: 25.5, ExecutionCount: 3},
-	}
-	woRepo.On("GetAvgExecutionTime", ctx, mock.Anything).Return(results, nil)
-
-	out, err := svc.GetAvgExecutionTime(ctx, domain.AvgExecutionTimeFilters{})
-	assert.NoError(t, err)
-	assert.Len(t, out, 1)
-}
-
-func TestGetAvgExecutionTime_Error(t *testing.T) {
-	woRepo := new(mockWorkOrderRepo)
-	vehicleRepo := new(mockVehicleRepo)
-	svc := NewWorkOrderService(woRepo, vehicleRepo)
-	ctx := context.Background()
-
-	woRepo.On("GetAvgExecutionTime", ctx, mock.Anything).Return(nil, errors.New("db error"))
-
-	out, err := svc.GetAvgExecutionTime(ctx, domain.AvgExecutionTimeFilters{})
-	assert.Error(t, err)
-	assert.Nil(t, out)
-}
-
 func TestCreate_MissingVehicleID_ReturnsError(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
 	vehicleRepo := new(mockVehicleRepo)

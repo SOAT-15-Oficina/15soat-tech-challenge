@@ -575,12 +575,11 @@ func TestStartService_Success_NoShortage(t *testing.T) {
 	wosRepo.On("HasSupplyShortagesForService", ctx, wosID).Return(false, nil)
 	wosRepo.On("MarkServiceAsStarted", ctx, wosID, mock.AnythingOfType("time.Time")).Return(nil)
 
-	delayAdded, err := svc.StartService(ctx, woID, wosID)
+	err := svc.StartService(ctx, woID, wosID)
 	assert.NoError(t, err)
-	assert.False(t, delayAdded)
 }
 
-func TestStartService_Success_WithShortage(t *testing.T) {
+func TestStartService_InsufficientStock(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
@@ -601,12 +600,9 @@ func TestStartService_Success_WithShortage(t *testing.T) {
 	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	wosRepo.On("HasSupplyShortagesForService", ctx, wosID).Return(true, nil)
-	woRepo.On("AddDeliveryDelay", ctx, woID, 2).Return(nil)
-	wosRepo.On("MarkServiceAsStarted", ctx, wosID, mock.AnythingOfType("time.Time")).Return(nil)
 
-	delayAdded, err := svc.StartService(ctx, woID, wosID)
-	assert.NoError(t, err)
-	assert.True(t, delayAdded)
+	err := svc.StartService(ctx, woID, wosID)
+	assert.ErrorIs(t, err, ErrInsufficientStock)
 }
 
 func TestStartService_WrongWorkOrder(t *testing.T) {
@@ -623,7 +619,7 @@ func TestStartService_WrongWorkOrder(t *testing.T) {
 	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: uuid.New()}
 	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
 
-	_, err := svc.StartService(ctx, woID, wosID)
+	err := svc.StartService(ctx, woID, wosID)
 	assert.ErrorIs(t, err, ErrWorkOrderServiceOwnership)
 }
 
@@ -648,7 +644,7 @@ func TestStartService_NotInProgress(t *testing.T) {
 	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 
-	_, err := svc.StartService(ctx, woID, wosID)
+	err := svc.StartService(ctx, woID, wosID)
 	assert.ErrorIs(t, err, ErrWorkOrderNotInProgress)
 }
 
@@ -673,7 +669,7 @@ func TestStartService_NotApproved(t *testing.T) {
 	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 
-	_, err := svc.StartService(ctx, woID, wosID)
+	err := svc.StartService(ctx, woID, wosID)
 	assert.ErrorIs(t, err, ErrServiceNotApproved)
 }
 
@@ -698,7 +694,7 @@ func TestStartService_NotPending(t *testing.T) {
 	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 
-	_, err := svc.StartService(ctx, woID, wosID)
+	err := svc.StartService(ctx, woID, wosID)
 	assert.ErrorIs(t, err, ErrServiceNotPending)
 }
 
@@ -714,7 +710,7 @@ func TestStartService_FindWosFails(t *testing.T) {
 	wosID := uuid.New()
 	wosRepo.On("FindByID", ctx, wosID).Return(nil, errors.New("db error"))
 
-	_, err := svc.StartService(ctx, uuid.New(), wosID)
+	err := svc.StartService(ctx, uuid.New(), wosID)
 	assert.Error(t, err)
 }
 
@@ -740,7 +736,7 @@ func TestStartService_CheckStockFails(t *testing.T) {
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	wosRepo.On("HasSupplyShortagesForService", ctx, wosID).Return(false, errors.New("db error"))
 
-	_, err := svc.StartService(ctx, woID, wosID)
+	err := svc.StartService(ctx, woID, wosID)
 	assert.Error(t, err)
 }
 
@@ -767,7 +763,7 @@ func TestStartService_AddDeliveryDelayFails(t *testing.T) {
 	wosRepo.On("HasSupplyShortagesForService", ctx, wosID).Return(true, nil)
 	woRepo.On("AddDeliveryDelay", ctx, woID, 2).Return(errors.New("db error"))
 
-	_, err := svc.StartService(ctx, woID, wosID)
+	err := svc.StartService(ctx, woID, wosID)
 	assert.Error(t, err)
 }
 
@@ -794,7 +790,7 @@ func TestStartService_MarkAsStartedFails(t *testing.T) {
 	wosRepo.On("HasSupplyShortagesForService", ctx, wosID).Return(false, nil)
 	wosRepo.On("MarkServiceAsStarted", ctx, wosID, mock.AnythingOfType("time.Time")).Return(errors.New("db error"))
 
-	_, err := svc.StartService(ctx, woID, wosID)
+	err := svc.StartService(ctx, woID, wosID)
 	assert.Error(t, err)
 }
 
@@ -1391,6 +1387,6 @@ func TestStartService_FindWorkOrderFails(t *testing.T) {
 	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
 	woRepo.On("FindByID", ctx, woID).Return(nil, errors.New("db error"))
 
-	_, err := svc.StartService(ctx, woID, wosID)
+	err := svc.StartService(ctx, woID, wosID)
 	assert.Error(t, err)
 }
