@@ -37,7 +37,9 @@ type WorkOrderCreationService interface {
 	AddSupplies(ctx context.Context, workOrderID, wosID uuid.UUID, items []AddWorkOrderSupplyInput) ([]domain.WorkOrderServiceSupply, error)
 	RemoveSupplyFromService(ctx context.Context, workOrderID, wosID, supplyID uuid.UUID) error
 	RemoveService(ctx context.Context, workOrderID, wosID uuid.UUID) error
-	StartService(ctx context.Context, workOrderID, wosID uuid.UUID) error
+	// StartService returns (delayAdded bool, err error). delayAdded=true means stock
+	// was insufficient and a 2-day delay was added to the work order's expected delivery.
+	StartService(ctx context.Context, workOrderID, wosID uuid.UUID) (bool, error)
 	FinalizeService(ctx context.Context, workOrderID, wosID uuid.UUID) error
 }
 
@@ -219,41 +221,45 @@ func (s *workOrderCreationService) AddSupplies(ctx context.Context, workOrderID,
 	return result, nil
 }
 
-func (s *workOrderCreationService) StartService(ctx context.Context, workOrderID, wosID uuid.UUID) error {
+func (s *workOrderCreationService) StartService(ctx context.Context, workOrderID, wosID uuid.UUID) (bool, error) {
 	wos, err := s.wosRepo.FindByID(ctx, wosID)
 	if err != nil {
-		return fmt.Errorf("start service: find: %w", err)
+		return false, fmt.Errorf("start service: find: %w", err)
 	}
 	if wos.WorkOrderID != workOrderID {
-		return ErrWorkOrderServiceOwnership
+		return false, ErrWorkOrderServiceOwnership
 	}
 
 	wo, err := s.woRepo.FindByID(ctx, workOrderID)
 	if err != nil {
-		return fmt.Errorf("start service: find work order: %w", err)
+		return false, fmt.Errorf("start service: find work order: %w", err)
 	}
 	if wo.Status != domain.WorkOrderStatusInProgress {
-		return ErrWorkOrderNotInProgress
+		return false, ErrWorkOrderNotInProgress
 	}
 	if wos.ApprovalStatus != domain.WorkOrderServiceApprovalApproved {
-		return ErrServiceNotApproved
+		return false, ErrServiceNotApproved
 	}
 	if wos.Status != domain.WorkOrderServiceStatusPending {
-		return ErrServiceNotPending
+		return false, ErrServiceNotPending
 	}
 
+	delayAdded := false
 	hasShortage, err := s.wosRepo.HasSupplyShortagesForService(ctx, wosID)
 	if err != nil {
-		return fmt.Errorf("start service: check stock: %w", err)
+		return false, fmt.Errorf("start service: check stock: %w", err)
 	}
 	if hasShortage {
-		return ErrInsufficientStock
+		if err := s.woRepo.AddDeliveryDelay(ctx, workOrderID, 2); err != nil {
+			return false, fmt.Errorf("start service: add delivery delay: %w", err)
+		}
+		delayAdded = true
 	}
 
 	if err := s.wosRepo.MarkServiceAsStarted(ctx, wosID, time.Now()); err != nil {
-		return fmt.Errorf("start service: update: %w", err)
+		return false, fmt.Errorf("start service: update: %w", err)
 	}
-	return nil
+	return delayAdded, nil
 }
 
 func (s *workOrderCreationService) FinalizeService(ctx context.Context, workOrderID, wosID uuid.UUID) error {

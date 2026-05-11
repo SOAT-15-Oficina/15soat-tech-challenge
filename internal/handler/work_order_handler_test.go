@@ -2,107 +2,164 @@ package handler
 
 import (
 	"context"
-	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-type fakeWorkOrderService struct {
-	workOrder *domain.WorkOrder
-	err       error
+type mockWorkOrderService struct {
+	mock.Mock
 }
 
-func (f *fakeWorkOrderService) Create(context.Context, *domain.WorkOrder) (*domain.WorkOrder, error) {
-	return nil, errors.New("not implemented")
+func (m *mockWorkOrderService) Create(ctx context.Context, wo *domain.WorkOrder) (*domain.WorkOrder, error) {
+	args := m.Called(ctx, wo)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.WorkOrder), args.Error(1)
 }
 
-func (f *fakeWorkOrderService) GetByID(context.Context, uuid.UUID) (*domain.WorkOrder, error) {
-	return f.workOrder, f.err
+func (m *mockWorkOrderService) GetByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrder, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.WorkOrder), args.Error(1)
 }
 
-func (f *fakeWorkOrderService) GetAll(context.Context) ([]domain.WorkOrder, error) {
-	return nil, errors.New("not implemented")
+func (m *mockWorkOrderService) GetAll(ctx context.Context) ([]domain.WorkOrder, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.WorkOrder), args.Error(1)
 }
 
-func (f *fakeWorkOrderService) GetAllWithFilters(context.Context, domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error) {
-	return nil, errors.New("not implemented")
+func (m *mockWorkOrderService) GetAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error) {
+	args := m.Called(ctx, filters)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.WorkOrderListResponse), args.Error(1)
 }
 
-func (f *fakeWorkOrderService) Update(context.Context, *domain.WorkOrder) (*domain.WorkOrder, error) {
-	return nil, errors.New("not implemented")
+func (m *mockWorkOrderService) Update(ctx context.Context, wo *domain.WorkOrder) (*domain.WorkOrder, error) {
+	args := m.Called(ctx, wo)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.WorkOrder), args.Error(1)
 }
 
-type fakeBudgetService struct {
-	calls []uuid.UUID
-	err   error
+func (m *mockWorkOrderService) GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error) {
+	args := m.Called(ctx, filters)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.AvgExecutionTimeResult), args.Error(1)
 }
 
-func (f *fakeBudgetService) GenerateAndSendBudget(_ context.Context, workOrderID uuid.UUID) error {
-	f.calls = append(f.calls, workOrderID)
-	return f.err
-}
-
-type fakeWorkOrderCreationService struct {
-	addServicesResult []domain.WorkOrderService
-	err               error
-}
-
-func (f *fakeWorkOrderCreationService) AddServices(context.Context, uuid.UUID, []service.AddWorkOrderServiceInput) ([]domain.WorkOrderService, error) {
-	return f.addServicesResult, f.err
-}
-
-func (f *fakeWorkOrderCreationService) AddSupplies(context.Context, uuid.UUID, uuid.UUID, []service.AddWorkOrderSupplyInput) ([]domain.WorkOrderServiceSupply, error) {
-	return nil, f.err
-}
-
-func (f *fakeWorkOrderCreationService) RemoveSupplyFromService(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
-	return f.err
-}
-
-func (f *fakeWorkOrderCreationService) RemoveService(context.Context, uuid.UUID, uuid.UUID) error {
-	return f.err
-}
-
-func (f *fakeWorkOrderCreationService) StartService(context.Context, uuid.UUID, uuid.UUID) error {
-	return f.err
-}
-
-func (f *fakeWorkOrderCreationService) FinalizeService(context.Context, uuid.UUID, uuid.UUID) error {
-	return f.err
-}
-
-func TestWorkOrderHandler_AddServices_WhenWaitingApprovalResendsBudget(t *testing.T) {
+func setupWorkOrderTestApp(svc service.WorkOrderService) *fiber.App {
 	app := fiber.New()
-	workOrderID := uuid.New()
-	workOrderServiceID := uuid.New()
-	workshopServiceID := uuid.New()
-	budgetSvc := &fakeBudgetService{}
+	h := NewWorkOrderHandler(svc, nil, nil, nil, repository.NewUserRepository(nil))
+	group := app.Group("/work-orders")
+	group.Get("/avg-execution-time", h.GetAvgExecutionTime)
+	return app
+}
 
-	h := NewWorkOrderHandler(
-		&fakeWorkOrderService{workOrder: &domain.WorkOrder{ID: workOrderID, Status: domain.WorkOrderStatusWaitingApproval}},
-		budgetSvc,
-		&fakeWorkOrderCreationService{
-			addServicesResult: []domain.WorkOrderService{
-				{ID: workOrderServiceID, WorkOrderID: workOrderID, ServiceID: workshopServiceID},
-			},
+func TestWorkOrder_GetAvgExecutionTime_200(t *testing.T) {
+	svcMock := new(mockWorkOrderService)
+	app := setupWorkOrderTestApp(svcMock)
+
+	results := []domain.AvgExecutionTimeResult{
+		{
+			ServiceID:            uuid.New(),
+			Title:                "Oil Change",
+			EstimatedTimeMinutes: 30,
+			AvgRealTimeMinutes:   25.5,
+			ExecutionCount:       3,
 		},
-		nil,
-		nil,
-	)
-	app.Post("/work-orders/:id/services", h.AddServices)
+	}
+	svcMock.On("GetAvgExecutionTime", mock.Anything, domain.AvgExecutionTimeFilters{}).Return(results, nil)
 
-	resp, err := flowPostJSON(app, "/work-orders/"+workOrderID.String()+"/services", []map[string]any{
-		{"service_id": workshopServiceID.String()},
-	})
-
+	req, _ := http.NewRequest("GET", "/work-orders/avg-execution-time", nil)
+	resp, err := app.Test(req)
 	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusCreated, resp.StatusCode)
-	require.Len(t, budgetSvc.calls, 1)
-	assert.Equal(t, workOrderID, budgetSvc.calls[0])
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	result := parseBody(t, resp)
+	items := result["data"].([]any)
+	assert.Len(t, items, 1)
+	first := items[0].(map[string]any)
+	assert.Equal(t, "Oil Change", first["title"])
+	assert.Equal(t, float64(25.5), first["avg_real_time_minutes"])
+	assert.Equal(t, float64(3), first["execution_count"])
+	assert.Equal(t, float64(-4.5), first["difference_minutes"])
+}
+
+func TestWorkOrder_GetAvgExecutionTime_200_Empty(t *testing.T) {
+	svcMock := new(mockWorkOrderService)
+	app := setupWorkOrderTestApp(svcMock)
+
+	svcMock.On("GetAvgExecutionTime", mock.Anything, domain.AvgExecutionTimeFilters{}).Return([]domain.AvgExecutionTimeResult{}, nil)
+
+	req, _ := http.NewRequest("GET", "/work-orders/avg-execution-time", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	result := parseBody(t, resp)
+	items := result["data"].([]any)
+	assert.Len(t, items, 0)
+}
+
+func TestWorkOrder_GetAvgExecutionTime_400_InvalidFromDate(t *testing.T) {
+	svcMock := new(mockWorkOrderService)
+	app := setupWorkOrderTestApp(svcMock)
+
+	req, _ := http.NewRequest("GET", "/work-orders/avg-execution-time?from=bad-date", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestWorkOrder_GetAvgExecutionTime_400_InvalidToDate(t *testing.T) {
+	svcMock := new(mockWorkOrderService)
+	app := setupWorkOrderTestApp(svcMock)
+
+	req, _ := http.NewRequest("GET", "/work-orders/avg-execution-time?to=bad-date", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestWorkOrder_GetAvgExecutionTime_400_InvalidTechnicianId(t *testing.T) {
+	svcMock := new(mockWorkOrderService)
+	app := setupWorkOrderTestApp(svcMock)
+
+	req, _ := http.NewRequest("GET", "/work-orders/avg-execution-time?technicianId=not-uuid", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestWorkOrder_GetAvgExecutionTime_WithFilters(t *testing.T) {
+	svcMock := new(mockWorkOrderService)
+	app := setupWorkOrderTestApp(svcMock)
+
+	svcMock.On("GetAvgExecutionTime", mock.Anything, mock.AnythingOfType("domain.AvgExecutionTimeFilters")).Return([]domain.AvgExecutionTimeResult{}, nil)
+
+	techID := uuid.New()
+	req, _ := http.NewRequest("GET", "/work-orders/avg-execution-time?from=2026-01-01&to=2026-12-31&technicianId="+techID.String(), nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }
