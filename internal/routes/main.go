@@ -80,7 +80,6 @@ func registerWorkshopService(app *fiber.App, db *pgxpool.Pool, jwtSecretKey stri
 
 	group := app.Group("/services", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
 	group.Post("/", wsHandler.Create)
-	group.Get("/avg-execution-time", wsHandler.GetAvgExecutionTime)
 	group.Get("/", wsHandler.GetAll)
 	group.Get("/:id", wsHandler.GetByID)
 	group.Put("/:id", wsHandler.Update)
@@ -119,6 +118,7 @@ func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string, em
 
 	group := app.Group("/work-orders", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
 	group.Post("/", workOrderHandler.Create)
+	group.Get("/avg-execution-time", workOrderHandler.GetAvgExecutionTime)
 	group.Get("/", workOrderHandler.GetAll)
 	group.Get("/:id", workOrderHandler.GetByID)
 	group.Put("/:id", workOrderHandler.Update)
