@@ -329,18 +329,26 @@ func (h *WorkOrderHandler) StartService(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid work order service id"})
 	}
-	if err := h.creationSvc.StartService(c.Context(), id, wosID); err != nil {
+	delayAdded, err := h.creationSvc.StartService(c.Context(), id, wosID)
+	if err != nil {
 		if errors.Is(err, service.ErrWorkOrderServiceOwnership) ||
 			errors.Is(err, service.ErrWorkOrderNotInProgress) ||
 			errors.Is(err, service.ErrServiceNotPending) ||
-			errors.Is(err, service.ErrServiceNotApproved) ||
-			errors.Is(err, service.ErrInsufficientStock) {
+			errors.Is(err, service.ErrServiceNotApproved) {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
 		}
 		if handled, resp := dbErrResponse(c, err, "resource not found"); handled {
 			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	if delayAdded {
+		return c.JSON(fiber.Map{
+			"message":     "Servico iniciado com sucesso",
+			"delay_added": true,
+			"delay_days":  2,
+			"reason":      "Estoque insuficiente para os insumos do servico. Prazo de entrega estendido em 2 dias.",
+		})
 	}
 	return c.JSON(fiber.Map{"message": "Servico iniciado com sucesso"})
 }

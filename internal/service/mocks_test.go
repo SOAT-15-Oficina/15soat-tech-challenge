@@ -63,6 +63,10 @@ func (m *mockWorkOrderRepo) Update(ctx context.Context, wo *domain.WorkOrder) (*
 	return args.Get(0).(*domain.WorkOrder), args.Error(1)
 }
 
+func (m *mockWorkOrderRepo) AddDeliveryDelay(ctx context.Context, workOrderID uuid.UUID, days int) error {
+	return m.Called(ctx, workOrderID, days).Error(0)
+}
+
 func (m *mockWorkOrderRepo) GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error) {
 	args := m.Called(ctx, filters)
 	if args.Get(0) == nil {

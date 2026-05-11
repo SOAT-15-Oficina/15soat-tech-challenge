@@ -18,6 +18,7 @@ type WorkOrderRepository interface {
 	FindAll(ctx context.Context) ([]domain.WorkOrder, error)
 	FindAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error)
 	Update(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
+	AddDeliveryDelay(ctx context.Context, workOrderID uuid.UUID, days int) error
 	GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error)
 }
 
@@ -32,18 +33,18 @@ func NewWorkOrderRepository(db *pgxpool.Pool) WorkOrderRepository {
 func (r *workOrderRepository) Create(ctx context.Context, wo *domain.WorkOrder) (*domain.WorkOrder, error) {
 	query := `
 		INSERT INTO work_orders (
-			id, code, title, description, customer_id, vehicle_id, opened_by_user_id, 
-			assigned_technician_id, status, total_estimated_price_cents, received_at, 
-			quote_sent_at, approved_at, started_at, finished_at, delivered_at, 
+			id, code, title, description, customer_id, vehicle_id, opened_by_user_id,
+			assigned_technician_id, status, total_estimated_price_cents, received_at,
+			quote_sent_at, approved_at, started_at, finished_at, delivered_at,
 			created_at, updated_at
 		)
 		VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
 		)
-		RETURNING 
-			id, code, title, description, customer_id, vehicle_id, opened_by_user_id, 
-			assigned_technician_id, status, total_estimated_price_cents, received_at, 
-			quote_sent_at, approved_at, started_at, finished_at, delivered_at, 
+		RETURNING
+			id, code, title, description, customer_id, vehicle_id, opened_by_user_id,
+			assigned_technician_id, status, total_estimated_price_cents, received_at,
+			quote_sent_at, approved_at, started_at, finished_at, delivered_at,
 			created_at, updated_at`
 
 	if wo.ID == uuid.Nil {
@@ -78,10 +79,10 @@ func (r *workOrderRepository) Create(ctx context.Context, wo *domain.WorkOrder) 
 
 func (r *workOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrder, error) {
 	query := `
-		SELECT 
-			wo.id, wo.code, wo.title, wo.description, wo.customer_id, wo.vehicle_id, wo.opened_by_user_id, 
-			wo.assigned_technician_id, wo.status, wo.total_estimated_price_cents, wo.received_at, 
-			wo.quote_sent_at, wo.approved_at, wo.started_at, wo.finished_at, wo.delivered_at, 
+		SELECT
+			wo.id, wo.code, wo.title, wo.description, wo.customer_id, wo.vehicle_id, wo.opened_by_user_id,
+			wo.assigned_technician_id, wo.status, wo.total_estimated_price_cents, wo.received_at,
+			wo.quote_sent_at, wo.approved_at, wo.started_at, wo.finished_at, wo.delivered_at,
 			wo.created_at, wo.updated_at,
 			c.id, c.name, c.document,
 			v.id, v.license_plate, v.brand, v.model, v.year
@@ -147,10 +148,10 @@ func (r *workOrderRepository) FindByCode(ctx context.Context, code string) (*dom
 
 func (r *workOrderRepository) FindAll(ctx context.Context) ([]domain.WorkOrder, error) {
 	query := `
-		SELECT 
-			id, code, title, description, customer_id, vehicle_id, opened_by_user_id, 
-			assigned_technician_id, status, total_estimated_price_cents, received_at, 
-			quote_sent_at, approved_at, started_at, finished_at, delivered_at, 
+		SELECT
+			id, code, title, description, customer_id, vehicle_id, opened_by_user_id,
+			assigned_technician_id, status, total_estimated_price_cents, received_at,
+			quote_sent_at, approved_at, started_at, finished_at, delivered_at,
 			created_at, updated_at
 		FROM work_orders
 		ORDER BY created_at DESC`
@@ -180,17 +181,17 @@ func (r *workOrderRepository) FindAll(ctx context.Context) ([]domain.WorkOrder, 
 func (r *workOrderRepository) Update(ctx context.Context, wo *domain.WorkOrder) (*domain.WorkOrder, error) {
 	query := `
 		UPDATE work_orders
-		SET 
-			code = $1, title = $2, description = $3, customer_id = $4, vehicle_id = $5, 
-			opened_by_user_id = $6, assigned_technician_id = $7, status = $8, 
-			total_estimated_price_cents = $9, received_at = $10, quote_sent_at = $11, 
-			approved_at = $12, started_at = $13, finished_at = $14, delivered_at = $15, 
+		SET
+			code = $1, title = $2, description = $3, customer_id = $4, vehicle_id = $5,
+			opened_by_user_id = $6, assigned_technician_id = $7, status = $8,
+			total_estimated_price_cents = $9, received_at = $10, quote_sent_at = $11,
+			approved_at = $12, started_at = $13, finished_at = $14, delivered_at = $15,
 			updated_at = $16
 		WHERE id = $17
-		RETURNING 
-			id, code, title, description, customer_id, vehicle_id, opened_by_user_id, 
-			assigned_technician_id, status, total_estimated_price_cents, received_at, 
-			quote_sent_at, approved_at, started_at, finished_at, delivered_at, 
+		RETURNING
+			id, code, title, description, customer_id, vehicle_id, opened_by_user_id,
+			assigned_technician_id, status, total_estimated_price_cents, received_at,
+			quote_sent_at, approved_at, started_at, finished_at, delivered_at,
 			created_at, updated_at`
 
 	wo.UpdatedAt = time.Now()
@@ -263,10 +264,10 @@ func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters do
 	args = append(args, filters.Limit, offset)
 
 	query := fmt.Sprintf(`
-		SELECT 
-			wo.id, wo.code, wo.title, wo.description, wo.customer_id, wo.vehicle_id, wo.opened_by_user_id, 
-			wo.assigned_technician_id, wo.status, wo.total_estimated_price_cents, wo.received_at, 
-			wo.quote_sent_at, wo.approved_at, wo.started_at, wo.finished_at, wo.delivered_at, 
+		SELECT
+			wo.id, wo.code, wo.title, wo.description, wo.customer_id, wo.vehicle_id, wo.opened_by_user_id,
+			wo.assigned_technician_id, wo.status, wo.total_estimated_price_cents, wo.received_at,
+			wo.quote_sent_at, wo.approved_at, wo.started_at, wo.finished_at, wo.delivered_at,
 			wo.created_at, wo.updated_at,
 			c.id, c.name, c.document,
 			v.id, v.license_plate, v.brand, v.model, v.year
@@ -318,6 +319,18 @@ func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters do
 		Limit:      filters.Limit,
 		TotalPages: totalPages,
 	}, nil
+}
+
+func (r *workOrderRepository) AddDeliveryDelay(ctx context.Context, workOrderID uuid.UUID, days int) error {
+	query := `
+		UPDATE work_orders
+		SET
+			delivered_at = COALESCE(delivered_at, NOW()) + ($1 || ' days')::interval,
+			updated_at = NOW()
+		WHERE id = $2`
+
+	_, err := r.db.Exec(ctx, query, days, workOrderID)
+	return err
 }
 
 func (r *workOrderRepository) GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error) {
