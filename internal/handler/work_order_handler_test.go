@@ -610,6 +610,7 @@ func TestWorkOrder_RemoveService_Success(t *testing.T) {
 	woID := uuid.New()
 	wosID := uuid.New()
 	deps.creationSvc.On("RemoveService", mock.Anything, woID, wosID).Return(nil)
+	deps.woSvc.On("GetByID", mock.Anything, woID).Return(&domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInDiagnosis}, nil)
 
 	req := httptest.NewRequest(http.MethodDelete, "/work-orders/"+woID.String()+"/services/"+wosID.String(), nil)
 	r, err := app.Test(req)
