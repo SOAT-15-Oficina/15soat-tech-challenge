@@ -325,7 +325,7 @@ func (r *workOrderRepository) AddDeliveryDelay(ctx context.Context, workOrderID 
 	query := `
 		UPDATE work_orders
 		SET
-			delivered_at = COALESCE(delivered_at, NOW()) + ($1 || ' days')::interval,
+			delivered_at = COALESCE(delivered_at, NOW()) + make_interval(days => $1),
 			updated_at = NOW()
 		WHERE id = $2`
 
