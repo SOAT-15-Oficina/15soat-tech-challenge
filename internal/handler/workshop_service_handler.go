@@ -2,9 +2,7 @@ package handler
 
 import (
 	"errors"
-	"math"
 	"strconv"
-	"time"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
@@ -42,15 +40,6 @@ type workshopServiceListResponse struct {
 	Total int                       `json:"total"`
 }
 
-type avgExecutionTimeResponse struct {
-	ServiceID            uuid.UUID `json:"service_id"`
-	Title                string    `json:"title"`
-	EstimatedTimeMinutes int       `json:"estimated_time_minutes"`
-	AvgRealTimeMinutes   float64   `json:"avg_real_time_minutes"`
-	ExecutionCount       int       `json:"execution_count"`
-	DifferenceMinutes    float64   `json:"difference_minutes"`
-}
-
 func NewWorkshopServiceHandler(svc service.WorkshopServiceService) *WorkshopServiceHandler {
 	return &WorkshopServiceHandler{svc: svc}
 }
@@ -58,7 +47,6 @@ func NewWorkshopServiceHandler(svc service.WorkshopServiceService) *WorkshopServ
 func (h *WorkshopServiceHandler) RegisterRoutes(app *fiber.App) {
 	group := app.Group("/services")
 	group.Post("/", h.Create)
-	group.Get("/avg-execution-time", h.GetAvgExecutionTime)
 	group.Get("/", h.GetAll)
 	group.Get("/:id", h.GetByID)
 	group.Put("/:id", h.Update)
@@ -165,63 +153,6 @@ func (h *WorkshopServiceHandler) Delete(c fiber.Ctx) error {
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
-}
-
-func (h *WorkshopServiceHandler) GetAvgExecutionTime(c fiber.Ctx) error {
-	filters, err := parseAvgExecutionTimeFilters(c)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	results, err := h.svc.GetAvgExecutionTime(c.Context(), filters)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	items := make([]avgExecutionTimeResponse, 0, len(results))
-	for _, r := range results {
-		items = append(items, avgExecutionTimeResponse{
-			ServiceID:            r.ServiceID,
-			Title:                r.Title,
-			EstimatedTimeMinutes: r.EstimatedTimeMinutes,
-			AvgRealTimeMinutes:   math.Round(r.AvgRealTimeMinutes*100) / 100,
-			ExecutionCount:       r.ExecutionCount,
-			DifferenceMinutes:    math.Round((r.AvgRealTimeMinutes-float64(r.EstimatedTimeMinutes))*100) / 100,
-		})
-	}
-
-	return c.JSON(fiber.Map{"data": items})
-}
-
-func parseAvgExecutionTimeFilters(c fiber.Ctx) (domain.AvgExecutionTimeFilters, error) {
-	var filters domain.AvgExecutionTimeFilters
-
-	if v := c.Query("from"); v != "" {
-		t, err := time.Parse("2006-01-02", v)
-		if err != nil {
-			return filters, errors.New("from must be in format YYYY-MM-DD")
-		}
-		filters.From = &t
-	}
-
-	if v := c.Query("to"); v != "" {
-		t, err := time.Parse("2006-01-02", v)
-		if err != nil {
-			return filters, errors.New("to must be in format YYYY-MM-DD")
-		}
-		endOfDay := t.Add(24*time.Hour - time.Nanosecond)
-		filters.To = &endOfDay
-	}
-
-	if v := c.Query("technicianId"); v != "" {
-		id, err := uuid.Parse(v)
-		if err != nil {
-			return filters, errors.New("technicianId must be a valid UUID")
-		}
-		filters.TechnicianID = &id
-	}
-
-	return filters, nil
 }
 
 func (h *WorkshopServiceHandler) handleServiceError(c fiber.Ctx, err error) error {

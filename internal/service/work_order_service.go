@@ -20,6 +20,7 @@ type WorkOrderService interface {
 	GetAll(ctx context.Context) ([]domain.WorkOrder, error)
 	GetAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error)
 	Update(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
+	GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error)
 }
 
 type workOrderService struct {
@@ -121,4 +122,8 @@ func (s *workOrderService) GetAllWithFilters(ctx context.Context, filters domain
 	}
 
 	return s.repo.FindAllWithFilters(ctx, filters)
+}
+
+func (s *workOrderService) GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error) {
+	return s.repo.GetAvgExecutionTime(ctx, filters)
 }

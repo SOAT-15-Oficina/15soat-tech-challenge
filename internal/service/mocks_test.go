@@ -63,6 +63,14 @@ func (m *mockWorkOrderRepo) Update(ctx context.Context, wo *domain.WorkOrder) (*
 	return args.Get(0).(*domain.WorkOrder), args.Error(1)
 }
 
+func (m *mockWorkOrderRepo) GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error) {
+	args := m.Called(ctx, filters)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.AvgExecutionTimeResult), args.Error(1)
+}
+
 // mockWorkOrderServiceRepo mocks repository.WorkOrderServiceRepository
 type mockWorkOrderServiceRepo struct {
 	mock.Mock
@@ -286,11 +294,6 @@ func (m *mockWorkshopServiceRepo) ExistsByTitle(ctx context.Context, title strin
 func (m *mockWorkshopServiceRepo) HasWorkOrderLinks(ctx context.Context, id uuid.UUID) (bool, error) {
 	args := m.Called(ctx, id)
 	return args.Bool(0), args.Error(1)
-}
-
-func (m *mockWorkshopServiceRepo) GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error) {
-	args := m.Called(ctx, filters)
-	return args.Get(0).([]domain.AvgExecutionTimeResult), args.Error(1)
 }
 
 func (m *mockWorkshopServiceRepo) SubtractSuppliesFromStock(ctx context.Context, serviceID uuid.UUID) error {
