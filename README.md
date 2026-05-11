@@ -67,31 +67,26 @@ customers           │
   └── vehicles      │
                     │
 services            │
-  └── service_supplies │
-        └── supplies   │
                     │
-work_orders ────────┤
-  ├── work_order_services
-  │     └── work_order_service_items
-  ├── work_order_status_history
-  └── inventory_movements
+supplies            │
+                    │
+work_orders ────────┘
+  └── work_order_services
+        └── work_order_service_supplies
 ```
 
 ### Tabelas
 
-| Tabela                      | Função                                                                                                                                                    |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `users`                     | Usuários administrativos do sistema (atendente, mecânico, administrador, controlador de estoque). Base para autenticação JWT e rastreabilidade das ações. |
-| `customers`                 | Dados dos clientes da oficina (nome, documento, contatos). Usada no cadastro e identificação do cliente para abertura da ordem de serviço.                |
-| `vehicles`                  | Veículos vinculados aos clientes (placa, marca, modelo, ano). Permite associar um veículo a uma ordem de serviço.                                         |
-| `services`                  | Catálogo de serviços oferecidos pela oficina (troca de óleo, alinhamento, etc). Guarda preço base e tempo estimado de execução.                           |
-| `supplies`                  | Peças e insumos cadastrados no sistema. Controla quantidade em estoque e disponibilidade para execução dos serviços.                                      |
-| `service_supplies`          | Composição padrão de um serviço: quais peças/insumos são normalmente necessários e em qual quantidade.                                                    |
-| `work_orders`               | Ordem de serviço principal. Centraliza o atendimento ligando cliente, veículo, status, técnico responsável e dados do orçamento/execução.                 |
-| `work_order_services`       | Cada serviço incluído em uma ordem de serviço. Controla aprovação, execução, técnico responsável, tempo e preço no contexto daquela OS.                   |
-| `work_order_service_items`  | Itens previstos ou utilizados em cada serviço de uma OS. Snapshot operacional, separado da composição padrão do catálogo.                                 |
-| `inventory_movements`       | Movimentações de estoque (entrada, saída, ajuste). Mantém histórico para auditoria e rastreio de baixas de peças e insumos.                               |
-| `work_order_status_history` | Histórico de mudança de status da OS, permitindo rastrear a evolução (recebida, em diagnóstico, em execução, entregue, etc).                              |
+| Tabela                         | Função                                                                                                                                                    |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `users`                        | Usuários administrativos do sistema (atendente, mecânico, administrador, controlador de estoque). Base para autenticação JWT e rastreabilidade das ações. |
+| `customers`                    | Dados dos clientes da oficina (nome, documento, contatos). Usada no cadastro e identificação do cliente para abertura da ordem de serviço.                |
+| `vehicles`                     | Veículos vinculados aos clientes (placa, marca, modelo, ano). Permite associar um veículo a uma ordem de serviço.                                         |
+| `services`                     | Catálogo de serviços oferecidos pela oficina (troca de óleo, alinhamento, etc). Guarda preço base e tempo estimado de execução.                           |
+| `supplies`                     | Peças e insumos cadastrados no sistema. Controla quantidade em estoque e disponibilidade para execução dos serviços.                                      |
+| `work_orders`                  | Ordem de serviço principal. Centraliza o atendimento ligando cliente, veículo, status, técnico responsável e dados do orçamento/execução.                 |
+| `work_order_services`          | Cada serviço incluído em uma ordem de serviço. Controla aprovação, execução, tempo e preço no contexto daquela OS.                                        |
+| `work_order_service_supplies`  | Peças/insumos previstos ou utilizados em cada serviço de uma OS. Snapshot operacional com quantidade e preço no momento da inclusão.                       |
 
 ## Convenções da API
 
