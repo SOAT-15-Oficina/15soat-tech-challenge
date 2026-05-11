@@ -558,6 +558,7 @@ func TestWorkOrder_AddServices_Success(t *testing.T) {
 	woID := uuid.New()
 	result := []domain.WorkOrderService{{ID: uuid.New(), WorkOrderID: woID}}
 	deps.creationSvc.On("AddServices", mock.Anything, woID, mock.Anything).Return(result, nil)
+	deps.woSvc.On("GetByID", mock.Anything, woID).Return(&domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInDiagnosis}, nil)
 
 	body, _ := json.Marshal([]map[string]any{{"service_id": uuid.New()}})
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/"+woID.String()+"/services", bytes.NewReader(body))
@@ -664,6 +665,7 @@ func TestWorkOrder_AddSupplies_Success(t *testing.T) {
 	wosID := uuid.New()
 	result := []domain.WorkOrderServiceSupply{{ID: uuid.New()}}
 	deps.creationSvc.On("AddSupplies", mock.Anything, woID, wosID, mock.Anything).Return(result, nil)
+	deps.woSvc.On("GetByID", mock.Anything, woID).Return(&domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInDiagnosis}, nil)
 
 	body, _ := json.Marshal([]map[string]any{{"supply_id": uuid.New(), "quantity": 2}})
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/"+woID.String()+"/services/"+wosID.String()+"/supplies", bytes.NewReader(body))
@@ -712,6 +714,7 @@ func TestWorkOrder_StartService_Success(t *testing.T) {
 	woID := uuid.New()
 	wosID := uuid.New()
 	deps.creationSvc.On("StartService", mock.Anything, woID, wosID).Return(false, nil)
+	deps.woSvc.On("GetByID", mock.Anything, woID).Return(&domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInProgress}, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/"+woID.String()+"/services/"+wosID.String()+"/start", nil)
 	r, err := app.Test(req)
@@ -724,6 +727,7 @@ func TestWorkOrder_StartService_WithDelay(t *testing.T) {
 	woID := uuid.New()
 	wosID := uuid.New()
 	deps.creationSvc.On("StartService", mock.Anything, woID, wosID).Return(true, nil)
+	deps.woSvc.On("GetByID", mock.Anything, woID).Return(&domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInProgress}, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/"+woID.String()+"/services/"+wosID.String()+"/start", nil)
 	r, err := app.Test(req)
@@ -845,6 +849,7 @@ func TestWorkOrder_RemoveSupply_Success(t *testing.T) {
 	wosID := uuid.New()
 	supplyID := uuid.New()
 	deps.creationSvc.On("RemoveSupplyFromService", mock.Anything, woID, wosID, supplyID).Return(nil)
+	deps.woSvc.On("GetByID", mock.Anything, woID).Return(&domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInDiagnosis}, nil)
 
 	req := httptest.NewRequest(http.MethodDelete, "/work-orders/"+woID.String()+"/services/"+wosID.String()+"/supplies/"+supplyID.String(), nil)
 	r, err := app.Test(req)
