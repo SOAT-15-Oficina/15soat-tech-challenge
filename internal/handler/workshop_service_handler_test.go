@@ -60,6 +60,11 @@ func (m *mockWorkshopServiceService) Delete(ctx context.Context, id uuid.UUID) (
 	return args.Get(0).(*service.DeleteWorkshopServiceResult), args.Error(1)
 }
 
+func (m *mockWorkshopServiceService) GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error) {
+	args := m.Called(ctx, filters)
+	return args.Get(0).([]domain.AvgExecutionTimeResult), args.Error(1)
+}
+
 func setupTestApp(svc service.WorkshopServiceService) *fiber.App {
 	app := fiber.New()
 	h := NewWorkshopServiceHandler(svc)
@@ -442,3 +447,97 @@ func TestDeleteRoute_400_InvalidID(t *testing.T) {
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
 
+func TestGetAvgExecutionTime_200(t *testing.T) {
+	// GET /services/avg-execution-time should return 200 with results
+	svcMock := new(mockWorkshopServiceService)
+	app := setupTestApp(svcMock)
+
+	results := []domain.AvgExecutionTimeResult{
+		{
+			ServiceID:            uuid.New(),
+			Title:                "Oil Change",
+			EstimatedTimeMinutes: 30,
+			AvgRealTimeMinutes:   25.5,
+			ExecutionCount:       3,
+		},
+	}
+	svcMock.On("GetAvgExecutionTime", mock.Anything, domain.AvgExecutionTimeFilters{}).Return(results, nil)
+
+	req, _ := http.NewRequest("GET", "/services/avg-execution-time", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	result := parseBody(t, resp)
+	items := result["data"].([]any)
+	assert.Len(t, items, 1)
+	first := items[0].(map[string]any)
+	assert.Equal(t, "Oil Change", first["title"])
+	assert.Equal(t, float64(25.5), first["avg_real_time_minutes"])
+	assert.Equal(t, float64(3), first["execution_count"])
+	assert.Equal(t, float64(-4.5), first["difference_minutes"])
+}
+
+func TestGetAvgExecutionTime_200_Empty(t *testing.T) {
+	// GET /services/avg-execution-time should return 200 with empty array when no data
+	svcMock := new(mockWorkshopServiceService)
+	app := setupTestApp(svcMock)
+
+	svcMock.On("GetAvgExecutionTime", mock.Anything, domain.AvgExecutionTimeFilters{}).Return([]domain.AvgExecutionTimeResult{}, nil)
+
+	req, _ := http.NewRequest("GET", "/services/avg-execution-time", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	result := parseBody(t, resp)
+	items := result["data"].([]any)
+	assert.Len(t, items, 0)
+}
+
+func TestGetAvgExecutionTime_400_InvalidFromDate(t *testing.T) {
+	// GET /services/avg-execution-time?from=bad should return 400
+	svcMock := new(mockWorkshopServiceService)
+	app := setupTestApp(svcMock)
+
+	req, _ := http.NewRequest("GET", "/services/avg-execution-time?from=bad-date", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestGetAvgExecutionTime_400_InvalidToDate(t *testing.T) {
+	// GET /services/avg-execution-time?to=bad should return 400
+	svcMock := new(mockWorkshopServiceService)
+	app := setupTestApp(svcMock)
+
+	req, _ := http.NewRequest("GET", "/services/avg-execution-time?to=bad-date", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestGetAvgExecutionTime_400_InvalidTechnicianId(t *testing.T) {
+	// GET /services/avg-execution-time?technicianId=bad should return 400
+	svcMock := new(mockWorkshopServiceService)
+	app := setupTestApp(svcMock)
+
+	req, _ := http.NewRequest("GET", "/services/avg-execution-time?technicianId=not-uuid", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestGetAvgExecutionTime_WithFilters(t *testing.T) {
+	// GET /services/avg-execution-time with valid filters should pass them through
+	svcMock := new(mockWorkshopServiceService)
+	app := setupTestApp(svcMock)
+
+	svcMock.On("GetAvgExecutionTime", mock.Anything, mock.AnythingOfType("domain.AvgExecutionTimeFilters")).Return([]domain.AvgExecutionTimeResult{}, nil)
+
+	techID := uuid.New()
+	req, _ := http.NewRequest("GET", "/services/avg-execution-time?from=2026-01-01&to=2026-12-31&technicianId="+techID.String(), nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}

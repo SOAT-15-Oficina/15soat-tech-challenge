@@ -1424,19 +1424,41 @@ func TestIntegration_Flow_CannotStartServiceWithoutStock(t *testing.T) {
 
 	transitionWorkOrder(t, app, workOrderID, "EM_EXECUCAO")
 
-	// Start service with insufficient stock — should succeed but add 2-day delivery delay
-	t.Run("IniciarComEstoqueInsuficienteAdicionaDelay", func(t *testing.T) {
+	// Try to start the service — must be blocked because stock=10 < quantity=1000
+	t.Run("IniciarBloqueadoPorEstoque", func(t *testing.T) {
 		resp, err := flowPutJSON(app,
 			fmt.Sprintf("/work-orders/%s/services/%s/start", workOrderID, wosIDs[0]),
 			map[string]any{},
 		)
 		require.NoError(t, err)
-		assert.Equal(t, fiber.StatusOK, resp.StatusCode,
-			"should allow starting service even with insufficient stock, adding delay")
+		assert.Equal(t, fiber.StatusUnprocessableEntity, resp.StatusCode,
+			"should block starting service when supply stock is insufficient")
 
 		body := flowReadBody(t, resp)
-		assert.Equal(t, true, body["delay_added"])
-		assert.Equal(t, float64(2), body["delay_days"])
+		assert.Contains(t, body["error"], "insufficient stock")
+	})
+
+	// After increasing stock, start should succeed
+	t.Run("IniciarLiberadoAposReporEstoque", func(t *testing.T) {
+		// Update supply stock to 1000
+		resp, err := flowPutJSON(app, "/supplies/"+supplyID, map[string]any{
+			"title":          "Peca Escassa",
+			"type":           "PECA",
+			"price_cents":    100,
+			"stock_quantity": 1000,
+			"minimum_stock":  2,
+		})
+		require.NoError(t, err)
+		require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+		// Now start should work
+		resp, err = flowPutJSON(app,
+			fmt.Sprintf("/work-orders/%s/services/%s/start", workOrderID, wosIDs[0]),
+			map[string]any{},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, fiber.StatusOK, resp.StatusCode,
+			"should allow starting service after stock is replenished")
 	})
 }
 

@@ -31,6 +31,7 @@ type WorkshopServiceService interface {
 	List(ctx context.Context, filters domain.WorkshopServiceListFilters) ([]domain.WorkshopService, int, error)
 	Update(ctx context.Context, id uuid.UUID, input WorkshopServiceUpdateInput) (*domain.WorkshopService, error)
 	Delete(ctx context.Context, id uuid.UUID) (*DeleteWorkshopServiceResult, error)
+	GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error)
 }
 
 type workshopServiceService struct {
@@ -146,3 +147,6 @@ func (s *workshopServiceService) Delete(ctx context.Context, id uuid.UUID) (*Del
 	return &DeleteWorkshopServiceResult{Deleted: true}, nil
 }
 
+func (s *workshopServiceService) GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error) {
+	return s.repo.GetAvgExecutionTime(ctx, filters)
+}

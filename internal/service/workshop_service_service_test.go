@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -65,6 +66,11 @@ func (m *mockRepo) ExistsByTitle(ctx context.Context, title string, excludeID *u
 func (m *mockRepo) HasWorkOrderLinks(ctx context.Context, id uuid.UUID) (bool, error) {
 	args := m.Called(ctx, id)
 	return args.Bool(0), args.Error(1)
+}
+
+func (m *mockRepo) GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error) {
+	args := m.Called(ctx, filters)
+	return args.Get(0).([]domain.AvgExecutionTimeResult), args.Error(1)
 }
 
 func (m *mockRepo) SubtractSuppliesFromStock(ctx context.Context, serviceID uuid.UUID) error {
@@ -319,3 +325,34 @@ func TestDelete_NotFound(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+func TestGetAvgExecutionTime_Success(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+
+	filters := domain.AvgExecutionTimeFilters{}
+	expected := []domain.AvgExecutionTimeResult{
+		{ServiceID: uuid.New(), Title: "Troca de óleo", AvgRealTimeMinutes: 45.5, ExecutionCount: 10},
+	}
+
+	repo.On("GetAvgExecutionTime", ctx, filters).Return(expected, nil)
+
+	results, err := svc.GetAvgExecutionTime(ctx, filters)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, 45.5, results[0].AvgRealTimeMinutes)
+}
+
+func TestGetAvgExecutionTime_RepoError(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+
+	filters := domain.AvgExecutionTimeFilters{}
+
+	repo.On("GetAvgExecutionTime", ctx, filters).Return([]domain.AvgExecutionTimeResult{}, errors.New("db error"))
+
+	results, err := svc.GetAvgExecutionTime(ctx, filters)
+	assert.Error(t, err)
+	assert.Empty(t, results)
+}

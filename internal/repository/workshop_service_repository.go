@@ -21,6 +21,7 @@ type WorkshopServiceRepository interface {
 	Deactivate(ctx context.Context, id uuid.UUID) (*domain.WorkshopService, error)
 	ExistsByTitle(ctx context.Context, title string, excludeID *uuid.UUID) (bool, error)
 	HasWorkOrderLinks(ctx context.Context, id uuid.UUID) (bool, error)
+	GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error)
 	SubtractSuppliesFromStock(ctx context.Context, serviceID uuid.UUID) error
 }
 
@@ -211,6 +212,68 @@ func (r *workshopServiceRepository) HasWorkOrderLinks(ctx context.Context, id uu
 	}
 
 	return exists, nil
+}
+
+func (r *workshopServiceRepository) GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error) {
+	where := []string{
+		fmt.Sprintf("wos.status = '%s'", domain.WorkOrderServiceStatusFinished),
+		"wos.started_at IS NOT NULL",
+		"wos.finished_at IS NOT NULL",
+	}
+	args := []any{}
+
+	if filters.From != nil {
+		args = append(args, *filters.From)
+		where = append(where, fmt.Sprintf("wos.finished_at >= $%d", len(args)))
+	}
+	if filters.To != nil {
+		args = append(args, *filters.To)
+		where = append(where, fmt.Sprintf("wos.finished_at <= $%d", len(args)))
+	}
+	if filters.TechnicianID != nil {
+		args = append(args, *filters.TechnicianID)
+		where = append(where, fmt.Sprintf("wo.assigned_technician_id = $%d", len(args)))
+	}
+
+	whereClause := strings.Join(where, " AND ")
+
+	query := fmt.Sprintf(`
+		SELECT
+			s.id,
+			s.title,
+			s.estimated_time_minutes,
+			AVG(EXTRACT(EPOCH FROM (wos.finished_at - wos.started_at)) / 60.0) AS avg_real_time_minutes,
+			COUNT(*) AS execution_count
+		FROM work_order_services wos
+		JOIN services s ON s.id = wos.service_id
+		JOIN work_orders wo ON wo.id = wos.work_order_id
+		WHERE %s
+		GROUP BY s.id, s.title, s.estimated_time_minutes
+		ORDER BY s.title`, whereClause)
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []domain.AvgExecutionTimeResult
+	for rows.Next() {
+		var item domain.AvgExecutionTimeResult
+		if err := rows.Scan(
+			&item.ServiceID, &item.Title, &item.EstimatedTimeMinutes,
+			&item.AvgRealTimeMinutes, &item.ExecutionCount,
+		); err != nil {
+			return nil, err
+		}
+		results = append(results, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
 
 func (r *workshopServiceRepository) SubtractSuppliesFromStock(ctx context.Context, serviceID uuid.UUID) error {

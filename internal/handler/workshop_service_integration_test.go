@@ -55,18 +55,12 @@ func setupIntegrationApp(t *testing.T) (*fiber.App, *pgxpool.Pool) {
 
 	setupSchema(t, pool)
 
-	wsRepo := repository.NewWorkshopServiceRepository(pool)
-	wsSvc := service.NewWorkshopServiceService(wsRepo)
-	wsHandler := NewWorkshopServiceHandler(wsSvc)
-
-	woRepo := repository.NewWorkOrderRepository(pool)
-	woSvc := service.NewWorkOrderService(woRepo, nil)
-	woHandler := NewWorkOrderHandler(woSvc, nil, nil, nil, nil)
+	repo := repository.NewWorkshopServiceRepository(pool)
+	svc := service.NewWorkshopServiceService(repo)
+	h := NewWorkshopServiceHandler(svc)
 
 	app := fiber.New()
-	wsHandler.RegisterRoutes(app)
-	woGroup := app.Group("/work-orders")
-	woGroup.Get("/avg-execution-time", woHandler.GetAvgExecutionTime)
+	h.RegisterRoutes(app)
 
 	return app, pool
 }
@@ -470,7 +464,7 @@ func TestIntegration_AvgExecutionTime(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	req, _ := http.NewRequest("GET", "/work-orders/avg-execution-time", nil)
+	req, _ := http.NewRequest("GET", "/services/avg-execution-time", nil)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
@@ -516,7 +510,7 @@ func TestIntegration_AvgExecutionTime_ConvertsSecondsToMinutes(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	req, _ := http.NewRequest("GET", "/work-orders/avg-execution-time", nil)
+	req, _ := http.NewRequest("GET", "/services/avg-execution-time", nil)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
@@ -569,7 +563,7 @@ func TestIntegration_AvgExecutionTime_FilterByTechnician(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	req, _ := http.NewRequest("GET", "/work-orders/avg-execution-time?technicianId="+techA.String(), nil)
+	req, _ := http.NewRequest("GET", "/services/avg-execution-time?technicianId="+techA.String(), nil)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
@@ -586,7 +580,7 @@ func TestIntegration_AvgExecutionTime_Empty(t *testing.T) {
 	// should return empty array when no finished services exist
 	app, _ := setupIntegrationApp(t)
 
-	req, _ := http.NewRequest("GET", "/work-orders/avg-execution-time", nil)
+	req, _ := http.NewRequest("GET", "/services/avg-execution-time", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
