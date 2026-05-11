@@ -25,6 +25,36 @@ A API fica disponível em `http://localhost:8080`.
 
 O banco de dados PostgreSQL é inicializado automaticamente com o schema (via `initdb.d` e goose no boot da API) e dados de seed na primeira execução. As migrations são embedded no binário da API via `go:embed`.
 
+### SonarQube local
+
+O SonarQube roda em um compose separado para não alterar o fluxo padrão da aplicação:
+
+```bash
+docker compose -f docker-compose.sonar.yml up -d sonarqube
+```
+
+Acesse `http://localhost:9000`, entre com `admin` / `admin`, troque a senha inicial e crie um projeto local com a chave `15soat-tech-challenge-step-1`. Depois gere um token para rodar o scanner.
+
+Antes da análise, gere o relatório de cobertura Go:
+
+```bash
+mise exec -- go test ./... -coverprofile=coverage.out
+```
+
+Se não estiver usando `mise`, rode o mesmo comando com o `go` instalado localmente:
+
+```bash
+go test ./... -coverprofile=coverage.out
+```
+
+Execute a análise com o token gerado no SonarQube:
+
+```bash
+SONAR_TOKEN=<token> docker compose -f docker-compose.sonar.yml run --rm sonar-scanner
+```
+
+A configuração está em `sonar-project.properties`. A análise considera `cmd`, `database`, `internal` e `packages`, e exclui explicitamente a interface web em `web/**`.
+
 ### Documentacao da API (Swagger)
 
 Com o projeto rodando, acesse o Swagger UI para visualizar e testar todos os endpoints:
