@@ -92,7 +92,7 @@ func TestAddServices_ValidInput_CreatesItems(t *testing.T) {
 }
 
 func TestAddServices_InvalidStatus_ReturnsError(t *testing.T) {
-	// should reject when work order is not in RECEBIDA or EM_DIAGNOSTICO
+	// should reject when work order is already approved
 	woRepo := new(mockWorkOrderRepo)
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
@@ -111,6 +111,32 @@ func TestAddServices_InvalidStatus_ReturnsError(t *testing.T) {
 	assert.ErrorIs(t, err, ErrWorkOrderInvalidStatusForItems)
 	assert.Nil(t, result)
 	wosRepo.AssertNotCalled(t, "CreateBatch")
+}
+
+func TestAddServices_WaitingApproval_AllowsAdjustment(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wsID := uuid.New()
+	wo := openWO(woID, domain.WorkOrderStatusWaitingApproval)
+	ws := activeWorkshopService(wsID)
+	created := []*domain.WorkOrderService{{ID: uuid.New(), WorkOrderID: woID, ServiceID: wsID}}
+
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	wsRepo.On("FindByID", ctx, wsID).Return(ws, nil)
+	wosRepo.On("CreateBatch", ctx, mock.AnythingOfType("[]*domain.WorkOrderService")).Return(created, nil)
+
+	result, err := svc.AddServices(ctx, woID, []AddWorkOrderServiceInput{{ServiceID: wsID}})
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+	statusSvc.AssertNotCalled(t, "TransitionTo")
 }
 
 func TestAddServices_InactiveService_ReturnsError(t *testing.T) {
@@ -192,6 +218,7 @@ func TestAddSupplies_ValidInput_CreatesItems(t *testing.T) {
 	supplyID := uuid.New()
 
 	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: woID}
+	wo := openWO(woID, domain.WorkOrderStatusInDiagnosis)
 	supply := activeSupply(supplyID)
 
 	created := []*domain.WorkOrderServiceSupply{
@@ -206,6 +233,7 @@ func TestAddSupplies_ValidInput_CreatesItems(t *testing.T) {
 	}
 
 	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	supplyRepo.On("FindByID", ctx, supplyID).Return(supply, nil)
 	wosRepo.On("CreateSupplyBatch", ctx, mock.AnythingOfType("[]*domain.WorkOrderServiceSupply")).Return(created, nil)
 
@@ -239,6 +267,30 @@ func TestAddSupplies_WosNotBelongingToWorkOrder_ReturnsError(t *testing.T) {
 	result, err := svc.AddSupplies(ctx, woID, wosID, items)
 
 	assert.ErrorIs(t, err, ErrWorkOrderServiceOwnership)
+	assert.Nil(t, result)
+	wosRepo.AssertNotCalled(t, "CreateSupplyBatch")
+}
+
+func TestAddSupplies_WorkOrderApproved_ReturnsInvalidStatusError(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wosID := uuid.New()
+	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: woID}
+	wo := openWO(woID, domain.WorkOrderStatusApproved)
+
+	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+
+	result, err := svc.AddSupplies(ctx, woID, wosID, []AddWorkOrderSupplyInput{{SupplyID: uuid.New(), Quantity: 1}})
+
+	assert.ErrorIs(t, err, ErrWorkOrderInvalidStatusForItems)
 	assert.Nil(t, result)
 	wosRepo.AssertNotCalled(t, "CreateSupplyBatch")
 }
@@ -387,6 +439,30 @@ func TestRemoveService_WorkOrderFinalStatus_ReturnsInvalidStatusError(t *testing
 	wosRepo.AssertNotCalled(t, "DeleteByID")
 }
 
+func TestRemoveService_WorkOrderApproved_ReturnsInvalidStatusError(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wosID := uuid.New()
+	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: woID}
+	wo := openWO(woID, domain.WorkOrderStatusApproved)
+
+	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+
+	err := svc.RemoveService(ctx, woID, wosID)
+
+	assert.ErrorIs(t, err, ErrWorkOrderInvalidStatusForItems)
+	wosRepo.AssertNotCalled(t, "DeleteSuppliesByWorkOrderServiceID")
+	wosRepo.AssertNotCalled(t, "DeleteByID")
+}
+
 func TestRemoveSupplyFromService_Valid_DeletesRow(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
 	wosRepo := new(mockWorkOrderServiceRepo)
@@ -448,6 +524,30 @@ func TestRemoveSupplyFromService_WorkOrderFinalStatus_ReturnsInvalidStatusError(
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 
 	err := svc.RemoveSupplyFromService(ctx, woID, wosID, uuid.New())
+	assert.ErrorIs(t, err, ErrWorkOrderInvalidStatusForItems)
+	wosRepo.AssertNotCalled(t, "DeleteSupplyForWorkOrderService")
+}
+
+func TestRemoveSupplyFromService_WorkOrderApproved_ReturnsInvalidStatusError(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	statusSvc := new(mockStatusService)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wosID := uuid.New()
+	supplyID := uuid.New()
+	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: woID}
+	wo := openWO(woID, domain.WorkOrderStatusApproved)
+
+	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+
+	err := svc.RemoveSupplyFromService(ctx, woID, wosID, supplyID)
+
 	assert.ErrorIs(t, err, ErrWorkOrderInvalidStatusForItems)
 	wosRepo.AssertNotCalled(t, "DeleteSupplyForWorkOrderService")
 }
@@ -1065,6 +1165,7 @@ func TestAddSupplies_SupplyNotFound(t *testing.T) {
 	wos := &domain.WorkOrderService{ID: wosID, WorkOrderID: woID}
 
 	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+	woRepo.On("FindByID", ctx, woID).Return(openWO(woID, domain.WorkOrderStatusInDiagnosis), nil)
 	supplyRepo.On("FindByID", ctx, supplyID).Return(nil, errors.New("not found"))
 
 	items := []AddWorkOrderSupplyInput{{SupplyID: supplyID, Quantity: 1}}
@@ -1107,6 +1208,7 @@ func TestAddSupplies_CreateBatchFails(t *testing.T) {
 	supply := activeSupply(supplyID)
 
 	wosRepo.On("FindByID", ctx, wosID).Return(wos, nil)
+	woRepo.On("FindByID", ctx, woID).Return(openWO(woID, domain.WorkOrderStatusInDiagnosis), nil)
 	supplyRepo.On("FindByID", ctx, supplyID).Return(supply, nil)
 	wosRepo.On("CreateSupplyBatch", ctx, mock.Anything).Return(nil, errors.New("db error"))
 

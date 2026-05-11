@@ -25,6 +25,36 @@ A API fica disponível em `http://localhost:8080`.
 
 O banco de dados PostgreSQL é inicializado automaticamente com o schema (via `initdb.d` e goose no boot da API) e dados de seed na primeira execução. As migrations são embedded no binário da API via `go:embed`.
 
+### SonarQube local
+
+O SonarQube roda em um compose separado para não alterar o fluxo padrão da aplicação:
+
+```bash
+docker compose -f docker-compose.sonar.yml up -d sonarqube
+```
+
+Acesse `http://localhost:9000`, entre com `admin` / `admin`, troque a senha inicial e crie um projeto local com a chave `15soat-tech-challenge-step-1`. Depois gere um token para rodar o scanner.
+
+Antes da análise, gere o relatório de cobertura Go:
+
+```bash
+mise exec -- go test ./... -coverprofile=coverage.out
+```
+
+Se não estiver usando `mise`, rode o mesmo comando com o `go` instalado localmente:
+
+```bash
+go test ./... -coverprofile=coverage.out
+```
+
+Execute a análise com o token gerado no SonarQube:
+
+```bash
+SONAR_TOKEN=<token> docker compose -f docker-compose.sonar.yml run --rm sonar-scanner
+```
+
+A configuração está em `sonar-project.properties`. A análise considera `cmd`, `database`, `internal` e `packages`, e exclui explicitamente a interface web em `web/**`.
+
 ### Documentacao da API (Swagger)
 
 Com o projeto rodando, acesse o Swagger UI para visualizar e testar todos os endpoints:
@@ -67,31 +97,26 @@ customers           │
   └── vehicles      │
                     │
 services            │
-  └── service_supplies │
-        └── supplies   │
                     │
-work_orders ────────┤
-  ├── work_order_services
-  │     └── work_order_service_items
-  ├── work_order_status_history
-  └── inventory_movements
+supplies            │
+                    │
+work_orders ────────┘
+  └── work_order_services
+        └── work_order_service_supplies
 ```
 
 ### Tabelas
 
-| Tabela                      | Função                                                                                                                                                    |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `users`                     | Usuários administrativos do sistema (atendente, mecânico, administrador, controlador de estoque). Base para autenticação JWT e rastreabilidade das ações. |
-| `customers`                 | Dados dos clientes da oficina (nome, documento, contatos). Usada no cadastro e identificação do cliente para abertura da ordem de serviço.                |
-| `vehicles`                  | Veículos vinculados aos clientes (placa, marca, modelo, ano). Permite associar um veículo a uma ordem de serviço.                                         |
-| `services`                  | Catálogo de serviços oferecidos pela oficina (troca de óleo, alinhamento, etc). Guarda preço base e tempo estimado de execução.                           |
-| `supplies`                  | Peças e insumos cadastrados no sistema. Controla quantidade em estoque e disponibilidade para execução dos serviços.                                      |
-| `service_supplies`          | Composição padrão de um serviço: quais peças/insumos são normalmente necessários e em qual quantidade.                                                    |
-| `work_orders`               | Ordem de serviço principal. Centraliza o atendimento ligando cliente, veículo, status, técnico responsável e dados do orçamento/execução.                 |
-| `work_order_services`       | Cada serviço incluído em uma ordem de serviço. Controla aprovação, execução, técnico responsável, tempo e preço no contexto daquela OS.                   |
-| `work_order_service_items`  | Itens previstos ou utilizados em cada serviço de uma OS. Snapshot operacional, separado da composição padrão do catálogo.                                 |
-| `inventory_movements`       | Movimentações de estoque (entrada, saída, ajuste). Mantém histórico para auditoria e rastreio de baixas de peças e insumos.                               |
-| `work_order_status_history` | Histórico de mudança de status da OS, permitindo rastrear a evolução (recebida, em diagnóstico, em execução, entregue, etc).                              |
+| Tabela                         | Função                                                                                                                                                    |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `users`                        | Usuários administrativos do sistema (atendente, mecânico, administrador, controlador de estoque). Base para autenticação JWT e rastreabilidade das ações. |
+| `customers`                    | Dados dos clientes da oficina (nome, documento, contatos). Usada no cadastro e identificação do cliente para abertura da ordem de serviço.                |
+| `vehicles`                     | Veículos vinculados aos clientes (placa, marca, modelo, ano). Permite associar um veículo a uma ordem de serviço.                                         |
+| `services`                     | Catálogo de serviços oferecidos pela oficina (troca de óleo, alinhamento, etc). Guarda preço base e tempo estimado de execução.                           |
+| `supplies`                     | Peças e insumos cadastrados no sistema. Controla quantidade em estoque e disponibilidade para execução dos serviços.                                      |
+| `work_orders`                  | Ordem de serviço principal. Centraliza o atendimento ligando cliente, veículo, status, técnico responsável e dados do orçamento/execução.                 |
+| `work_order_services`          | Cada serviço incluído em uma ordem de serviço. Controla aprovação, execução, tempo e preço no contexto daquela OS.                                        |
+| `work_order_service_supplies`  | Peças/insumos previstos ou utilizados em cada serviço de uma OS. Snapshot operacional com quantidade e preço no momento da inclusão.                       |
 
 ## Convenções da API
 
