@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -205,4 +206,85 @@ func TestVehicleDelete_InvalidID_400(t *testing.T) {
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestVehicleUpdate_Success(t *testing.T) {
+	svc := new(mockVehicleService)
+	app := setupVehicleApp(svc)
+	v := sampleVehicle()
+
+	svc.On("Update", mock.Anything, mock.AnythingOfType("*domain.Vehicle")).Return(v, nil)
+
+	req := httptest.NewRequest(http.MethodPut, "/vehicles/"+v.ID.String(), bytes.NewReader(vehicleJSON(v)))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestVehicleUpdate_InvalidID(t *testing.T) {
+	svc := new(mockVehicleService)
+	app := setupVehicleApp(svc)
+
+	req := httptest.NewRequest(http.MethodPut, "/vehicles/bad-id", bytes.NewReader(vehicleJSON(sampleVehicle())))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestVehicleUpdate_NotFound(t *testing.T) {
+	svc := new(mockVehicleService)
+	app := setupVehicleApp(svc)
+	id := uuid.New()
+
+	svc.On("Update", mock.Anything, mock.AnythingOfType("*domain.Vehicle")).Return(nil, pgx.ErrNoRows)
+
+	body := vehicleJSON(sampleVehicle())
+	req := httptest.NewRequest(http.MethodPut, "/vehicles/"+id.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusNotFound, resp.StatusCode)
+}
+
+func TestVehicleUpdate_ValidationError(t *testing.T) {
+	svc := new(mockVehicleService)
+	app := setupVehicleApp(svc)
+	id := uuid.New()
+
+	svc.On("Update", mock.Anything, mock.AnythingOfType("*domain.Vehicle")).Return(nil, &domain.VehicleValidationError{Err: errors.New("invalid")})
+
+	body := vehicleJSON(sampleVehicle())
+	req := httptest.NewRequest(http.MethodPut, "/vehicles/"+id.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestVehicleDelete_Error(t *testing.T) {
+	svc := new(mockVehicleService)
+	app := setupVehicleApp(svc)
+	id := uuid.New()
+
+	svc.On("Delete", mock.Anything, id).Return(errors.New("db error"))
+
+	req := httptest.NewRequest(http.MethodDelete, "/vehicles/"+id.String(), nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+}
+
+func TestVehicleGetByID_ServerError(t *testing.T) {
+	svc := new(mockVehicleService)
+	app := setupVehicleApp(svc)
+	id := uuid.New()
+
+	svc.On("GetByID", mock.Anything, id).Return(nil, errors.New("unexpected"))
+
+	req := httptest.NewRequest(http.MethodGet, "/vehicles/"+id.String(), nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
 }

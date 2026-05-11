@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -369,4 +370,166 @@ func TestEvaluate_UpdateWorkOrderFails(t *testing.T) {
 
 	err := svc.ApproveAllByWorkOrder(ctx, woID)
 	assert.Error(t, err)
+}
+
+// --- WithPurchaseAlert + sendPurchaseAlertIfNeeded ---
+// mockEmailProvider is declared in budget_service_test.go
+
+func TestWithPurchaseAlert_SetsFields(t *testing.T) {
+	wosRepo := new(mockWorkOrderServiceRepo)
+	woRepo := new(mockWorkOrderRepo)
+	statusSvc := new(mockStatusService)
+	prov := new(mockEmailProvider)
+
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(prov, "admin@test.com"))
+	assert.NotNil(t, svc)
+}
+
+func TestEvaluate_WithPurchaseAlert_SendsEmail(t *testing.T) {
+	wosRepo := new(mockWorkOrderServiceRepo)
+	woRepo := new(mockWorkOrderRepo)
+	statusSvc := new(mockStatusService)
+	prov := new(mockEmailProvider)
+
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(prov, "admin@test.com"))
+	ctx := context.Background()
+	woID := uuid.New()
+
+	services := []domain.WorkOrderService{
+		makeWOS(woID, domain.WorkOrderServiceApprovalApproved),
+	}
+	wo := makeWO(woID, domain.WorkOrderStatusApproved)
+
+	wosRepo.On("UpdateApprovalStatusByWorkOrderID", ctx, woID, domain.WorkOrderServiceApprovalApproved).Return(nil)
+	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusApproved).Return(wo, nil)
+	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(10000, nil)
+	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+
+	shortages := map[uuid.UUID]bool{uuid.New(): true}
+	wosRepo.On("FindSupplyShortagesByWorkOrderID", ctx, woID).Return(shortages, nil)
+	alerts := []repository.SupplyShortageAlert{
+		{ServiceTitle: "Troca de óleo", SupplyTitle: "Filtro", Required: 5, InStock: 2},
+	}
+	wosRepo.On("FindApprovedServicesWithShortages", ctx).Return(alerts, nil)
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	prov.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(nil)
+
+	err := svc.ApproveAllByWorkOrder(ctx, woID)
+	assert.NoError(t, err)
+	prov.AssertCalled(t, "Send", ctx, mock.AnythingOfType("email.Message"))
+}
+
+func TestEvaluate_WithPurchaseAlert_NoShortages_NoEmail(t *testing.T) {
+	wosRepo := new(mockWorkOrderServiceRepo)
+	woRepo := new(mockWorkOrderRepo)
+	statusSvc := new(mockStatusService)
+	prov := new(mockEmailProvider)
+
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(prov, "admin@test.com"))
+	ctx := context.Background()
+	woID := uuid.New()
+
+	services := []domain.WorkOrderService{
+		makeWOS(woID, domain.WorkOrderServiceApprovalApproved),
+	}
+	wo := makeWO(woID, domain.WorkOrderStatusApproved)
+
+	wosRepo.On("UpdateApprovalStatusByWorkOrderID", ctx, woID, domain.WorkOrderServiceApprovalApproved).Return(nil)
+	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusApproved).Return(wo, nil)
+	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(10000, nil)
+	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+	wosRepo.On("FindSupplyShortagesByWorkOrderID", ctx, woID).Return(nil, nil)
+
+	err := svc.ApproveAllByWorkOrder(ctx, woID)
+	assert.NoError(t, err)
+	prov.AssertNotCalled(t, "Send")
+}
+
+func TestEvaluate_WithPurchaseAlert_ShortageError_NoEmail(t *testing.T) {
+	wosRepo := new(mockWorkOrderServiceRepo)
+	woRepo := new(mockWorkOrderRepo)
+	statusSvc := new(mockStatusService)
+	prov := new(mockEmailProvider)
+
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(prov, "admin@test.com"))
+	ctx := context.Background()
+	woID := uuid.New()
+
+	services := []domain.WorkOrderService{
+		makeWOS(woID, domain.WorkOrderServiceApprovalApproved),
+	}
+	wo := makeWO(woID, domain.WorkOrderStatusApproved)
+
+	wosRepo.On("UpdateApprovalStatusByWorkOrderID", ctx, woID, domain.WorkOrderServiceApprovalApproved).Return(nil)
+	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusApproved).Return(wo, nil)
+	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(10000, nil)
+	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+	wosRepo.On("FindSupplyShortagesByWorkOrderID", ctx, woID).Return(nil, errors.New("db error"))
+
+	err := svc.ApproveAllByWorkOrder(ctx, woID)
+	assert.NoError(t, err)
+	prov.AssertNotCalled(t, "Send")
+}
+
+func TestEvaluate_WithPurchaseAlert_AlertsFetchError_NoEmail(t *testing.T) {
+	wosRepo := new(mockWorkOrderServiceRepo)
+	woRepo := new(mockWorkOrderRepo)
+	statusSvc := new(mockStatusService)
+	prov := new(mockEmailProvider)
+
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(prov, "admin@test.com"))
+	ctx := context.Background()
+	woID := uuid.New()
+
+	services := []domain.WorkOrderService{
+		makeWOS(woID, domain.WorkOrderServiceApprovalApproved),
+	}
+	wo := makeWO(woID, domain.WorkOrderStatusApproved)
+
+	wosRepo.On("UpdateApprovalStatusByWorkOrderID", ctx, woID, domain.WorkOrderServiceApprovalApproved).Return(nil)
+	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusApproved).Return(wo, nil)
+	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(10000, nil)
+	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+	shortages := map[uuid.UUID]bool{uuid.New(): true}
+	wosRepo.On("FindSupplyShortagesByWorkOrderID", ctx, woID).Return(shortages, nil)
+	wosRepo.On("FindApprovedServicesWithShortages", ctx).Return(nil, errors.New("db error"))
+
+	err := svc.ApproveAllByWorkOrder(ctx, woID)
+	assert.NoError(t, err)
+	prov.AssertNotCalled(t, "Send")
+}
+
+func TestEvaluate_WithPurchaseAlert_FindWOFails_NoEmail(t *testing.T) {
+	wosRepo := new(mockWorkOrderServiceRepo)
+	woRepo := new(mockWorkOrderRepo)
+	statusSvc := new(mockStatusService)
+	prov := new(mockEmailProvider)
+
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(prov, "admin@test.com"))
+	ctx := context.Background()
+	woID := uuid.New()
+
+	services := []domain.WorkOrderService{
+		makeWOS(woID, domain.WorkOrderServiceApprovalApproved),
+	}
+	wo := makeWO(woID, domain.WorkOrderStatusApproved)
+
+	wosRepo.On("UpdateApprovalStatusByWorkOrderID", ctx, woID, domain.WorkOrderServiceApprovalApproved).Return(nil)
+	wosRepo.On("FindByWorkOrderID", ctx, woID).Return(services, nil)
+	statusSvc.On("TransitionTo", ctx, woID, domain.WorkOrderStatusApproved).Return(wo, nil)
+	wosRepo.On("CalculateApprovedTotalForWorkOrder", ctx, woID).Return(10000, nil)
+	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+	shortages := map[uuid.UUID]bool{uuid.New(): true}
+	wosRepo.On("FindSupplyShortagesByWorkOrderID", ctx, woID).Return(shortages, nil)
+	alerts := []repository.SupplyShortageAlert{{ServiceTitle: "S", SupplyTitle: "T", Required: 3, InStock: 1}}
+	wosRepo.On("FindApprovedServicesWithShortages", ctx).Return(alerts, nil)
+	woRepo.On("FindByID", ctx, woID).Return(nil, errors.New("db error"))
+
+	err := svc.ApproveAllByWorkOrder(ctx, woID)
+	assert.NoError(t, err)
+	prov.AssertNotCalled(t, "Send")
 }

@@ -296,3 +296,119 @@ func TestWorkOrderUpdate_AllFields(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 }
+
+func TestGetAllWithFilters_DefaultsPage(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+
+	resp := &domain.WorkOrderListResponse{
+		Data:  []domain.WorkOrder{},
+		Total: 0, Page: 1, Limit: 10, TotalPages: 0,
+	}
+	woRepo.On("FindAllWithFilters", ctx, mock.MatchedBy(func(f domain.WorkOrderListFilters) bool {
+		return f.Page == 1 && f.Limit == 10
+	})).Return(resp, nil)
+
+	result, err := svc.GetAllWithFilters(ctx, domain.WorkOrderListFilters{Page: 0, Limit: 0})
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+}
+
+func TestGetAllWithFilters_LimitTooHigh(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+
+	resp := &domain.WorkOrderListResponse{
+		Data:  []domain.WorkOrder{},
+		Total: 0, Page: 1, Limit: 10, TotalPages: 0,
+	}
+	woRepo.On("FindAllWithFilters", ctx, mock.MatchedBy(func(f domain.WorkOrderListFilters) bool {
+		return f.Limit == 10
+	})).Return(resp, nil)
+
+	result, err := svc.GetAllWithFilters(ctx, domain.WorkOrderListFilters{Page: 1, Limit: 200})
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+}
+
+func TestGetAllWithFilters_ValidFilters(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+
+	resp := &domain.WorkOrderListResponse{
+		Data:  []domain.WorkOrder{*makeWO(uuid.New(), domain.WorkOrderStatusReceived)},
+		Total: 1, Page: 2, Limit: 5, TotalPages: 1,
+	}
+	woRepo.On("FindAllWithFilters", ctx, mock.MatchedBy(func(f domain.WorkOrderListFilters) bool {
+		return f.Page == 2 && f.Limit == 5
+	})).Return(resp, nil)
+
+	result, err := svc.GetAllWithFilters(ctx, domain.WorkOrderListFilters{Page: 2, Limit: 5})
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(result.Data))
+}
+
+func TestGetAllWithFilters_Error(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+
+	woRepo.On("FindAllWithFilters", ctx, mock.Anything).Return(nil, errors.New("db error"))
+
+	result, err := svc.GetAllWithFilters(ctx, domain.WorkOrderListFilters{Page: 1, Limit: 10})
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestGetAvgExecutionTime_Success(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+
+	results := []domain.AvgExecutionTimeResult{
+		{ServiceID: uuid.New(), Title: "Service", EstimatedTimeMinutes: 30, AvgRealTimeMinutes: 25.5, ExecutionCount: 3},
+	}
+	woRepo.On("GetAvgExecutionTime", ctx, mock.Anything).Return(results, nil)
+
+	out, err := svc.GetAvgExecutionTime(ctx, domain.AvgExecutionTimeFilters{})
+	assert.NoError(t, err)
+	assert.Len(t, out, 1)
+}
+
+func TestGetAvgExecutionTime_Error(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+
+	woRepo.On("GetAvgExecutionTime", ctx, mock.Anything).Return(nil, errors.New("db error"))
+
+	out, err := svc.GetAvgExecutionTime(ctx, domain.AvgExecutionTimeFilters{})
+	assert.Error(t, err)
+	assert.Nil(t, out)
+}
+
+func TestCreate_MissingVehicleID_ReturnsError(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+
+	input := &domain.WorkOrder{
+		Title:          "Revisão",
+		CustomerID:     uuid.New(),
+		OpenedByUserID: uuid.New(),
+	}
+
+	out, err := svc.Create(ctx, input)
+	assert.Error(t, err)
+	assert.Nil(t, out)
+}

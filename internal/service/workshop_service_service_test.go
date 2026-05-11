@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -316,6 +317,175 @@ func TestDelete_NotFound(t *testing.T) {
 
 	result, err := svc.Delete(ctx, id)
 	assert.ErrorIs(t, err, pgx.ErrNoRows)
+	assert.Nil(t, result)
+}
+
+func TestUpdate_AllFields(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	current := &domain.WorkshopService{
+		ID: id, Title: "Original", Description: "Desc", PriceCents: 100,
+		EstimatedTimeMinutes: 30, Active: true, CreatedAt: time.Now(),
+	}
+	title := "Updated"
+	desc := "New desc"
+	price := 200
+	estTime := 60
+	active := false
+
+	repo.On("FindByID", ctx, id).Return(current, nil)
+	repo.On("ExistsByTitle", ctx, "Updated", &id).Return(false, nil)
+	repo.On("Update", ctx, mock.AnythingOfType("*domain.WorkshopService")).Return(current, nil)
+
+	input := WorkshopServiceUpdateInput{
+		Title: &title, Description: &desc, PriceCents: &price,
+		EstimatedTimeMinutes: &estTime, Active: &active,
+	}
+	result, err := svc.Update(ctx, id, input)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+}
+
+func TestUpdate_ValidationError(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	current := &domain.WorkshopService{
+		ID: id, Title: "Original", Description: "Desc", PriceCents: 100,
+		EstimatedTimeMinutes: 30, Active: true,
+	}
+	title := "ab" // too short - validation error
+
+	repo.On("FindByID", ctx, id).Return(current, nil)
+
+	input := WorkshopServiceUpdateInput{Title: &title}
+	result, err := svc.Update(ctx, id, input)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestUpdate_ExistsByTitleError(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	current := &domain.WorkshopService{
+		ID: id, Title: "Valid Title", Description: "Desc", PriceCents: 100,
+		EstimatedTimeMinutes: 30, Active: true,
+	}
+	title := "New Title"
+
+	repo.On("FindByID", ctx, id).Return(current, nil)
+	repo.On("ExistsByTitle", ctx, "New Title", &id).Return(false, errors.New("db error"))
+
+	input := WorkshopServiceUpdateInput{Title: &title}
+	result, err := svc.Update(ctx, id, input)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestUpdate_RepoUpdateError(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	current := &domain.WorkshopService{
+		ID: id, Title: "Valid Title", Description: "Desc", PriceCents: 100,
+		EstimatedTimeMinutes: 30, Active: true,
+	}
+
+	repo.On("FindByID", ctx, id).Return(current, nil)
+	repo.On("ExistsByTitle", ctx, "Valid Title", &id).Return(false, nil)
+	repo.On("Update", ctx, mock.AnythingOfType("*domain.WorkshopService")).Return(nil, errors.New("db error"))
+
+	input := WorkshopServiceUpdateInput{}
+	result, err := svc.Update(ctx, id, input)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestDelete_HasLinksError(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	ws := &domain.WorkshopService{ID: id, Title: "Test", Active: true}
+	repo.On("FindByID", ctx, id).Return(ws, nil)
+	repo.On("HasWorkOrderLinks", ctx, id).Return(false, errors.New("db error"))
+
+	result, err := svc.Delete(ctx, id)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestDelete_DeactivateError(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	ws := &domain.WorkshopService{ID: id, Title: "Test", Active: true}
+	repo.On("FindByID", ctx, id).Return(ws, nil)
+	repo.On("HasWorkOrderLinks", ctx, id).Return(true, nil)
+	repo.On("Deactivate", ctx, id).Return(nil, errors.New("db error"))
+
+	result, err := svc.Delete(ctx, id)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestDelete_HardDeleteError(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+	id := uuid.New()
+
+	ws := &domain.WorkshopService{ID: id, Title: "Test", Active: true}
+	repo.On("FindByID", ctx, id).Return(ws, nil)
+	repo.On("HasWorkOrderLinks", ctx, id).Return(false, nil)
+	repo.On("Delete", ctx, id).Return(errors.New("db error"))
+
+	result, err := svc.Delete(ctx, id)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestCreate_ExistsByTitleError(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+
+	ws := &domain.WorkshopService{
+		Title: "Valid Title", Description: "Description", PriceCents: 5000, EstimatedTimeMinutes: 30,
+	}
+	repo.On("ExistsByTitle", ctx, "Valid Title", (*uuid.UUID)(nil)).Return(false, errors.New("db error"))
+
+	result, err := svc.Create(ctx, ws)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestCreate_RepoCreateError(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceService(repo)
+	ctx := context.Background()
+
+	ws := &domain.WorkshopService{
+		Title: "Valid Title", Description: "Description", PriceCents: 5000, EstimatedTimeMinutes: 30,
+	}
+	repo.On("ExistsByTitle", ctx, "Valid Title", (*uuid.UUID)(nil)).Return(false, nil)
+	repo.On("Create", ctx, mock.AnythingOfType("*domain.WorkshopService")).Return(nil, errors.New("db error"))
+
+	result, err := svc.Create(ctx, ws)
+	assert.Error(t, err)
 	assert.Nil(t, result)
 }
 
