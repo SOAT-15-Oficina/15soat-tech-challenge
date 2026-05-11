@@ -163,3 +163,30 @@ func TestVehicleDelete(t *testing.T) {
 	err := svc.Delete(ctx, id)
 	assert.NoError(t, err)
 }
+
+func TestVehicleGetAllWithFilters_Success(t *testing.T) {
+	repo := new(mockVehicleRepo)
+	svc := NewVehicleService(repo)
+	ctx := context.Background()
+
+	filters := domain.VehicleListFilters{CustomerID: uuid.New()}
+	vehicles := []domain.Vehicle{{ID: uuid.New(), LicensePlate: "ABC1234"}}
+	repo.On("FindAllWithFilters", ctx, filters).Return(vehicles, nil)
+
+	results, err := svc.GetAllWithFilters(ctx, filters)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
+}
+
+func TestVehicleGetAllWithFilters_Error(t *testing.T) {
+	repo := new(mockVehicleRepo)
+	svc := NewVehicleService(repo)
+	ctx := context.Background()
+
+	filters := domain.VehicleListFilters{}
+	repo.On("FindAllWithFilters", ctx, filters).Return(nil, errors.New("db error"))
+
+	results, err := svc.GetAllWithFilters(ctx, filters)
+	assert.Error(t, err)
+	assert.Nil(t, results)
+}
