@@ -17,6 +17,10 @@ func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config, emailP
 		return c.SendString("Pong")
 	})
 
+	app.Get("/", func(c fiber.Ctx) error {
+		return c.Redirect().To("/web")
+	})
+
 	app.Get("/web*", static.New("./web"))
 
 	registerSwagger(app)
