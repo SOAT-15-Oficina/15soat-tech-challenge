@@ -155,7 +155,7 @@ func (r *workOrderServiceRepository) DeleteSuppliesByWorkOrderServiceID(ctx cont
 
 func (r *workOrderServiceRepository) DeleteSupplyForWorkOrderService(ctx context.Context, workOrderServiceID, supplyID uuid.UUID) error {
 	tag, err := r.db.Exec(ctx,
-		`DELETE FROM work_order_service_supplies WHERE work_order_service_id = $1 AND supply_id = $2`,
+		`DELETE FROM work_order_service_supplies WHERE work_order_service_id = $1 AND id = $2`,
 		workOrderServiceID, supplyID,
 	)
 	if err != nil {

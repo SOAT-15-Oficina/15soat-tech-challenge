@@ -1047,10 +1047,13 @@ func TestIntegration_Flow_RemoveServiceAndSupply(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
+	addedSupplies := flowReadBodyArray(t, resp)
+	require.Len(t, addedSupplies, 1)
+	wosSupplyID := addedSupplies[0]["id"].(string)
 
 	// Remove the supply
 	t.Run("RemoveSupply", func(t *testing.T) {
-		resp, err := flowDelete(app, fmt.Sprintf("/work-orders/%s/services/%s/supplies/%s", workOrderID, wosID, supplyID))
+		resp, err := flowDelete(app, fmt.Sprintf("/work-orders/%s/services/%s/supplies/%s", workOrderID, wosID, wosSupplyID))
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusNoContent, resp.StatusCode)
 	})

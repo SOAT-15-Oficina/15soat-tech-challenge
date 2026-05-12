@@ -94,6 +94,9 @@ func (h *SupplyHandler) Delete(c fiber.Ctx) error {
 	}
 
 	if err := h.svc.Delete(c.Context(), id); err != nil {
+		if handled, resp := dbErrResponse(c, err, "supply not found"); handled {
+			return resp
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 

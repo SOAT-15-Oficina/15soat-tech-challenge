@@ -33,7 +33,7 @@ var foreignKeyMessages = map[string]string{
 	"fk_wos_work_order":         "work order not found",
 	"fk_wos_service":            "service not found",
 	"fk_wosi_work_order_s":      "work order service not found",
-	"fk_wosi_supply":            "supply not found",
+	"fk_wosi_supply":            "insumo vinculado a uma OS e não pode ser removido",
 	"fk_wosh_work_order":        "work order service not found",
 }
 
