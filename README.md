@@ -35,7 +35,9 @@ O SonarQube roda em um compose separado para não alterar o fluxo padrão da apl
 docker compose -f docker-compose.sonar.yml up -d sonarqube
 ```
 
-Acesse `http://localhost:9000`, entre com `admin` / `admin`, troque a senha inicial e crie um projeto local com a chave `15soat-tech-challenge-step-1`. Depois gere um token para rodar o scanner.
+Acesse `http://localhost:9000`, entre com `admin` / `admin` e troque a senha para `password`. Em seguida, crie um projeto local com a chave `15soat-tech-challenge-step-1` e gere um token com o valor `15soat-tech-challenge-step-1`.
+
+> As credenciais já estão configuradas em `sonar-project.properties` (`sonar.login`, `sonar.password` e `sonar.token`), então nenhuma variável de ambiente adicional é necessária.
 
 Antes da análise, gere o relatório de cobertura Go:
 
@@ -49,10 +51,10 @@ Se não estiver usando `mise`, rode o mesmo comando com o `go` instalado localme
 go test ./... -coverprofile=coverage.out
 ```
 
-Execute a análise com o token gerado no SonarQube:
+Execute a análise:
 
 ```bash
-SONAR_TOKEN=<token> docker compose -f docker-compose.sonar.yml run --rm sonar-scanner
+docker compose -f docker-compose.sonar.yml run --rm sonar-scanner
 ```
 
 A configuração está em `sonar-project.properties`. A análise considera `cmd`, `database`, `internal` e `packages`, e exclui explicitamente a interface web em `web/**`.
