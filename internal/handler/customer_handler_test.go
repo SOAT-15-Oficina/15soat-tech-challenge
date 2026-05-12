@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -200,4 +201,122 @@ func TestCustomerDelete_InvalidID_400(t *testing.T) {
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestCustomerUpdate_Success(t *testing.T) {
+	svc := new(mockCustomerService)
+	app := setupCustomerApp(svc)
+	c := sampleCustomer()
+
+	svc.On("Update", mock.Anything, mock.AnythingOfType("*domain.Customer")).Return(c, nil)
+
+	req := httptest.NewRequest(http.MethodPut, "/customers/"+c.ID.String(), bytes.NewReader(customerJSON(c)))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestCustomerUpdate_InvalidID(t *testing.T) {
+	svc := new(mockCustomerService)
+	app := setupCustomerApp(svc)
+
+	req := httptest.NewRequest(http.MethodPut, "/customers/bad-id", bytes.NewReader(customerJSON(sampleCustomer())))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestCustomerUpdate_NotFound(t *testing.T) {
+	svc := new(mockCustomerService)
+	app := setupCustomerApp(svc)
+	id := uuid.New()
+
+	svc.On("Update", mock.Anything, mock.AnythingOfType("*domain.Customer")).Return(nil, pgx.ErrNoRows)
+
+	body := customerJSON(&domain.Customer{Name: "Test", Email: "t@t.com", Document: "11144477735", DocumentType: domain.DocumentTypeCPF})
+	req := httptest.NewRequest(http.MethodPut, "/customers/"+id.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusNotFound, resp.StatusCode)
+}
+
+func TestCustomerUpdate_ValidationError(t *testing.T) {
+	svc := new(mockCustomerService)
+	app := setupCustomerApp(svc)
+	id := uuid.New()
+
+	svc.On("Update", mock.Anything, mock.AnythingOfType("*domain.Customer")).Return(nil, domain.ErrCustomerNameRequired)
+
+	body := customerJSON(&domain.Customer{})
+	req := httptest.NewRequest(http.MethodPut, "/customers/"+id.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestCustomerDelete_NotFound(t *testing.T) {
+	svc := new(mockCustomerService)
+	app := setupCustomerApp(svc)
+	id := uuid.New()
+
+	svc.On("Delete", mock.Anything, id).Return(errors.New("db error"))
+
+	req := httptest.NewRequest(http.MethodDelete, "/customers/"+id.String(), nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+}
+
+func TestCustomerGetAll_Error(t *testing.T) {
+	svc := new(mockCustomerService)
+	app := setupCustomerApp(svc)
+
+	svc.On("GetAllWithFilters", mock.Anything, mock.Anything).Return(nil, errors.New("db error"))
+
+	req := httptest.NewRequest(http.MethodGet, "/customers", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+}
+
+func TestCustomerGetByID_ServerError(t *testing.T) {
+	svc := new(mockCustomerService)
+	app := setupCustomerApp(svc)
+	id := uuid.New()
+
+	svc.On("GetByID", mock.Anything, id).Return(nil, errors.New("unexpected error"))
+
+	req := httptest.NewRequest(http.MethodGet, "/customers/"+id.String(), nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+}
+
+func TestCustomerCreate_ServerError(t *testing.T) {
+	svc := new(mockCustomerService)
+	app := setupCustomerApp(svc)
+
+	svc.On("Create", mock.Anything, mock.AnythingOfType("*domain.Customer")).Return(nil, errors.New("unexpected error"))
+
+	req := httptest.NewRequest(http.MethodPost, "/customers", bytes.NewReader(customerJSON(sampleCustomer())))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+}
+
+func TestCustomerGetAll_NilResult(t *testing.T) {
+	svc := new(mockCustomerService)
+	app := setupCustomerApp(svc)
+
+	svc.On("GetAllWithFilters", mock.Anything, domain.CustomerListFilters{}).Return(nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/customers", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }

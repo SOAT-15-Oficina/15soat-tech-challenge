@@ -232,3 +232,56 @@ func TestCustomerDelete_Error(t *testing.T) {
 	err := svc.Delete(ctx, id)
 	assert.Error(t, err)
 }
+
+func TestCustomerGetAllWithFilters_Success(t *testing.T) {
+	repo := new(mockCustomerRepo)
+	svc := NewCustomerService(repo)
+	ctx := context.Background()
+
+	filters := domain.CustomerListFilters{Document: "11144477735"}
+	repo.On("FindAllWithFilters", ctx, filters).Return([]domain.Customer{*savedCustomer()}, nil)
+
+	results, err := svc.GetAllWithFilters(ctx, filters)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
+}
+
+func TestCustomerGetAllWithFilters_Error(t *testing.T) {
+	repo := new(mockCustomerRepo)
+	svc := NewCustomerService(repo)
+	ctx := context.Background()
+
+	filters := domain.CustomerListFilters{}
+	repo.On("FindAllWithFilters", ctx, filters).Return(nil, errors.New("db error"))
+
+	results, err := svc.GetAllWithFilters(ctx, filters)
+	assert.Error(t, err)
+	assert.Nil(t, results)
+}
+
+func TestCustomerCreate_RepoError(t *testing.T) {
+	repo := new(mockCustomerRepo)
+	svc := NewCustomerService(repo)
+	ctx := context.Background()
+	customer := validCustomer()
+
+	repo.On("Create", ctx, mock.AnythingOfType("*domain.Customer")).Return(nil, errors.New("db error"))
+
+	result, err := svc.Create(ctx, customer)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestCustomerUpdate_RepoError(t *testing.T) {
+	repo := new(mockCustomerRepo)
+	svc := NewCustomerService(repo)
+	ctx := context.Background()
+	customer := validCustomer()
+	customer.ID = uuid.New()
+
+	repo.On("Update", ctx, mock.AnythingOfType("*domain.Customer")).Return(nil, errors.New("db error"))
+
+	result, err := svc.Update(ctx, customer)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
