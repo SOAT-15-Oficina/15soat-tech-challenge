@@ -23,6 +23,8 @@ docker compose up --build -d
 
 A API fica disponível em `http://localhost:8080`.
 
+O painel web fica acessível em `http://localhost:8080/web` (a rota `/` redireciona automaticamente para `/web`).
+
 O banco de dados PostgreSQL é inicializado automaticamente com o schema (via `initdb.d` e goose no boot da API) e dados de seed na primeira execução. As migrations são embedded no binário da API via `go:embed`.
 
 ### SonarQube local
@@ -55,6 +57,22 @@ SONAR_TOKEN=<token> docker compose -f docker-compose.sonar.yml run --rm sonar-sc
 
 A configuração está em `sonar-project.properties`. A análise considera `cmd`, `database`, `internal` e `packages`, e exclui explicitamente a interface web em `web/**`.
 
+### Painel Web
+
+O projeto inclui uma interface web para gerenciamento da oficina, acessível em [http://localhost:8080/web](http://localhost:8080/web). A rota raiz (`/`) redireciona automaticamente para o painel.
+
+O painel permite gerenciar:
+
+- **Board** — visão geral das ordens de serviço por status
+- **Ordens de Serviço** — listagem e criação de novas OS
+- **Clientes** — cadastro e consulta de clientes
+- **Veículos** — cadastro e consulta de veículos
+- **Serviços** — catálogo de serviços da oficina
+- **Insumos** — controle de peças e insumos em estoque
+- **Aprovação** — aprovação/rejeição de orçamentos pelo cliente
+
+O login é feito com as credenciais cadastradas via `/auth/register`. Os arquivos ficam em `web/` e são servidos como conteúdo estático pelo Fiber.
+
 ### Documentacao da API (Swagger)
 
 Com o projeto rodando, acesse o Swagger UI para visualizar e testar todos os endpoints:
@@ -68,7 +86,9 @@ Para endpoints autenticados, clique em **Authorize** no Swagger UI e insira o to
 
 | Metodo | Rota    | Descricao    |
 | ------ | ------- | ------------ |
-| GET    | `/ping` | Health check |
+| GET    | `/`        | Redireciona para `/web` |
+| GET    | `/ping`    | Health check |
+| GET    | `/web`     | Painel web da oficina |
 | GET    | `/swagger` | Swagger UI |
 
 ## Estrutura do projeto
@@ -76,6 +96,7 @@ Para endpoints autenticados, clique em **Authorize** no Swagger UI e insira o to
 ```
 cmd/
   api/              # Entrypoint da API
+web/                # Painel web (HTML/JS/CSS servido como estático)
 database/
   migrations/       # Arquivos de migration do goose (embedded no binário)
   seed-files/       # Dados de seed (desenvolvimento)
