@@ -102,7 +102,7 @@ func savedTestService() *domain.WorkshopService {
 func TestCreate_Success(t *testing.T) {
 	// should create a valid service when title is unique
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	ws := newTestService()
 
@@ -119,7 +119,7 @@ func TestCreate_Success(t *testing.T) {
 func TestCreate_DuplicateTitle(t *testing.T) {
 	// should return error when title already exists
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	ws := newTestService()
 
@@ -134,7 +134,7 @@ func TestCreate_DuplicateTitle(t *testing.T) {
 func TestCreate_ValidationError(t *testing.T) {
 	// should return domain validation error for invalid data
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	ws := &domain.WorkshopService{
 		Title:                "",
@@ -151,7 +151,7 @@ func TestCreate_ValidationError(t *testing.T) {
 func TestGetByID_Success(t *testing.T) {
 	// should return the service when found
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	expected := savedTestService()
 
@@ -165,7 +165,7 @@ func TestGetByID_Success(t *testing.T) {
 func TestGetByID_NotFound(t *testing.T) {
 	// should return pgx.ErrNoRows when not found
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	id := uuid.New()
 
@@ -179,7 +179,7 @@ func TestGetByID_NotFound(t *testing.T) {
 func TestList_DefaultPagination(t *testing.T) {
 	// should default page=1 and limit=10 when not provided
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 
 	expectedFilters := domain.WorkshopServiceListFilters{Page: 1, Limit: 10}
@@ -195,7 +195,7 @@ func TestList_DefaultPagination(t *testing.T) {
 func TestList_WithFilters(t *testing.T) {
 	// should pass active filter through to repository
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	active := true
 
@@ -211,7 +211,7 @@ func TestList_WithFilters(t *testing.T) {
 func TestUpdate_Success(t *testing.T) {
 	// should apply partial update and return updated service
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	existing := savedTestService()
 
@@ -239,7 +239,7 @@ func TestUpdate_Success(t *testing.T) {
 func TestUpdate_DuplicateTitle(t *testing.T) {
 	// should reject update when new title already exists for another service
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	existing := savedTestService()
 
@@ -258,7 +258,7 @@ func TestUpdate_DuplicateTitle(t *testing.T) {
 func TestUpdate_NotFound(t *testing.T) {
 	// should return error when service to update does not exist
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	id := uuid.New()
 
@@ -272,10 +272,32 @@ func TestUpdate_NotFound(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+func TestUpdate_ActiveFlag(t *testing.T) {
+	repo := new(mockRepo)
+	svc := NewWorkshopServiceManager(repo)
+	ctx := context.Background()
+	existing := savedTestService()
+	active := false
+
+	input := WorkshopServiceUpdateInput{Active: &active}
+	updated := *existing
+	updated.Active = false
+	updated.UpdatedAt = time.Now().UTC()
+
+	repo.On("FindByID", ctx, existing.ID).Return(existing, nil)
+	repo.On("ExistsByTitle", ctx, existing.Title, &existing.ID).Return(false, nil)
+	repo.On("Update", ctx, mock.AnythingOfType("*domain.WorkshopService")).Return(&updated, nil)
+
+	result, err := svc.Update(ctx, existing.ID, input)
+	assert.NoError(t, err)
+	assert.False(t, result.Active)
+	repo.AssertExpectations(t)
+}
+
 func TestDelete_HardDelete(t *testing.T) {
 	// should hard delete when service has no work order links
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	existing := savedTestService()
 
@@ -293,7 +315,7 @@ func TestDelete_HardDelete(t *testing.T) {
 func TestDelete_SoftDelete(t *testing.T) {
 	// should soft delete (deactivate) when service has work order links
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	existing := savedTestService()
 	deactivated := *existing
@@ -314,7 +336,7 @@ func TestDelete_SoftDelete(t *testing.T) {
 func TestDelete_NotFound(t *testing.T) {
 	// should return error when service to delete does not exist
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	id := uuid.New()
 
@@ -327,7 +349,7 @@ func TestDelete_NotFound(t *testing.T) {
 
 func TestUpdate_AllFields(t *testing.T) {
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	id := uuid.New()
 
@@ -356,7 +378,7 @@ func TestUpdate_AllFields(t *testing.T) {
 
 func TestUpdate_ValidationError(t *testing.T) {
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	id := uuid.New()
 
@@ -376,7 +398,7 @@ func TestUpdate_ValidationError(t *testing.T) {
 
 func TestUpdate_ExistsByTitleError(t *testing.T) {
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	id := uuid.New()
 
@@ -397,7 +419,7 @@ func TestUpdate_ExistsByTitleError(t *testing.T) {
 
 func TestUpdate_RepoUpdateError(t *testing.T) {
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	id := uuid.New()
 
@@ -418,7 +440,7 @@ func TestUpdate_RepoUpdateError(t *testing.T) {
 
 func TestDelete_HasLinksError(t *testing.T) {
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	id := uuid.New()
 
@@ -433,7 +455,7 @@ func TestDelete_HasLinksError(t *testing.T) {
 
 func TestDelete_DeactivateError(t *testing.T) {
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	id := uuid.New()
 
@@ -449,7 +471,7 @@ func TestDelete_DeactivateError(t *testing.T) {
 
 func TestDelete_HardDeleteError(t *testing.T) {
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 	id := uuid.New()
 
@@ -465,7 +487,7 @@ func TestDelete_HardDeleteError(t *testing.T) {
 
 func TestCreate_ExistsByTitleError(t *testing.T) {
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 
 	ws := &domain.WorkshopService{
@@ -480,7 +502,7 @@ func TestCreate_ExistsByTitleError(t *testing.T) {
 
 func TestCreate_RepoCreateError(t *testing.T) {
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 
 	ws := &domain.WorkshopService{
@@ -496,7 +518,7 @@ func TestCreate_RepoCreateError(t *testing.T) {
 
 func TestWorkshopService_GetAvgExecutionTime_Success(t *testing.T) {
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 
 	filters := domain.AvgExecutionTimeFilters{}
@@ -514,7 +536,7 @@ func TestWorkshopService_GetAvgExecutionTime_Success(t *testing.T) {
 
 func TestWorkshopService_GetAvgExecutionTime_RepoError(t *testing.T) {
 	repo := new(mockRepo)
-	svc := NewWorkshopServiceService(repo)
+	svc := NewWorkshopServiceManager(repo)
 	ctx := context.Background()
 
 	filters := domain.AvgExecutionTimeFilters{}

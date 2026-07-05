@@ -13,7 +13,7 @@ import (
 )
 
 type WorkshopServiceHandler struct {
-	svc service.WorkshopServiceService
+	svc service.WorkshopServiceManager
 }
 
 type workshopServiceRequest struct {
@@ -51,7 +51,7 @@ type avgExecutionTimeResponse struct {
 	DifferenceMinutes    float64   `json:"difference_minutes"`
 }
 
-func NewWorkshopServiceHandler(svc service.WorkshopServiceService) *WorkshopServiceHandler {
+func NewWorkshopServiceHandler(svc service.WorkshopServiceManager) *WorkshopServiceHandler {
 	return &WorkshopServiceHandler{svc: svc}
 }
 
