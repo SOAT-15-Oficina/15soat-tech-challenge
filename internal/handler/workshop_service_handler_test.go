@@ -65,7 +65,7 @@ func (m *mockWorkshopServiceService) GetAvgExecutionTime(ctx context.Context, fi
 	return args.Get(0).([]domain.AvgExecutionTimeResult), args.Error(1)
 }
 
-func setupTestApp(svc service.WorkshopServiceService) *fiber.App {
+func setupTestApp(svc service.WorkshopServiceManager) *fiber.App {
 	app := fiber.New()
 	h := NewWorkshopServiceHandler(svc)
 	h.RegisterRoutes(app)

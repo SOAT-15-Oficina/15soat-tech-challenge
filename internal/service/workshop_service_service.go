@@ -25,7 +25,7 @@ type WorkshopServiceUpdateInput struct {
 	Active               *bool
 }
 
-type WorkshopServiceService interface {
+type WorkshopServiceManager interface {
 	Create(ctx context.Context, ws *domain.WorkshopService) (*domain.WorkshopService, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.WorkshopService, error)
 	List(ctx context.Context, filters domain.WorkshopServiceListFilters) ([]domain.WorkshopService, int, error)
@@ -34,15 +34,15 @@ type WorkshopServiceService interface {
 	GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error)
 }
 
-type workshopServiceService struct {
+type workshopServiceManager struct {
 	repo repository.WorkshopServiceRepository
 }
 
-func NewWorkshopServiceService(repo repository.WorkshopServiceRepository) WorkshopServiceService {
-	return &workshopServiceService{repo: repo}
+func NewWorkshopServiceManager(repo repository.WorkshopServiceRepository) WorkshopServiceManager {
+	return &workshopServiceManager{repo: repo}
 }
 
-func (s *workshopServiceService) Create(ctx context.Context, ws *domain.WorkshopService) (*domain.WorkshopService, error) {
+func (s *workshopServiceManager) Create(ctx context.Context, ws *domain.WorkshopService) (*domain.WorkshopService, error) {
 	ws.Active = true
 
 	if err := ws.Validate(); err != nil {
@@ -60,11 +60,11 @@ func (s *workshopServiceService) Create(ctx context.Context, ws *domain.Workshop
 	return s.repo.Create(ctx, ws)
 }
 
-func (s *workshopServiceService) GetByID(ctx context.Context, id uuid.UUID) (*domain.WorkshopService, error) {
+func (s *workshopServiceManager) GetByID(ctx context.Context, id uuid.UUID) (*domain.WorkshopService, error) {
 	return s.repo.FindByID(ctx, id)
 }
 
-func (s *workshopServiceService) List(ctx context.Context, filters domain.WorkshopServiceListFilters) ([]domain.WorkshopService, int, error) {
+func (s *workshopServiceManager) List(ctx context.Context, filters domain.WorkshopServiceListFilters) ([]domain.WorkshopService, int, error) {
 	if filters.Page <= 0 {
 		filters.Page = 1
 	}
@@ -75,7 +75,7 @@ func (s *workshopServiceService) List(ctx context.Context, filters domain.Worksh
 	return s.repo.List(ctx, filters)
 }
 
-func (s *workshopServiceService) Update(ctx context.Context, id uuid.UUID, input WorkshopServiceUpdateInput) (*domain.WorkshopService, error) {
+func (s *workshopServiceManager) Update(ctx context.Context, id uuid.UUID, input WorkshopServiceUpdateInput) (*domain.WorkshopService, error) {
 	current, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func (s *workshopServiceService) Update(ctx context.Context, id uuid.UUID, input
 	return updated, nil
 }
 
-func (s *workshopServiceService) Delete(ctx context.Context, id uuid.UUID) (*DeleteWorkshopServiceResult, error) {
+func (s *workshopServiceManager) Delete(ctx context.Context, id uuid.UUID) (*DeleteWorkshopServiceResult, error) {
 	_, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -147,6 +147,6 @@ func (s *workshopServiceService) Delete(ctx context.Context, id uuid.UUID) (*Del
 	return &DeleteWorkshopServiceResult{Deleted: true}, nil
 }
 
-func (s *workshopServiceService) GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error) {
+func (s *workshopServiceManager) GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error) {
 	return s.repo.GetAvgExecutionTime(ctx, filters)
 }

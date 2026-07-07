@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,7 +17,7 @@ type WorkOrderRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrder, error)
 	FindByCode(ctx context.Context, code string) (*domain.WorkOrder, error)
 	FindAll(ctx context.Context) ([]domain.WorkOrder, error)
-	FindAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error)
+	FindAllWithFilters(ctx context.Context, filters application.WorkOrderListFilters) (*application.WorkOrderListResponse, error)
 	Update(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
 }
 
@@ -212,7 +213,7 @@ func (r *workOrderRepository) Update(ctx context.Context, wo *domain.WorkOrder) 
 	return &result, nil
 }
 
-func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error) {
+func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters application.WorkOrderListFilters) (*application.WorkOrderListResponse, error) {
 	whereConditions := []string{}
 	args := []interface{}{}
 	argIndex := 1
@@ -310,7 +311,7 @@ func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters do
 
 	totalPages := (total + filters.Limit - 1) / filters.Limit
 
-	return &domain.WorkOrderListResponse{
+	return &application.WorkOrderListResponse{
 		Data:       workOrders,
 		Total:      total,
 		Page:       filters.Page,
@@ -319,19 +320,23 @@ func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters do
 	}, nil
 }
 
-func (r *workOrderRepository) fetchServicesForWorkOrder(ctx context.Context, workOrderID uuid.UUID) ([]domain.WorkOrderServiceWithSupplies, error) {
-	query := `SELECT id, service_title_snapshot, service_price_cents_snapshot, status, approval_status FROM work_order_services WHERE work_order_id = $1`
+func (r *workOrderRepository) fetchServicesForWorkOrder(ctx context.Context, workOrderID uuid.UUID) ([]domain.WorkOrderService, error) {
+	query := `SELECT id, work_order_id, service_id, service_title_snapshot, service_description_snapshot, service_price_cents_snapshot, service_estimated_time_minutes_snapshot, approval_status, status, started_at, finished_at, created_at, updated_at FROM work_order_services WHERE work_order_id = $1`
 	rows, err := r.db.Query(ctx, query, workOrderID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var services []domain.WorkOrderServiceWithSupplies
+	var services []domain.WorkOrderService
 	for rows.Next() {
-		var svc domain.WorkOrderServiceWithSupplies
-		svc.Quantity = 1
-		if err := rows.Scan(&svc.ID, &svc.Description, &svc.ServicePriceCentsSnapshot, &svc.Status, &svc.ApprovalStatus); err != nil {
+		var svc domain.WorkOrderService
+		if err := rows.Scan(
+			&svc.ID, &svc.WorkOrderID, &svc.ServiceID,
+			&svc.ServiceTitleSnapshot, &svc.ServiceDescriptionSnapshot,
+			&svc.ServicePriceCentsSnapshot, &svc.ServiceEstimatedTimeMinutesSnapshot,
+			&svc.ApprovalStatus, &svc.Status, &svc.StartedAt, &svc.FinishedAt, &svc.CreatedAt, &svc.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 
@@ -340,24 +345,27 @@ func (r *workOrderRepository) fetchServicesForWorkOrder(ctx context.Context, wor
 			return nil, err
 		}
 		svc.Supplies = supplies
-
 		services = append(services, svc)
 	}
 	return services, nil
 }
 
-func (r *workOrderRepository) fetchSuppliesForService(ctx context.Context, serviceID uuid.UUID) ([]domain.WorkOrderServiceSupplyResponse, error) {
-	query := `SELECT id, supply_title_snapshot, supply_price_cents_snapshot, supply_quantity FROM work_order_service_supplies WHERE work_order_service_id = $1`
+func (r *workOrderRepository) fetchSuppliesForService(ctx context.Context, serviceID uuid.UUID) ([]domain.WorkOrderServiceSupply, error) {
+	query := `SELECT id, work_order_service_id, supply_id, supply_title_snapshot, supply_price_cents_snapshot, supply_quantity, created_at, updated_at FROM work_order_service_supplies WHERE work_order_service_id = $1`
 	rows, err := r.db.Query(ctx, query, serviceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var supplies []domain.WorkOrderServiceSupplyResponse
+	var supplies []domain.WorkOrderServiceSupply
 	for rows.Next() {
-		var sup domain.WorkOrderServiceSupplyResponse
-		if err := rows.Scan(&sup.ID, &sup.Description, &sup.SupplyPriceCentsSnapshot, &sup.SupplyQuantity); err != nil {
+		var sup domain.WorkOrderServiceSupply
+		if err := rows.Scan(
+			&sup.ID, &sup.WorkOrderServiceID, &sup.SupplyID,
+			&sup.SupplyTitleSnapshot, &sup.SupplyPriceCentsSnapshot,
+			&sup.SupplyQuantity, &sup.CreatedAt, &sup.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		supplies = append(supplies, sup)

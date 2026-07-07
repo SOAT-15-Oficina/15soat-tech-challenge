@@ -87,6 +87,7 @@ type UserService interface {
 	Register(ctx context.Context, username, password string, role domain.UserRole) (*domain.User, error)
 	Login(ctx context.Context, username, password string) (string, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
+	GetByUsername(ctx context.Context, username string) (*domain.User, error)
 	GetAll(ctx context.Context) ([]domain.User, error)
 	Update(ctx context.Context, id uuid.UUID, username string, role domain.UserRole) (*domain.User, error)
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -143,6 +144,10 @@ func (s *userService) Login(ctx context.Context, username, password string) (str
 
 func (s *userService) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	return s.repo.FindByID(ctx, id)
+}
+
+func (s *userService) GetByUsername(ctx context.Context, username string) (*domain.User, error) {
+	return s.repo.FindByUsername(ctx, username)
 }
 
 func (s *userService) GetAll(ctx context.Context) ([]domain.User, error) {

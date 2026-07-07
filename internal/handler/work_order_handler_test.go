@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/auth"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
@@ -48,12 +49,12 @@ func (m *mockWorkOrderService) GetAll(ctx context.Context) ([]domain.WorkOrder, 
 	return args.Get(0).([]domain.WorkOrder), args.Error(1)
 }
 
-func (m *mockWorkOrderService) GetAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error) {
+func (m *mockWorkOrderService) GetAllWithFilters(ctx context.Context, filters application.WorkOrderListFilters) (*application.WorkOrderListResponse, error) {
 	args := m.Called(ctx, filters)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.WorkOrderListResponse), args.Error(1)
+	return args.Get(0).(*application.WorkOrderListResponse), args.Error(1)
 }
 
 func (m *mockWorkOrderService) Update(ctx context.Context, wo *domain.WorkOrder) (*domain.WorkOrder, error) {
@@ -116,6 +117,49 @@ func (m *mockStatusSvc) IsValidTransition(from, to domain.WorkOrderStatus) bool 
 
 type mockUserRepo struct{ mock.Mock }
 
+func (m *mockUserRepo) Register(ctx context.Context, username, password string, role domain.UserRole) (*domain.User, error) {
+	args := m.Called(ctx, username, password, role)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.User), args.Error(1)
+}
+func (m *mockUserRepo) Login(ctx context.Context, username, password string) (string, error) {
+	args := m.Called(ctx, username, password)
+	return args.String(0), args.Error(1)
+}
+func (m *mockUserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.User), args.Error(1)
+}
+func (m *mockUserRepo) GetByUsername(ctx context.Context, username string) (*domain.User, error) {
+	args := m.Called(ctx, username)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.User), args.Error(1)
+}
+func (m *mockUserRepo) GetAll(ctx context.Context) ([]domain.User, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.User), args.Error(1)
+}
+func (m *mockUserRepo) Update(ctx context.Context, id uuid.UUID, username string, role domain.UserRole) (*domain.User, error) {
+	args := m.Called(ctx, id, username, role)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.User), args.Error(1)
+}
+func (m *mockUserRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	return m.Called(ctx, id).Error(0)
+}
+
 func (m *mockUserRepo) Create(ctx context.Context, user *domain.User) (*domain.User, error) {
 	args := m.Called(ctx, user)
 	if args.Get(0) == nil {
@@ -143,16 +187,6 @@ func (m *mockUserRepo) FindAll(ctx context.Context) ([]domain.User, error) {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]domain.User), args.Error(1)
-}
-func (m *mockUserRepo) Update(ctx context.Context, user *domain.User) (*domain.User, error) {
-	args := m.Called(ctx, user)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.User), args.Error(1)
-}
-func (m *mockUserRepo) Delete(ctx context.Context, id uuid.UUID) error {
-	return m.Called(ctx, id).Error(0)
 }
 
 // --- Full setup ---
@@ -196,7 +230,7 @@ func setupFullWorkOrderApp() (*fiber.App, *woTestDeps) {
 
 func TestWorkOrder_GetAll_Success(t *testing.T) {
 	app, deps := setupFullWorkOrderApp()
-	resp := &domain.WorkOrderListResponse{
+	resp := &application.WorkOrderListResponse{
 		Data: []domain.WorkOrder{{ID: uuid.New(), Title: "test"}}, Total: 1, Page: 1, Limit: 10, TotalPages: 1,
 	}
 	deps.woSvc.On("GetAllWithFilters", mock.Anything, mock.Anything).Return(resp, nil)
@@ -209,7 +243,7 @@ func TestWorkOrder_GetAll_Success(t *testing.T) {
 
 func TestWorkOrder_GetAll_WithFilters(t *testing.T) {
 	app, deps := setupFullWorkOrderApp()
-	resp := &domain.WorkOrderListResponse{Data: []domain.WorkOrder{}, Total: 0, Page: 2, Limit: 5, TotalPages: 0}
+	resp := &application.WorkOrderListResponse{Data: []domain.WorkOrder{}, Total: 0, Page: 2, Limit: 5, TotalPages: 0}
 	deps.woSvc.On("GetAllWithFilters", mock.Anything, mock.Anything).Return(resp, nil)
 
 	custID := uuid.New()
@@ -289,7 +323,7 @@ func TestWorkOrder_GetByID_ServerError(t *testing.T) {
 func TestWorkOrder_Create_Success(t *testing.T) {
 	app, deps := setupFullWorkOrderApp()
 	user := &domain.User{ID: uuid.New(), Username: "testuser"}
-	deps.userRepo.On("FindByUsername", mock.Anything, "testuser").Return(user, nil)
+	deps.userRepo.On("GetByUsername", mock.Anything, "testuser").Return(user, nil)
 	wo := &domain.WorkOrder{ID: uuid.New(), Title: "test", Code: "OS-123"}
 	deps.woSvc.On("Create", mock.Anything, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
@@ -320,7 +354,7 @@ func TestWorkOrder_Create_NoToken(t *testing.T) {
 
 func TestWorkOrder_Create_UserRepoError(t *testing.T) {
 	app, deps := setupFullWorkOrderApp()
-	deps.userRepo.On("FindByUsername", mock.Anything, "testuser").Return(nil, errors.New("db error"))
+	deps.userRepo.On("GetByUsername", mock.Anything, "testuser").Return(nil, errors.New("db error"))
 
 	body, _ := json.Marshal(map[string]any{"title": "test", "customer_id": uuid.New(), "vehicle_id": uuid.New()})
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/", bytes.NewReader(body))
@@ -333,7 +367,7 @@ func TestWorkOrder_Create_UserRepoError(t *testing.T) {
 func TestWorkOrder_Create_ServiceError(t *testing.T) {
 	app, deps := setupFullWorkOrderApp()
 	user := &domain.User{ID: uuid.New(), Username: "testuser"}
-	deps.userRepo.On("FindByUsername", mock.Anything, "testuser").Return(user, nil)
+	deps.userRepo.On("GetByUsername", mock.Anything, "testuser").Return(user, nil)
 	deps.woSvc.On("Create", mock.Anything, mock.AnythingOfType("*domain.WorkOrder")).Return(nil, errors.New("validation error"))
 
 	body, _ := json.Marshal(map[string]any{"title": "test", "customer_id": uuid.New(), "vehicle_id": uuid.New()})

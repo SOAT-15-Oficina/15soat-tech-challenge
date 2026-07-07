@@ -16,6 +16,7 @@ type WorkOrderService struct {
 	ServiceEstimatedTimeMinutesSnapshot int                            `json:"service_estimated_time_minutes_snapshot"`
 	ApprovalStatus                      WorkOrderServiceApprovalStatus `json:"approval_status"`
 	Status                              WorkOrderServiceStatus         `json:"status"`
+	Supplies                            []WorkOrderServiceSupply       `json:"supplies,omitempty"`
 	StartedAt                           *time.Time                     `json:"started_at,omitempty"`
 	FinishedAt                          *time.Time                     `json:"finished_at,omitempty"`
 	CreatedAt                           time.Time                      `json:"created_at"`
