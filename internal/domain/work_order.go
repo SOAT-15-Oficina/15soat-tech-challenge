@@ -74,6 +74,37 @@ type WorkOrderServiceSupplyResponse struct {
 	SupplyQuantity           int       `json:"supply_quantity"`
 }
 
+var WorkOrderListingExcludedStatuses = []WorkOrderStatus{
+	WorkOrderStatusFinished,
+	WorkOrderStatusDelivered,
+	WorkOrderStatusCanceled,
+}
+
+var workOrderStatusSortPriority = map[WorkOrderStatus]int{
+	WorkOrderStatusInProgress:      1,
+	WorkOrderStatusApproved:        2,
+	WorkOrderStatusWaitingApproval: 3,
+	WorkOrderStatusInDiagnosis:     4,
+	WorkOrderStatusReceived:        5,
+	WorkOrderStatusCanceled:        6,
+}
+
+func WorkOrderStatusSortPriorityOf(status WorkOrderStatus) int {
+	if p, ok := workOrderStatusSortPriority[status]; ok {
+		return p
+	}
+	return 99
+}
+
+func IsExcludedFromListing(status WorkOrderStatus) bool {
+	for _, s := range WorkOrderListingExcludedStatuses {
+		if s == status {
+			return true
+		}
+	}
+	return false
+}
+
 type WorkOrderListFilters struct {
 	Status     string    `query:"status"`
 	CustomerID uuid.UUID `query:"customerId"`

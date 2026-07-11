@@ -221,6 +221,10 @@ func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters do
 		whereConditions = append(whereConditions, fmt.Sprintf("wo.status = $%d", argIndex))
 		args = append(args, filters.Status)
 		argIndex++
+	} else {
+		whereConditions = append(whereConditions, fmt.Sprintf("wo.status NOT IN ($%d, $%d, $%d)", argIndex, argIndex+1, argIndex+2))
+		args = append(args, string(domain.WorkOrderStatusFinished), string(domain.WorkOrderStatusDelivered), string(domain.WorkOrderStatusCanceled))
+		argIndex += 3
 	}
 
 	if filters.CustomerID != uuid.Nil {
@@ -273,7 +277,17 @@ func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters do
 		JOIN customers c ON wo.customer_id = c.id
 		JOIN vehicles v ON wo.vehicle_id = v.id
 		WHERE %s
-		ORDER BY wo.created_at DESC
+		ORDER BY 
+			CASE wo.status
+				WHEN 'EM_EXECUCAO' THEN 1
+				WHEN 'APROVADO' THEN 2
+				WHEN 'AGUARDANDO_APROVACAO' THEN 3
+				WHEN 'EM_DIAGNOSTICO' THEN 4
+				WHEN 'RECEBIDA' THEN 5
+				WHEN 'CANCELADA' THEN 6
+				ELSE 99
+			END,
+			wo.received_at ASC
 		LIMIT $%d OFFSET $%d`, whereClause, len(args)-1, len(args))
 
 	rows, err := r.db.Query(ctx, query, args...)

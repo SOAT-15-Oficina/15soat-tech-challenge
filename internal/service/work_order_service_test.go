@@ -367,6 +367,25 @@ func TestGetAllWithFilters_Error(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+func TestGetAllWithFilters_NoStatusFilter_PassesThroughToRepo(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	vehicleRepo := new(mockVehicleRepo)
+	svc := NewWorkOrderService(woRepo, vehicleRepo)
+	ctx := context.Background()
+
+	resp := &domain.WorkOrderListResponse{
+		Data: []domain.WorkOrder{}, Total: 0, Page: 1, Limit: 10, TotalPages: 0,
+	}
+	woRepo.On("FindAllWithFilters", ctx, mock.MatchedBy(func(f domain.WorkOrderListFilters) bool {
+		return f.Status == "" && f.Page == 1 && f.Limit == 10
+	})).Return(resp, nil)
+
+	result, err := svc.GetAllWithFilters(ctx, domain.WorkOrderListFilters{})
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	woRepo.AssertExpectations(t)
+}
+
 func TestCreate_MissingVehicleID_ReturnsError(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
 	vehicleRepo := new(mockVehicleRepo)
