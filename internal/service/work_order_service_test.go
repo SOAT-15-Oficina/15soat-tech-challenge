@@ -374,14 +374,14 @@ func TestGetAllWithFilters_NoStatusFilter_PassesThroughToRepo(t *testing.T) {
 	svc := NewWorkOrderService(woRepo, vehicleRepo)
 	ctx := context.Background()
 
-	resp := &domain.WorkOrderListResponse{
+	resp := &application.WorkOrderListResponse{
 		Data: []domain.WorkOrder{}, Total: 0, Page: 1, Limit: 10, TotalPages: 0,
 	}
-	woRepo.On("FindAllWithFilters", ctx, mock.MatchedBy(func(f domain.WorkOrderListFilters) bool {
+	woRepo.On("FindAllWithFilters", ctx, mock.MatchedBy(func(f application.WorkOrderListFilters) bool {
 		return f.Status == "" && f.Page == 1 && f.Limit == 10
 	})).Return(resp, nil)
 
-	result, err := svc.GetAllWithFilters(ctx, domain.WorkOrderListFilters{})
+	result, err := svc.GetAllWithFilters(ctx, application.WorkOrderListFilters{})
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	woRepo.AssertExpectations(t)
