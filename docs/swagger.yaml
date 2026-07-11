@@ -584,12 +584,6 @@ paths:
             type: string
             format: date
             example: "2026-12-31"
-        - name: technicianId
-          in: query
-          description: Filtrar por tecnico (UUID)
-          schema:
-            type: string
-            format: uuid
       responses:
         "200":
           description: Lista com tempos medios
@@ -1445,9 +1439,6 @@ components:
         vehicle_id:
           type: string
           format: uuid
-        assigned_technician_id:
-          type: string
-          format: uuid
 
     WorkOrderUpdateRequest:
       type: object
@@ -1470,9 +1461,6 @@ components:
               CANCELADA,
             ]
           description: Transiciona o status via maquina de estados
-        assigned_technician_id:
-          type: string
-          format: uuid
 
     WorkOrder:
       type: object
@@ -1488,9 +1476,6 @@ components:
         description:
           type: string
         opened_by_user_id:
-          type: string
-          format: uuid
-        assigned_technician_id:
           type: string
           format: uuid
         status:

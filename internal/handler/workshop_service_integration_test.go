@@ -56,7 +56,7 @@ func setupIntegrationApp(t *testing.T) (*fiber.App, *pgxpool.Pool) {
 	setupSchema(t, pool)
 
 	repo := repository.NewWorkshopServiceRepository(pool)
-	svc := service.NewWorkshopServiceService(repo)
+	svc := service.NewWorkshopServiceManager(repo)
 	h := NewWorkshopServiceHandler(svc)
 
 	app := fiber.New()

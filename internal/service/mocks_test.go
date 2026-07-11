@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
@@ -47,12 +48,12 @@ func (m *mockWorkOrderRepo) FindAll(ctx context.Context) ([]domain.WorkOrder, er
 	return args.Get(0).([]domain.WorkOrder), args.Error(1)
 }
 
-func (m *mockWorkOrderRepo) FindAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error) {
+func (m *mockWorkOrderRepo) FindAllWithFilters(ctx context.Context, filters application.WorkOrderListFilters) (*application.WorkOrderListResponse, error) {
 	args := m.Called(ctx, filters)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.WorkOrderListResponse), args.Error(1)
+	return args.Get(0).(*application.WorkOrderListResponse), args.Error(1)
 }
 
 func (m *mockWorkOrderRepo) Update(ctx context.Context, wo *domain.WorkOrder) (*domain.WorkOrder, error) {

@@ -38,9 +38,9 @@ type WorkOrder struct {
 	DeliveredAt              *time.Time                     `json:"delivered_at,omitempty"`
 	CreatedAt                time.Time                      `json:"created_at"`
 	UpdatedAt                time.Time                      `json:"updated_at"`
-	Customer                 *WorkOrderCustomer             `json:"customer"`
-	Vehicle                  *WorkOrderVehicle              `json:"vehicle"`
-	Services                 []WorkOrderServiceWithSupplies `json:"services,omitempty"`
+	Customer                 *WorkOrderCustomer      `json:"customer"`
+	Vehicle                  *WorkOrderVehicle       `json:"vehicle"`
+	Services                 []WorkOrderService      `json:"services,omitempty"`
 }
 
 type WorkOrderCustomer struct {
@@ -55,23 +55,6 @@ type WorkOrderVehicle struct {
 	Brand        string    `json:"brand"`
 	Model        string    `json:"model"`
 	Year         int       `json:"year"`
-}
-
-type WorkOrderServiceWithSupplies struct {
-	ID                        uuid.UUID                        `json:"id"`
-	Description               string                           `json:"description"`
-	ServicePriceCentsSnapshot int                              `json:"service_price_cents_snapshot"`
-	Status                    string                           `json:"status"`
-	ApprovalStatus            string                           `json:"approval_status"`
-	Quantity                  int                              `json:"quantity"`
-	Supplies                  []WorkOrderServiceSupplyResponse `json:"supplies"`
-}
-
-type WorkOrderServiceSupplyResponse struct {
-	ID                       uuid.UUID `json:"id"`
-	Description              string    `json:"description"`
-	SupplyPriceCentsSnapshot int       `json:"supply_price_cents_snapshot"`
-	SupplyQuantity           int       `json:"supply_quantity"`
 }
 
 var WorkOrderListingExcludedStatuses = []WorkOrderStatus{

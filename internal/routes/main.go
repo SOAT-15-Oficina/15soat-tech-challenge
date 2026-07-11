@@ -79,7 +79,7 @@ func registerVehicle(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
 
 func registerWorkshopService(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
 	wsRepo := repository.NewWorkshopServiceRepository(db)
-	wsSvc := service.NewWorkshopServiceService(wsRepo)
+	wsSvc := service.NewWorkshopServiceManager(wsRepo)
 	wsHandler := handler.NewWorkshopServiceHandler(wsSvc)
 
 	group := app.Group("/services", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
@@ -119,7 +119,8 @@ func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string, em
 	budgetSvc := service.NewBudgetService(workOrderRepo, wosRepo, customerRepo, emailProv, baseURL)
 	creationSvc := service.NewWorkOrderCreationService(workOrderRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	userRepo := repository.NewUserRepository(db)
-	workOrderHandler := handler.NewWorkOrderHandler(workOrderSvc, budgetSvc, creationSvc, statusSvc, userRepo)
+	userSvc := service.NewUserService(userRepo, jwtSecretKey)
+	workOrderHandler := handler.NewWorkOrderHandler(workOrderSvc, budgetSvc, creationSvc, statusSvc, userSvc)
 
 	group := app.Group("/work-orders", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
 	group.Post("/", workOrderHandler.Create)

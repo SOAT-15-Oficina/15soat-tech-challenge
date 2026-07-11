@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
@@ -18,7 +19,7 @@ type WorkOrderService interface {
 	Create(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrder, error)
 	GetAll(ctx context.Context) ([]domain.WorkOrder, error)
-	GetAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error)
+	GetAllWithFilters(ctx context.Context, filters application.WorkOrderListFilters) (*application.WorkOrderListResponse, error)
 	Update(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
 }
 
@@ -112,7 +113,7 @@ func (s *workOrderService) Update(ctx context.Context, wo *domain.WorkOrder) (*d
 	return s.repo.Update(ctx, existing)
 }
 
-func (s *workOrderService) GetAllWithFilters(ctx context.Context, filters domain.WorkOrderListFilters) (*domain.WorkOrderListResponse, error) {
+func (s *workOrderService) GetAllWithFilters(ctx context.Context, filters application.WorkOrderListFilters) (*application.WorkOrderListResponse, error) {
 	if filters.Page < 1 {
 		filters.Page = 1
 	}
