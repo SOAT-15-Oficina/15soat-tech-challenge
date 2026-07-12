@@ -40,6 +40,8 @@ go.work
 # Terraform local state
 **/.terraform/
 **/.terraform.lock.hcl
+!terraform/local-kind/.terraform.lock.hcl
 **/terraform.tfstate
 **/terraform.tfstate.backup
 terraform/local-kind/.generated/
+terraform/local-kind/kubeconfig

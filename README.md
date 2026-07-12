@@ -29,7 +29,7 @@ O banco de dados PostgreSQL é inicializado automaticamente com o schema (via `i
 
 ### Cluster Kubernetes local com Terraform + Kind
 
-Além do Docker Compose, o projeto possui um setup local em `terraform/local-kind` para subir apenas um mini cluster Kubernetes com Kind.
+Além do Docker Compose, o projeto possui um setup local em `terraform/local-kind` para subir um mini cluster Kubernetes com Kind e aplicar os manifestos em `k8s/`.
 
 Pré-requisitos:
 
@@ -37,6 +37,8 @@ Pré-requisitos:
 - Terraform `>= 1.6`
 - Kind
 - kubectl
+
+O provider Terraform `tehcyx/kind` gerencia o cluster Kind, mas nao instala esses binarios. Eles precisam estar disponiveis na maquina onde o `terraform apply` for executado. Se o comando rodar no notebook, o cluster sera criado no notebook; se rodar no Raspberry, sera criado no Raspberry.
 
 Se estiver usando `mise`, instale as ferramentas declaradas no projeto:
 
@@ -51,12 +53,12 @@ mise exec -- terraform -chdir=terraform/local-kind init
 mise exec -- terraform -chdir=terraform/local-kind apply
 ```
 
-O Terraform cria somente o cluster Kind e gera um kubeconfig local. Os artefatos Kubernetes da API, PostgreSQL e MailHog devem ser aplicados separadamente quando existirem.
+O Terraform usa o provider `tehcyx/kind` para criar o cluster Kind, gera um kubeconfig local, builda e carrega as imagens locais `techchallenge/api:latest` e `techchallenge/postgres:latest` no Kind e, por padrão, aplica os manifestos Kubernetes da API, PostgreSQL e MailHog. Para criar somente o cluster, use `-var='apply_workloads=false'`.
 
 Para usar `kubectl` apontando para o cluster criado:
 
 ```bash
-export KUBECONFIG="$(pwd)/terraform/local-kind/.generated/kubeconfig"
+export KUBECONFIG="$(pwd)/terraform/local-kind/kubeconfig"
 kubectl get nodes
 ```
 
