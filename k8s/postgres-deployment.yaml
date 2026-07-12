@@ -8,6 +8,8 @@ metadata:
     app.kubernetes.io/component: database
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: oficina-mecanica
@@ -20,7 +22,7 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: techchallenge/postgres:latest
+          image: postgres:18.3
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5432
@@ -43,24 +45,27 @@ spec:
                   key: DATABASE_NAME
           resources:
             requests:
-              cpu: 100m
+              cpu: 250m
               memory: 256Mi
             limits:
-              cpu: 500m
+              cpu: "1"
               memory: 512Mi
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql
           livenessProbe:
-            exec:
-              command: ["pg_isready", "-U", "techchallenge", "-d", "techchallenge-db"]
+            tcpSocket:
+              port: postgres
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "techchallenge", "-d", "techchallenge-db"]
             initialDelaySeconds: 5
             periodSeconds: 5
+            timeoutSeconds: 3
       volumes:
         - name: postgres-data
           persistentVolumeClaim:

@@ -9,6 +9,7 @@ import (
 func Load() (*Config, error) {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
+	viper.SetDefault("DATABASE_MAX_CONNECTIONS", 5)
 
 	config := Config{
 		Server: &ServerConfig{
@@ -17,11 +18,12 @@ func Load() (*Config, error) {
 			BaseURL:     viper.GetString("APP_BASE_URL"),
 		},
 		Database: &DatabaseConfig{
-			User:     viper.GetString("DATABASE_USER"),
-			Password: viper.GetString("DATABASE_PASSWORD"),
-			Host:     viper.GetString("DATABASE_HOST"),
-			Port:     viper.GetString("DATABASE_PORT"),
-			Name:     viper.GetString("DATABASE_NAME"),
+			User:           viper.GetString("DATABASE_USER"),
+			Password:       viper.GetString("DATABASE_PASSWORD"),
+			Host:           viper.GetString("DATABASE_HOST"),
+			Port:           viper.GetString("DATABASE_PORT"),
+			Name:           viper.GetString("DATABASE_NAME"),
+			MaxConnections: int32(viper.GetInt("DATABASE_MAX_CONNECTIONS")),
 		},
 		Cache: &CacheConfig{
 			User:     viper.GetString("CACHE_USER"),

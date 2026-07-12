@@ -7,11 +7,12 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	User     string `mapstructure:"DATABASE_USER"`
-	Password string `mapstructure:"DATABASE_PASSWORD"`
-	Host     string `mapstructure:"DATABASE_HOST"`
-	Port     string `mapstructure:"DATABASE_PORT"`
-	Name     string `mapstructure:"DATABASE_NAME"`
+	User           string `mapstructure:"DATABASE_USER"`
+	Password       string `mapstructure:"DATABASE_PASSWORD"`
+	Host           string `mapstructure:"DATABASE_HOST"`
+	Port           string `mapstructure:"DATABASE_PORT"`
+	Name           string `mapstructure:"DATABASE_NAME"`
+	MaxConnections int32  `mapstructure:"DATABASE_MAX_CONNECTIONS"`
 }
 
 type CacheConfig struct {

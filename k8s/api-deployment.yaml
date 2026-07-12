@@ -21,7 +21,7 @@ spec:
       containers:
         - name: api
           image: techchallenge/api:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
               name: http
@@ -45,7 +45,8 @@ spec:
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /ping
+              path: /ready
               port: http
             initialDelaySeconds: 3
             periodSeconds: 5
+            timeoutSeconds: 3

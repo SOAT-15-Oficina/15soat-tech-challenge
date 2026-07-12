@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,6 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type stubDatabasePinger struct {
+	err error
+}
+
+func (s stubDatabasePinger) Ping(context.Context) error {
+	return s.err
+}
 
 func TestRegisterRoutes(t *testing.T) {
 	app := fiber.New()
@@ -25,6 +35,36 @@ func TestRegisterRoutes(t *testing.T) {
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	// A pod without a usable database must not receive traffic.
+	req = httptest.NewRequest(http.MethodGet, "/ready", nil)
+	resp, err = app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
+}
+
+func TestReadinessReflectsDatabaseAvailability(t *testing.T) {
+	tests := []struct {
+		name       string
+		pinger     databasePinger
+		statusCode int
+	}{
+		{name: "database available", pinger: stubDatabasePinger{}, statusCode: fiber.StatusOK},
+		{name: "database unavailable", pinger: stubDatabasePinger{err: errors.New("unavailable")}, statusCode: fiber.StatusServiceUnavailable},
+		{name: "database missing", pinger: nil, statusCode: fiber.StatusServiceUnavailable},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := fiber.New()
+			registerHealthRoutes(app, tt.pinger)
+
+			req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			assert.Equal(t, tt.statusCode, resp.StatusCode)
+		})
+	}
 }
 
 func TestSwagger(t *testing.T) {

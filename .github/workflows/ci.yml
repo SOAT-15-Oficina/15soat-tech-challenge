@@ -6,8 +6,26 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  IMAGE_NAME: techchallenge/api
+  KIND_CLUSTER_NAME: techchallenge-local
+  KUBE_NAMESPACE: workshop
+
+concurrency:
+  group: local-kind-deploy
+  cancel-in-progress: false
+
 jobs:
-  build-and-test:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint GitHub Actions workflows
+        run: docker run --rm -v "${GITHUB_WORKSPACE}:/repo" -w /repo rhysd/actionlint:latest
+
+  test:
     runs-on: ubuntu-latest
 
     services:
@@ -32,9 +50,6 @@ jobs:
         with:
           go-version: "1.26"
 
-      - name: Build
-        run: go build ./...
-
       - name: Test
         run: go test ./...
         env:
@@ -43,3 +58,104 @@ jobs:
           DATABASE_USER: techchallenge
           DATABASE_PASSWORD: password
           DATABASE_NAME: techchallenge-db
+
+  build-and-deploy:
+    runs-on: [self-hosted, local-kind]
+    needs: [lint, test]
+    if: github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Build application
+        run: go build ./...
+
+      - name: Build Docker image locally
+        run: |
+          docker build \
+            --tag "${IMAGE_NAME}:${GITHUB_SHA}" \
+            --tag "${IMAGE_NAME}:latest" \
+            .
+
+      - name: Check local Kubernetes context
+        run: |
+          KUBECONFIG_PATH="$RUNNER_TEMP/techchallenge-local-kubeconfig"
+          echo "KUBECONFIG=$KUBECONFIG_PATH" >> "$GITHUB_ENV"
+
+          kind get clusters | grep -Fx "$KIND_CLUSTER_NAME"
+          kind get kubeconfig --name "$KIND_CLUSTER_NAME" > "$KUBECONFIG_PATH"
+          kubectl --kubeconfig "$KUBECONFIG_PATH" cluster-info
+
+      - name: Load Docker image into Kind
+        run: kind load docker-image "${IMAGE_NAME}:${GITHUB_SHA}" --name "$KIND_CLUSTER_NAME"
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f k8s/metrics-server.yaml
+          kubectl rollout status deployment/metrics-server -n kube-system --timeout=180s
+          kubectl wait --for=condition=Available apiservice/v1beta1.metrics.k8s.io --timeout=180s
+          for _ in $(seq 1 36); do
+            if kubectl top nodes >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
+          kubectl top nodes
+
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/configmap.yaml
+          kubectl apply -f k8s/secret.yaml
+          kubectl apply -f k8s/postgres-pvc.yaml
+          kubectl apply -f k8s/postgres-service.yaml
+          kubectl apply -f k8s/postgres-deployment.yaml
+          kubectl rollout status deployment/postgres -n "$KUBE_NAMESPACE" --timeout=180s
+          # shellcheck disable=SC2016
+          kubectl exec deployment/postgres -n "$KUBE_NAMESPACE" -- sh -c '
+            until pg_isready -U "$POSTGRES_USER" -d postgres; do
+              sleep 2
+            done
+
+            if ! psql -U "$POSTGRES_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '\''$POSTGRES_DB'\''" | grep -q 1; then
+              createdb -U "$POSTGRES_USER" "$POSTGRES_DB"
+            fi
+          '
+
+          kubectl apply -f k8s/mailhog-service.yaml
+          kubectl apply -f k8s/mailhog-deployment.yaml
+          kubectl apply -f k8s/api-service.yaml
+          kubectl apply -f k8s/api-deployment.yaml
+          kubectl apply -f k8s/api-hpa.yaml
+          kubectl set image deployment/api api="${IMAGE_NAME}:${GITHUB_SHA}" -n "$KUBE_NAMESPACE"
+          kubectl rollout status deployment/api -n "$KUBE_NAMESPACE" --timeout=180s
+
+          # Keep the read-only HPA scenario reproducible without duplicating seed data.
+          # shellcheck disable=SC2016
+          if ! kubectl exec deployment/postgres -n "$KUBE_NAMESPACE" -- sh -c '
+            psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
+              "SELECT 1 FROM work_orders WHERE code = '\''OS-2026-0001'\''"
+          ' | grep -q 1; then
+            # shellcheck disable=SC2016
+            kubectl exec -i deployment/postgres -n "$KUBE_NAMESPACE" -- sh -c '
+              psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            ' < database/seed-files/seed.sql
+          fi
+
+      - name: Validate API health
+        run: |
+          kubectl port-forward svc/api-service 18080:8080 -n "$KUBE_NAMESPACE" &
+          PORT_FORWARD_PID=$!
+          trap 'kill "$PORT_FORWARD_PID" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18080/ping; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          kubectl get pods -n "$KUBE_NAMESPACE"
+          exit 1

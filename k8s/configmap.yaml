@@ -13,6 +13,7 @@ data:
   DATABASE_PORT: "5432"
   DATABASE_NAME: "techchallenge-db"
   DATABASE_USER: "techchallenge"
+  DATABASE_MAX_CONNECTIONS: "5"
   EMAIL_PROVIDER: "mailhog"
   EMAIL_HOST: "mailhog-service"
   EMAIL_PORT: "1025"

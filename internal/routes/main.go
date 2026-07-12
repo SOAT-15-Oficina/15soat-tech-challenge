@@ -1,6 +1,9 @@
 package routes
 
 import (
+	"context"
+	"time"
+
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/config"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/handler"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
@@ -12,10 +15,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type databasePinger interface {
+	Ping(context.Context) error
+}
+
 func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config, emailProv email.Provider) {
-	app.Get("/ping", func(c fiber.Ctx) error {
-		return c.SendString("Pong")
-	})
+	if db == nil {
+		registerHealthRoutes(app, nil)
+	} else {
+		registerHealthRoutes(app, db)
+	}
 
 	app.Get("/", func(c fiber.Ctx) error {
 		return c.Redirect().To("/web")
@@ -32,6 +41,26 @@ func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config, emailP
 	registerPublicWorkOrder(app, db)
 	registerWorkOrder(app, db, cfg.JWT.SecretKey, emailProv, cfg.Server.BaseURL)
 	registerWorkshopService(app, db, cfg.JWT.SecretKey)
+}
+
+func registerHealthRoutes(app *fiber.App, db databasePinger) {
+	app.Get("/ping", func(c fiber.Ctx) error {
+		return c.SendString("Pong")
+	})
+
+	app.Get("/ready", func(c fiber.Ctx) error {
+		if db == nil {
+			return c.SendStatus(fiber.StatusServiceUnavailable)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := db.Ping(ctx); err != nil {
+			return c.SendStatus(fiber.StatusServiceUnavailable)
+		}
+
+		return c.SendStatus(fiber.StatusOK)
+	})
 }
 
 func registerAuth(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
