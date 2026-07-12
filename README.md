@@ -38,7 +38,7 @@ Pré-requisitos:
 - Kind
 - kubectl
 
-O provider Terraform `tehcyx/kind` gerencia o cluster Kind, mas nao instala esses binarios. Eles precisam estar disponiveis na maquina onde o `terraform apply` for executado. O Docker tambem precisa estar em execucao. Se o comando rodar no notebook, o cluster sera criado no notebook; se rodar no Raspberry, sera criado no Raspberry.
+O provider Terraform `tehcyx/kind` gerencia o cluster Kind, mas nao instala esses binarios. Eles precisam estar disponiveis no ambiente local, com o Docker em execucao. O projeto usa Kind com deploy local por maior simplicidade no fluxo de desenvolvimento e validacao.
 
 Com `mise`, instale as ferramentas declaradas no projeto e execute o Terraform dentro do ambiente gerenciado:
 
