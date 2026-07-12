@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -50,7 +51,7 @@ jobs:
           DATABASE_NAME: techchallenge-db
 
   build-and-deploy:
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, local-kind]
     needs: test
     if: github.event_name == 'push'
 

@@ -94,9 +94,9 @@ terraform -chdir=terraform/local-kind destroy
 O workflow em `.github/workflows/ci.yml` usa dois ambientes:
 
 - `ubuntu-latest` do GitHub para executar `go test ./...` com PostgreSQL de servico.
-- Runner local `self-hosted` para executar `go build ./...`, buildar a imagem Docker, carregar a imagem no Kind e aplicar os manifestos Kubernetes.
+- Runner local com os labels `self-hosted` e `local-kind` para executar `go build ./...`, buildar a imagem Docker, carregar a imagem no Kind e aplicar os manifestos Kubernetes.
 
-Temporariamente, o gatilho de `push` nao esta limitado a `main` para permitir teste ponta a ponta desta branch no runner local. Antes de fechar a entrega, volte a restringir o deploy para `main` se a branch de release for essa.
+O deploy local roda somente em `push` para `main`. Pull requests executam os testes no runner hospedado do GitHub.
 
 Prerequisitos na maquina do runner local:
 
@@ -132,7 +132,7 @@ Para cadastrar o runner no GitHub:
 3. Clique em `New self-hosted runner`.
 4. Selecione `Linux` e a arquitetura da maquina.
 5. Execute, na maquina local, os comandos de download e configuracao exibidos pelo GitHub.
-6. Na etapa `./config.sh`, mantenha os labels padrao `self-hosted`, `Linux` e `X64` ou equivalentes da sua arquitetura.
+6. Na etapa `./config.sh`, mantenha os labels padrao do GitHub e adicione o label customizado `local-kind`.
 7. Instale o runner como servico:
 
 ```bash
@@ -153,6 +153,12 @@ scripts/setup-self-hosted-runner.sh
 RUNNER_TOKEN="<token-do-github>" scripts/setup-self-hosted-runner.sh
 ```
 
+O script detecta a arquitetura local automaticamente (`x64`, `arm64` ou `arm`). Para sobrescrever a deteccao, informe `RUNNER_ARCH`, por exemplo:
+
+```bash
+RUNNER_ARCH=arm64 RUNNER_TOKEN="<token-do-github>" scripts/setup-self-hosted-runner.sh
+```
+
 Confirme que o runner aparece como `Idle` em `Settings` > `Actions` > `Runners`.
 
 Valide os comandos que o workflow precisa executar com o mesmo usuario do runner:
@@ -164,7 +170,7 @@ kubectl --kubeconfig "$(pwd)/terraform/local-kind/kubeconfig" get nodes
 go version
 ```
 
-Quando houver `push`, o workflow:
+Quando houver `push` para `main`, o workflow:
 
 1. Executa os testes no runner hospedado do GitHub.
 2. Se os testes passarem, executa o build no runner local.
