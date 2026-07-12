@@ -142,15 +142,13 @@ sudo ./svc.sh start
 sudo ./svc.sh status
 ```
 
-Como alternativa, use o script do projeto. Ele tenta solicitar o token de registro via `gh`; isso exige permissao de administrador no repositorio. Se a conta local nao tiver essa permissao, gere o token pela tela `New self-hosted runner` e execute o script com `RUNNER_TOKEN`.
+Como alternativa, use o script do projeto. Ele solicita o token de registro via `gh` ou usa o token informado em `RUNNER_TOKEN`.
 
 ```bash
 chmod +x scripts/setup-self-hosted-runner.sh
 
-# com permissao admin no repositorio
 scripts/setup-self-hosted-runner.sh
 
-# sem permissao admin no gh local, usando o token exibido pelo GitHub
 RUNNER_TOKEN="<token-do-github>" scripts/setup-self-hosted-runner.sh
 ```
 
@@ -171,7 +169,7 @@ kubectl --kubeconfig "$(pwd)/terraform/local-kind/kubeconfig" get nodes
 go version
 ```
 
-Quando houver `push` para `main`, o workflow:
+Fluxo do workflow em `push` para `main`:
 
 1. Executa `actionlint` no runner hospedado do GitHub.
 2. Executa os testes no runner hospedado do GitHub.
@@ -184,7 +182,7 @@ Quando houver `push` para `main`, o workflow:
 
 Como a imagem e carregada diretamente no Kind, o Deployment da API usa `imagePullPolicy: IfNotPresent`. Usar `Always` faria o cluster tentar buscar a tag em um registry externo, o que nao existe neste fluxo local.
 
-Se o cluster local ja tiver sido usado com outra imagem de PostgreSQL ou outro layout de dados, recrie o PVC antes de validar o deploy:
+Para recuperar o cluster local apos uso com outra imagem de PostgreSQL ou outro layout de dados, recrie o PVC:
 
 ```bash
 kubectl delete deployment api postgres -n workshop --ignore-not-found
