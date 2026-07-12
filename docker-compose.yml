@@ -24,7 +24,7 @@ services:
     build:
       context: ./database
       dockerfile: Dockerfile
-    container_name: postgres_db
+    container_name: postgres_15soat
     environment:
       POSTGRES_USER: ${DATABASE_USER}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
