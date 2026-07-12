@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Tech Challenge - Oficina Mecanica API
   description: API para gerenciamento de oficina mecanica com controle de ordens de servico, estoque e clientes.
-  version: 1.0.0
+  version: 2.0.0
 
 servers:
   - url: http://localhost:8080
@@ -622,12 +622,18 @@ paths:
     get:
       tags: [Work Orders]
       summary: Listar ordens de servico
+      description: |
+        Lista paginada de OS. Regras de exclusao e ordenacao (Fase 2):
+        - OS com status FINALIZADA, ENTREGUE ou CANCELADA sao excluidas da listagem padrao (exclusao logica).
+        - Ordenacao por prioridade de status: EM_EXECUCAO > APROVADO > AGUARDANDO_APROVACAO > EM_DIAGNOSTICO > RECEBIDA.
+        - Dentro do mesmo status, mais antigas primeiro (received_at ASC).
+        - Quando o filtro `status` e informado, a exclusao logica nao se aplica (o filtro explicito prevalece).
       parameters:
         - name: status
           in: query
-          description: "Filtrar por status (ex: RECEBIDA, EM_DIAGNOSTICO, AGUARDANDO_APROVACAO, APROVADO, EM_EXECUCAO, FINALIZADA, ENTREGUE, CANCELADA)"
+          description: "Filtrar por status. Quando informado, a exclusao logica de FINALIZADA/ENTREGUE/CANCELADA nao se aplica."
           schema:
-            type: string
+            $ref: "#/components/schemas/WorkOrderStatus"
         - name: customerId
           in: query
           description: Filtrar por cliente (UUID)
@@ -661,6 +667,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorkOrderListResponse"
+        "401":
+          description: Nao autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /work-orders/{id}:
     parameters:
@@ -786,12 +804,6 @@ paths:
         Transiciona o servico de PENDENTE para EM_EXECUCAO.
         Requer que a OS esteja em EM_EXECUCAO e que o servico esteja aprovado.
         Bloqueia se os insumos vinculados excedem o estoque disponivel.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
       responses:
         "200":
           description: Servico iniciado
@@ -805,6 +817,12 @@ paths:
                     example: "Servico iniciado com sucesso"
         "422":
           description: Estoque insuficiente, status invalido ou servico nao pertence a OS
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Erro interno
           content:
             application/json:
               schema:
@@ -826,12 +844,6 @@ paths:
         Transiciona o servico de EM_EXECUCAO para FINALIZADO.
         Da baixa no estoque dos insumos vinculados.
         Se todos os servicos aprovados estiverem finalizados, a OS auto-transiciona para FINALIZADA.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
       responses:
         "200":
           description: Servico finalizado
@@ -845,6 +857,12 @@ paths:
                     example: "Servico finalizado com sucesso"
         "422":
           description: Status invalido ou servico nao pertence a OS
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Erro interno
           content:
             application/json:
               schema:
@@ -934,6 +952,9 @@ paths:
       tags: [Public]
       summary: Consultar status da OS (publico)
       security: []
+      description: |
+        Permite ao cliente consultar o status atual da OS informando o codigo e seu documento (CPF/CNPJ).
+        Status possiveis: RECEBIDA, EM_DIAGNOSTICO, AGUARDANDO_APROVACAO, APROVADO, EM_EXECUCAO, FINALIZADA, ENTREGUE, CANCELADA.
       parameters:
         - name: document
           in: query
@@ -953,6 +974,12 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /public/approvals/services/{workOrderServiceId}/approve:
     parameters:
@@ -966,6 +993,9 @@ paths:
       tags: [Public]
       summary: Aprovar um servico da OS
       security: []
+      description: |
+        Endpoint chamado pelo cliente (via link no e-mail de orcamento) para aprovar um servico especifico.
+        Quando todos os servicos sao aprovados, a OS transita para APROVADO.
       responses:
         "200":
           description: Servico aprovado
@@ -990,6 +1020,9 @@ paths:
       tags: [Public]
       summary: Reprovar um servico da OS
       security: []
+      description: |
+        Endpoint chamado pelo cliente (via link no e-mail de orcamento) para recusar um servico especifico.
+        Quando todos os servicos sao reprovados, a OS transita para CANCELADA.
       responses:
         "200":
           description: Servico reprovado
@@ -1014,6 +1047,9 @@ paths:
       tags: [Public]
       summary: Aprovar todos os servicos de uma OS
       security: []
+      description: |
+        Endpoint chamado pelo cliente (via link no e-mail de orcamento) para aprovar todos os servicos de uma vez.
+        A OS transita para APROVADO.
       responses:
         "200":
           description: Todos aprovados
@@ -1036,6 +1072,9 @@ paths:
       tags: [Public]
       summary: Reprovar todos os servicos de uma OS
       security: []
+      description: |
+        Endpoint chamado pelo cliente (via link no e-mail de orcamento) para recusar todos os servicos de uma vez.
+        A OS transita para CANCELADA.
       responses:
         "200":
           description: Todos reprovados
@@ -1111,6 +1150,20 @@ components:
         error:
           type: string
       required: [error]
+
+    WorkOrderStatus:
+      type: string
+      enum:
+        [
+          RECEBIDA,
+          EM_DIAGNOSTICO,
+          AGUARDANDO_APROVACAO,
+          APROVADO,
+          EM_EXECUCAO,
+          FINALIZADA,
+          ENTREGUE,
+          CANCELADA,
+        ]
 
     MessageResponse:
       type: object
@@ -1270,6 +1323,7 @@ components:
           example: Oleo Motor 5W30
         type:
           type: string
+          enum: [PECA, INSUMO]
           example: PECA
         price_cents:
           type: integer
@@ -1351,9 +1405,6 @@ components:
         estimated_time_minutes:
           type: integer
           minimum: 1
-        status:
-          type: string
-          enum: [AGUARDANDO, EM_EXECUCAO, CONCLUIDA]
         active:
           type: boolean
 
@@ -1371,9 +1422,6 @@ components:
           type: integer
         estimated_time_minutes:
           type: integer
-        status:
-          type: string
-          enum: [AGUARDANDO, EM_EXECUCAO, CONCLUIDA]
         active:
           type: boolean
         created_at:
@@ -1424,7 +1472,9 @@ components:
     # ── Work Order ────────────────────────────────────
     WorkOrderCreateRequest:
       type: object
-      description: "O campo opened_by_user_id e preenchido automaticamente a partir do token JWT."
+      description: |
+        Abertura de OS. O campo opened_by_user_id e preenchido automaticamente a partir do token JWT.
+        Servicos e pecas sao adicionados apos a abertura via endpoints /work-orders/{id}/services e /work-orders/{id}/services/{wosId}/supplies.
       required: [title, customer_id, vehicle_id]
       properties:
         title:
@@ -1448,18 +1498,7 @@ components:
         description:
           type: string
         status:
-          type: string
-          enum:
-            [
-              RECEBIDA,
-              EM_DIAGNOSTICO,
-              AGUARDANDO_APROVACAO,
-              APROVADO,
-              EM_EXECUCAO,
-              FINALIZADA,
-              ENTREGUE,
-              CANCELADA,
-            ]
+          $ref: "#/components/schemas/WorkOrderStatus"
           description: Transiciona o status via maquina de estados
 
     WorkOrder:
@@ -1475,22 +1514,12 @@ components:
           type: string
         description:
           type: string
+          nullable: true
         opened_by_user_id:
           type: string
           format: uuid
         status:
-          type: string
-          enum:
-            [
-              RECEBIDA,
-              EM_DIAGNOSTICO,
-              AGUARDANDO_APROVACAO,
-              APROVADO,
-              EM_EXECUCAO,
-              FINALIZADA,
-              ENTREGUE,
-              CANCELADA,
-            ]
+          $ref: "#/components/schemas/WorkOrderStatus"
         total_estimated_price_cents:
           type: integer
         received_at:
@@ -1572,10 +1601,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WorkOrderServiceSupplyItem"
-        history:
-          type: array
-          items:
-            $ref: "#/components/schemas/WorkOrderServiceHistory"
 
     WorkOrderServiceSupplyItem:
       type: object
@@ -1589,20 +1614,6 @@ components:
           type: integer
         supply_quantity:
           type: integer
-
-    WorkOrderServiceHistory:
-      type: object
-      properties:
-        status:
-          type: string
-        note:
-          type: string
-        changed_by_user_id:
-          type: string
-          format: uuid
-        changed_at:
-          type: string
-          format: date-time
 
     WorkOrderService:
       type: object
@@ -1689,7 +1700,7 @@ components:
         code:
           type: string
         status:
-          type: string
+          $ref: "#/components/schemas/WorkOrderStatus"
         total_estimated_price_cents:
           type: integer
         received_at:
