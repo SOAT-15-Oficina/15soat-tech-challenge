@@ -21,6 +21,7 @@ spec:
       containers:
         - name: postgres
           image: techchallenge/postgres:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5432
               name: postgres
@@ -49,9 +50,7 @@ spec:
               memory: 512Mi
           volumeMounts:
             - name: postgres-data
-              mountPath: /var/lib/postgresql/data
-            - name: init-scripts
-              mountPath: /docker-entrypoint-initdb.d
+              mountPath: /var/lib/postgresql
           livenessProbe:
             exec:
               command: ["pg_isready", "-U", "techchallenge", "-d", "techchallenge-db"]
@@ -66,6 +65,3 @@ spec:
         - name: postgres-data
           persistentVolumeClaim:
             claimName: postgres-pvc
-        - name: init-scripts
-          configMap:
-            name: postgres-init-scripts

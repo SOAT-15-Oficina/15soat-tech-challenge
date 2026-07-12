@@ -27,6 +27,68 @@ O painel web fica acessível em `http://localhost:8080/web` (a rota `/` redireci
 
 O banco de dados PostgreSQL é inicializado automaticamente com o schema (via `initdb.d` e goose no boot da API) e dados de seed na primeira execução. As migrations são embedded no binário da API via `go:embed`.
 
+### Cluster Kubernetes local com Terraform + Kind
+
+Além do Docker Compose, o projeto possui um setup local em `terraform/local-kind` para subir um mini cluster Kubernetes com Kind.
+
+Pré-requisitos:
+
+- Docker
+- Terraform `>= 1.6`
+- Kind
+- kubectl
+
+O provider Terraform `tehcyx/kind` gerencia o cluster Kind, mas nao instala esses binarios. Eles precisam estar disponiveis na maquina onde o `terraform apply` for executado. O Docker tambem precisa estar em execucao. Se o comando rodar no notebook, o cluster sera criado no notebook; se rodar no Raspberry, sera criado no Raspberry.
+
+Com `mise`, instale as ferramentas declaradas no projeto e execute o Terraform dentro do ambiente gerenciado:
+
+```bash
+mise install
+mise exec -- terraform -chdir=terraform/local-kind init
+mise exec -- terraform -chdir=terraform/local-kind apply
+```
+
+Sem `mise`, instale as ferramentas manualmente, confirme que estao no `PATH` e rode os comandos diretamente:
+
+```bash
+docker version
+kind version
+kubectl version --client
+terraform version
+
+terraform -chdir=terraform/local-kind init
+terraform -chdir=terraform/local-kind apply
+```
+
+O Terraform usa o provider `tehcyx/kind` para criar somente o cluster Kind e gerar um kubeconfig local. Os manifestos em `k8s/` nao sao aplicados pelo Terraform.
+
+Para usar `kubectl` apontando para o cluster criado:
+
+```bash
+export KUBECONFIG="$(pwd)/terraform/local-kind/kubeconfig"
+kubectl get nodes
+```
+
+Para alterar o nome do cluster:
+
+```bash
+# com mise
+mise exec -- terraform -chdir=terraform/local-kind apply -var='cluster_name=techchallenge-dev'
+
+# sem mise
+terraform -chdir=terraform/local-kind apply -var='cluster_name=techchallenge-dev'
+```
+
+Para remover tudo:
+
+```bash
+# com mise
+mise exec -- terraform -chdir=terraform/local-kind destroy
+
+# sem mise
+terraform -chdir=terraform/local-kind destroy
+```
+
 ### SonarQube local
 
 O SonarQube roda em um compose separado para não alterar o fluxo padrão da aplicação:
