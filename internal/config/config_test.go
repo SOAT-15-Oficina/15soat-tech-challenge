@@ -12,6 +12,7 @@ func TestLoad(t *testing.T) {
 	assert.NotNil(t, cfg)
 	assert.NotNil(t, cfg.Server)
 	assert.NotNil(t, cfg.Database)
+	assert.Equal(t, int32(5), cfg.Database.MaxConnections)
 	assert.NotNil(t, cfg.JWT)
 	assert.NotNil(t, cfg.Email)
 }

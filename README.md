@@ -177,8 +177,10 @@ Fluxo do workflow em `push` para `main`:
 4. Cria as tags Docker locais `techchallenge/api:<sha-do-commit>` e `techchallenge/api:latest`.
 5. Carrega `techchallenge/api:<sha-do-commit>` no cluster Kind com `kind load docker-image`.
 6. Aplica os manifestos em `k8s/`.
-7. Atualiza o Deployment da API para a tag imutavel do commit.
-8. Aguarda os rollouts e valida `GET /ping` via `kubectl port-forward`.
+7. Instala o Metrics Server e aguarda a API `metrics.k8s.io`, usada pelo HPA.
+8. Atualiza o Deployment da API para a tag imutavel do commit.
+9. Garante idempotentemente os dados de demonstracao usados na consulta publica.
+10. Aguarda os rollouts e valida `GET /ping` via `kubectl port-forward`.
 
 Como a imagem e carregada diretamente no Kind, o Deployment da API usa `imagePullPolicy: IfNotPresent`. Usar `Always` faria o cluster tentar buscar a tag em um registry externo, o que nao existe neste fluxo local.
 
@@ -190,6 +192,48 @@ kubectl delete pvc postgres-pvc -n workshop --ignore-not-found
 ```
 
 Evite usar runner local self-hosted para codigo de forks ou contribuidores nao confiaveis. O runner executa comandos com acesso a Docker e ao cluster local.
+
+### Validacao local do HPA com k6
+
+O manifesto `k8s/metrics-server.yaml` corresponde ao manifesto oficial do
+[Metrics Server v0.8.1](https://github.com/kubernetes-sigs/metrics-server/releases/tag/v0.8.1),
+com `--kubelet-insecure-tls` adicionado para os certificados dos kubelets do Kind. O HPA da API usa CPU e memoria para manter entre 2 e 10 replicas.
+
+Com o deploy aplicado ao cluster e o `KUBECONFIG` apontando para o Kind, instale as ferramentas e execute o teste demonstrativo:
+
+```bash
+mise install
+mise exec -- scripts/validate-hpa.sh
+```
+
+O script valida o cluster, os pods, o Metrics Server e as metricas numericas do HPA; aguarda a linha de base de duas replicas; confirma que a OS de demonstracao criada pelo deploy responde; cria um proxy TCP temporario dentro do cluster; executa o cenario somente leitura contra `GET /public/work-orders/OS-2026-0001`; e falha se os thresholds do k6 forem violados ou se a API nao ultrapassar duas replicas disponiveis. O `port-forward` aponta para esse proxy, que entra no ClusterIP do Service e distribui as conexoes entre os pods. Isso evita tanto a selecao de um unico pod feita por `kubectl port-forward service/...` quanto colocar o API server no caminho da carga. O pod e os processos temporarios sao removidos automaticamente.
+
+Em outro terminal, acompanhe as decisoes do HPA:
+
+```bash
+kubectl get hpa api-hpa -n workshop -w
+kubectl top pods -n workshop
+```
+
+O Metrics Server publica amostras a cada 15 segundos, mas o scale-out pode levar alguns minutos entre coleta, decisao do HPA e prontidao dos novos pods. Ao fim da carga, o script observa o retorno gradual ao minimo de duas replicas. A janela padrao de estabilizacao de scale-down do Kubernetes costuma acrescentar cerca de cinco minutos; use `OBSERVE_SCALE_DOWN=false` para nao aguardar essa observacao.
+
+Cada replica da API limita seu pool a 5 conexoes (`DATABASE_MAX_CONNECTIONS`), mantendo no maximo 50 conexoes da aplicacao quando o HPA chega a 10 pods. A liveness usa `/ping` para verificar somente o processo, enquanto a readiness usa `/ready` e retira o pod do Service quando o PostgreSQL nao responde. O PostgreSQL usa estrategia `Recreate` por compartilhar um unico PVC e sua liveness TCP evita reinicios causados apenas por saturacao transitoria.
+
+O cenario usa aquecimento, crescimento, pico sustentado e desaceleracao. Os valores padrao podem ser sobrescritos:
+
+```bash
+VUS=300 \
+WARMUP_DURATION=45s \
+RAMP_DURATION=90s \
+PEAK_DURATION=3m \
+COOLDOWN_DURATION=45s \
+P95_MS=750 \
+WORK_ORDER_CODE=OS-2026-0001 \
+CUSTOMER_DOCUMENT=12345678901 \
+mise exec -- scripts/validate-hpa.sh
+```
+
+Tambem podem ser ajustados `WARMUP_VUS`, `LATENCY_CHECK_MS`, `REQUEST_TIMEOUT`, `SLEEP_SECONDS`, `LOCAL_PORT`, `METRICS_TIMEOUT`, `BASELINE_TIMEOUT`, `SCALE_OUT_TIMEOUT`, `SCALE_DOWN_TIMEOUT` e `LOAD_PROXY_IMAGE`. Para testar uma URL ja exposta por outro gateway ou load balancer, defina `BASE_URL`; nesse caso o proxy temporario nao e iniciado. `USE_CLUSTER_PROXY=true` permite fornecer explicitamente a URL local usada com o proxy do cluster.
 
 ### SonarQube local
 
