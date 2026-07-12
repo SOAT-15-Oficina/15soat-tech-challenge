@@ -50,7 +50,7 @@ jobs:
           DATABASE_NAME: techchallenge-db
 
   build-and-deploy:
-    runs-on: [self-hosted, linux]
+    runs-on: [self-hosted]
     needs: test
     if: github.event_name == 'push'
 
