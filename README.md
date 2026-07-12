@@ -141,6 +141,18 @@ sudo ./svc.sh start
 sudo ./svc.sh status
 ```
 
+Como alternativa, use o script do projeto. Ele tenta solicitar o token de registro via `gh`; isso exige permissao de administrador no repositorio. Se a conta local nao tiver essa permissao, gere o token pela tela `New self-hosted runner` e execute o script com `RUNNER_TOKEN`.
+
+```bash
+chmod +x scripts/setup-self-hosted-runner.sh
+
+# com permissao admin no repositorio
+scripts/setup-self-hosted-runner.sh
+
+# sem permissao admin no gh local, usando o token exibido pelo GitHub
+RUNNER_TOKEN="<token-do-github>" scripts/setup-self-hosted-runner.sh
+```
+
 Confirme que o runner aparece como `Idle` em `Settings` > `Actions` > `Runners`.
 
 Valide os comandos que o workflow precisa executar com o mesmo usuario do runner:
