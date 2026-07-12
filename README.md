@@ -38,22 +38,29 @@ Pré-requisitos:
 - Kind
 - kubectl
 
-O provider Terraform `tehcyx/kind` gerencia o cluster Kind, mas nao instala esses binarios. Eles precisam estar disponiveis na maquina onde o `terraform apply` for executado. Se o comando rodar no notebook, o cluster sera criado no notebook; se rodar no Raspberry, sera criado no Raspberry.
+O provider Terraform `tehcyx/kind` gerencia o cluster Kind, mas nao instala esses binarios. Eles precisam estar disponiveis na maquina onde o `terraform apply` for executado. O Docker tambem precisa estar em execucao. Se o comando rodar no notebook, o cluster sera criado no notebook; se rodar no Raspberry, sera criado no Raspberry.
 
-Se estiver usando `mise`, instale as ferramentas declaradas no projeto:
+Com `mise`, instale as ferramentas declaradas no projeto e execute o Terraform dentro do ambiente gerenciado:
 
 ```bash
 mise install
-```
-
-Subindo o ambiente:
-
-```bash
 mise exec -- terraform -chdir=terraform/local-kind init
 mise exec -- terraform -chdir=terraform/local-kind apply
 ```
 
-O Terraform usa o provider `tehcyx/kind` para criar o cluster Kind, gera um kubeconfig local, builda e carrega as imagens locais `techchallenge/api:latest` e `techchallenge/postgres:latest` no Kind e, por padrão, aplica os manifestos Kubernetes da API, PostgreSQL e MailHog. Para criar somente o cluster, use `-var='apply_workloads=false'`.
+Sem `mise`, instale as ferramentas manualmente, confirme que estao no `PATH` e rode os comandos diretamente:
+
+```bash
+docker version
+kind version
+kubectl version --client
+terraform version
+
+terraform -chdir=terraform/local-kind init
+terraform -chdir=terraform/local-kind apply
+```
+
+O Terraform usa o provider `tehcyx/kind` para criar o cluster Kind, gera um kubeconfig local e, por padrão, aplica os manifestos Kubernetes da API, PostgreSQL e MailHog. Para criar somente o cluster, use `-var='apply_workloads=false'`.
 
 Para usar `kubectl` apontando para o cluster criado:
 
@@ -65,13 +72,21 @@ kubectl get nodes
 Para alterar o nome do cluster:
 
 ```bash
+# com mise
 mise exec -- terraform -chdir=terraform/local-kind apply -var='cluster_name=techchallenge-dev'
+
+# sem mise
+terraform -chdir=terraform/local-kind apply -var='cluster_name=techchallenge-dev'
 ```
 
 Para remover tudo:
 
 ```bash
+# com mise
 mise exec -- terraform -chdir=terraform/local-kind destroy
+
+# sem mise
+terraform -chdir=terraform/local-kind destroy
 ```
 
 ### SonarQube local
