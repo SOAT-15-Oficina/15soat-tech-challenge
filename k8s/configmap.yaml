@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  namespace: workshop
+  labels:
+    app.kubernetes.io/name: oficina-mecanica
+data:
+  SERVER_ENVIRONMENT: "production"
+  SERVER_PORT: "8080"
+  APP_BASE_URL: "http://localhost:8080"
+  DATABASE_HOST: "postgres-service"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "techchallenge-db"
+  DATABASE_USER: "techchallenge"
+  EMAIL_PROVIDER: "mailhog"
+  EMAIL_HOST: "mailhog-service"
+  EMAIL_PORT: "1025"
+  EMAIL_FROM: "oficina@workshop.local"
+  AWS_DEFAULT_REGION: "sa-east-1"
+  SES_SENDER_EMAIL: "foo@bar.com"
+  SES_REPLY_TO: "foo@bar.com"
