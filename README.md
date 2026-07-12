@@ -93,10 +93,11 @@ terraform -chdir=terraform/local-kind destroy
 
 O workflow em `.github/workflows/ci.yml` usa dois ambientes:
 
+- `ubuntu-latest` do GitHub para executar `actionlint` nos workflows.
 - `ubuntu-latest` do GitHub para executar `go test ./...` com PostgreSQL de servico.
 - Runner local com os labels `self-hosted` e `local-kind` para executar `go build ./...`, buildar a imagem Docker, carregar a imagem no Kind e aplicar os manifestos Kubernetes.
 
-O deploy local roda somente em `push` para `main`. Pull requests executam os testes no runner hospedado do GitHub.
+O deploy local roda somente em `push` para `main`. Pull requests executam lint e testes no runner hospedado do GitHub.
 
 Prerequisitos na maquina do runner local:
 
@@ -172,13 +173,14 @@ go version
 
 Quando houver `push` para `main`, o workflow:
 
-1. Executa os testes no runner hospedado do GitHub.
-2. Se os testes passarem, executa o build no runner local.
-3. Cria as tags Docker locais `techchallenge/api:<sha-do-commit>` e `techchallenge/api:latest`.
-4. Carrega `techchallenge/api:<sha-do-commit>` no cluster Kind com `kind load docker-image`.
-5. Aplica os manifestos em `k8s/`.
-6. Atualiza o Deployment da API para a tag imutavel do commit.
-7. Aguarda os rollouts e valida `GET /ping` via `kubectl port-forward`.
+1. Executa `actionlint` no runner hospedado do GitHub.
+2. Executa os testes no runner hospedado do GitHub.
+3. Se lint e testes passarem, executa o build no runner local.
+4. Cria as tags Docker locais `techchallenge/api:<sha-do-commit>` e `techchallenge/api:latest`.
+5. Carrega `techchallenge/api:<sha-do-commit>` no cluster Kind com `kind load docker-image`.
+6. Aplica os manifestos em `k8s/`.
+7. Atualiza o Deployment da API para a tag imutavel do commit.
+8. Aguarda os rollouts e valida `GET /ping` via `kubectl port-forward`.
 
 Como a imagem e carregada diretamente no Kind, o Deployment da API usa `imagePullPolicy: IfNotPresent`. Usar `Always` faria o cluster tentar buscar a tag em um registry externo, o que nao existe neste fluxo local.
 

@@ -16,6 +16,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint GitHub Actions workflows
+        run: docker run --rm -v "${GITHUB_WORKSPACE}:/repo" -w /repo rhysd/actionlint:latest
+
   test:
     runs-on: ubuntu-latest
 
@@ -52,7 +61,7 @@ jobs:
 
   build-and-deploy:
     runs-on: [self-hosted, local-kind]
-    needs: test
+    needs: [lint, test]
     if: github.event_name == 'push'
 
     steps:
