@@ -107,7 +107,6 @@ Prerequisitos na maquina do runner local:
 - kubectl
 - Terraform `>= 1.6`
 - Cluster Kind criado com o nome padrao `techchallenge-local`
-- Kubeconfig gerado em `terraform/local-kind/kubeconfig`
 
 Instale as ferramentas declaradas no projeto com `mise`:
 
@@ -123,6 +122,8 @@ mise exec -- terraform -chdir=terraform/local-kind apply
 export KUBECONFIG="$(pwd)/terraform/local-kind/kubeconfig"
 kubectl get nodes
 ```
+
+Durante a execucao do workflow, o kubeconfig e regenerado com `kind get kubeconfig --name techchallenge-local` em um arquivo temporario do runner. Isso evita depender de arquivos nao versionados dentro do checkout do repositorio.
 
 Para cadastrar o runner no GitHub:
 
@@ -162,6 +163,13 @@ Quando houver `push`, o workflow:
 7. Aguarda os rollouts e valida `GET /ping` via `kubectl port-forward`.
 
 Como a imagem e carregada diretamente no Kind, o Deployment da API usa `imagePullPolicy: IfNotPresent`. Usar `Always` faria o cluster tentar buscar a tag em um registry externo, o que nao existe neste fluxo local.
+
+Se o cluster local ja tiver sido usado com outra imagem de PostgreSQL ou outro layout de dados, recrie o PVC antes de validar o deploy:
+
+```bash
+kubectl delete deployment api postgres -n workshop --ignore-not-found
+kubectl delete pvc postgres-pvc -n workshop --ignore-not-found
+```
 
 Evite usar runner local self-hosted para codigo de forks ou contribuidores nao confiaveis. O runner executa comandos com acesso a Docker e ao cluster local.
 
