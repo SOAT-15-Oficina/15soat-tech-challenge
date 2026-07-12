@@ -29,7 +29,7 @@ O banco de dados PostgreSQL é inicializado automaticamente com o schema (via `i
 
 ### Cluster Kubernetes local com Terraform + Kind
 
-Além do Docker Compose, o projeto possui um setup local em `terraform/local-kind` para subir um mini cluster Kubernetes com Kind e aplicar os manifestos em `k8s/`.
+Além do Docker Compose, o projeto possui um setup local em `terraform/local-kind` para subir um mini cluster Kubernetes com Kind.
 
 Pré-requisitos:
 
@@ -60,7 +60,7 @@ terraform -chdir=terraform/local-kind init
 terraform -chdir=terraform/local-kind apply
 ```
 
-O Terraform usa o provider `tehcyx/kind` para criar o cluster Kind, gera um kubeconfig local e, por padrão, aplica os manifestos Kubernetes da API, PostgreSQL e MailHog. Para criar somente o cluster, use `-var='apply_workloads=false'`.
+O Terraform usa o provider `tehcyx/kind` para criar somente o cluster Kind e gerar um kubeconfig local. Os manifestos em `k8s/` nao sao aplicados pelo Terraform.
 
 Para usar `kubectl` apontando para o cluster criado:
 
