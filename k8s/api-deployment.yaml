@@ -21,7 +21,7 @@ spec:
       containers:
         - name: api
           image: techchallenge/api:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
               name: http
