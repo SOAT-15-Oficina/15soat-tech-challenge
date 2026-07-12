@@ -89,6 +89,82 @@ mise exec -- terraform -chdir=terraform/local-kind destroy
 terraform -chdir=terraform/local-kind destroy
 ```
 
+### GitHub Actions com runner local
+
+O workflow em `.github/workflows/ci.yml` usa dois ambientes:
+
+- `ubuntu-latest` do GitHub para executar `go test ./...` com PostgreSQL de servico.
+- Runner local `self-hosted` para executar `go build ./...`, buildar a imagem Docker, carregar a imagem no Kind e aplicar os manifestos Kubernetes.
+
+Temporariamente, o gatilho de `push` nao esta limitado a `main` para permitir teste ponta a ponta desta branch no runner local. Antes de fechar a entrega, volte a restringir o deploy para `main` se a branch de release for essa.
+
+Prerequisitos na maquina do runner local:
+
+- Docker em execucao
+- Acesso ao Docker pelo usuario que executa o runner
+- Go `1.26`
+- Kind
+- kubectl
+- Terraform `>= 1.6`
+- Cluster Kind criado com o nome padrao `techchallenge-local`
+- Kubeconfig gerado em `terraform/local-kind/kubeconfig`
+
+Instale as ferramentas declaradas no projeto com `mise`:
+
+```bash
+mise install
+```
+
+Crie ou atualize o cluster local antes de rodar o deploy:
+
+```bash
+mise exec -- terraform -chdir=terraform/local-kind init
+mise exec -- terraform -chdir=terraform/local-kind apply
+export KUBECONFIG="$(pwd)/terraform/local-kind/kubeconfig"
+kubectl get nodes
+```
+
+Para cadastrar o runner no GitHub:
+
+1. Acesse o repositorio no GitHub.
+2. Abra `Settings` > `Actions` > `Runners`.
+3. Clique em `New self-hosted runner`.
+4. Selecione `Linux` e a arquitetura da maquina.
+5. Execute, na maquina local, os comandos de download e configuracao exibidos pelo GitHub.
+6. Na etapa `./config.sh`, mantenha os labels padrao `self-hosted`, `Linux` e `X64` ou equivalentes da sua arquitetura.
+7. Instale o runner como servico:
+
+```bash
+sudo ./svc.sh install
+sudo ./svc.sh start
+sudo ./svc.sh status
+```
+
+Confirme que o runner aparece como `Idle` em `Settings` > `Actions` > `Runners`.
+
+Valide os comandos que o workflow precisa executar com o mesmo usuario do runner:
+
+```bash
+docker version
+kind version
+kubectl --kubeconfig "$(pwd)/terraform/local-kind/kubeconfig" get nodes
+go version
+```
+
+Quando houver `push`, o workflow:
+
+1. Executa os testes no runner hospedado do GitHub.
+2. Se os testes passarem, executa o build no runner local.
+3. Cria as tags Docker locais `techchallenge/api:<sha-do-commit>` e `techchallenge/api:latest`.
+4. Carrega `techchallenge/api:<sha-do-commit>` no cluster Kind com `kind load docker-image`.
+5. Aplica os manifestos em `k8s/`.
+6. Atualiza o Deployment da API para a tag imutavel do commit.
+7. Aguarda os rollouts e valida `GET /ping` via `kubectl port-forward`.
+
+Como a imagem e carregada diretamente no Kind, o Deployment da API usa `imagePullPolicy: IfNotPresent`. Usar `Always` faria o cluster tentar buscar a tag em um registry externo, o que nao existe neste fluxo local.
+
+Evite usar runner local self-hosted para codigo de forks ou contribuidores nao confiaveis. O runner executa comandos com acesso a Docker e ao cluster local.
+
 ### SonarQube local
 
 O SonarQube roda em um compose separado para não alterar o fluxo padrão da aplicação:
