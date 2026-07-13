@@ -10,7 +10,6 @@ import (
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -160,10 +159,10 @@ func TestWorkOrderGetByID_NotFound(t *testing.T) {
 	ctx := context.Background()
 	id := uuid.New()
 
-	woRepo.On("FindByID", ctx, id).Return(nil, pgx.ErrNoRows)
+	woRepo.On("FindByID", ctx, id).Return(nil, application.ErrNotFound)
 
 	result, err := svc.GetByID(ctx, id)
-	assert.ErrorIs(t, err, pgx.ErrNoRows)
+	assert.ErrorIs(t, err, application.ErrNotFound)
 	assert.Nil(t, result)
 }
 
@@ -208,10 +207,10 @@ func TestWorkOrderUpdate_NotFound(t *testing.T) {
 	ctx := context.Background()
 	id := uuid.New()
 
-	woRepo.On("FindByID", ctx, id).Return(nil, pgx.ErrNoRows)
+	woRepo.On("FindByID", ctx, id).Return(nil, application.ErrNotFound)
 
 	result, err := svc.Update(ctx, &domain.WorkOrder{ID: id})
-	assert.ErrorIs(t, err, pgx.ErrNoRows)
+	assert.ErrorIs(t, err, application.ErrNotFound)
 	assert.Nil(t, result)
 }
 

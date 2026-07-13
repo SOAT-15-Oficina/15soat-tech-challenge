@@ -10,9 +10,9 @@ Além disso, o PostgreSQL oferece suporte robusto a transações ACID, o que é 
 
 ## Arquitetura
 
-A aplicação segue uma organização inspirada em **Arquitetura Hexagonal / Clean Architecture**: o domínio e os casos de uso ficam no centro, enquanto HTTP, banco de dados, e-mail, arquivos estáticos e configuração são adaptadores externos.
+A aplicação segue uma organização inspirada em **Arquitetura Hexagonal / Clean Architecture**: o domínio, as portas de aplicação e os casos de uso ficam no centro, enquanto HTTP, PostgreSQL, e-mail, arquivos estáticos e configuração são adaptadores externos.
 
-Regra de dependência: código de domínio e serviços de aplicação não dependem de handlers HTTP, Fiber, Kubernetes, Docker ou detalhes de infraestrutura. As dependências apontam para dentro: `handlers -> services -> repositories/domain`; adaptadores externos implementam acesso a banco, e-mail e entrada HTTP.
+Regra de dependência: código de domínio e casos de uso de OS não dependem de handlers HTTP, Fiber, `pgx`, SQL, providers de e-mail, Kubernetes, Docker ou detalhes de infraestrutura. As dependências apontam para dentro: `handlers -> services/use cases -> application ports/domain`. Os adaptadores externos implementam as portas internas: `internal/repository` implementa persistência com PostgreSQL/`pgx`, e `packages/email` implementa notificações de orçamento e alertas.
 
 Visão consolidada da solução real: API Go/Fiber, painel web estático, PostgreSQL, e-mail via MailHog no ambiente local/Kubernetes, Terraform criando um cluster Kind local, Metrics Server para HPA e GitHub Actions com runner hospedado para lint/testes e runner self-hosted para build/deploy local.
 
@@ -44,9 +44,9 @@ flowchart TB
     subgraph api [Nucleo da aplicacao]
         H[Handlers HTTP<br/>validacao, DTOs, erros]
         S[Services<br/>WorkOrder, Creation, Status, Budget<br/>Public, Workshop, Supply, Customer...]
-        R[Repositories pgx<br/>WorkOrder, WorkOrderService<br/>Customer, Vehicle, User, Supply...]
+        APP[Application<br/>portas internas, filtros, DTOs<br/>e erros de aplicacao]
+        R[Repositories pgx<br/>adaptadores de persistencia]
         DOM[Domain - entidades e enums]
-        APP[Application - DTOs de listagem]
         CFG[Config - env / viper]
         MIG[Database - migrations goose no boot]
     end
@@ -80,9 +80,10 @@ flowchart TB
     AUTHZ --> S
     H --> AUTH
     H --> S
-    H --> APP
-    S --> R
-    S --> EMAILPKG
+    S --> APP
+    S --> DOM
+    R -. implementa .-> APP
+    EMAILPKG -. implementa .-> APP
     EMAILPKG --> MAILHOG
     R --> DOM
     R --> PG
@@ -94,10 +95,11 @@ flowchart TB
 |--------|--------|
 | **Web** | Board, OS, clientes, veículos, serviços, insumos, aprovação — consome a REST API |
 | **Handlers** | HTTP, validação de entrada, tradução de erros, respostas JSON |
-| **Services** | Regras de negócio: máquina de estados da OS, orçamento, criação de itens, aprovações públicas |
-| **Repositories** | SQL com `pgx`; isolamento do banco |
+| **Services / Use cases** | Regras de negócio: abertura de OS, máquina de estados, orçamento, criação de itens, aprovações públicas; dependem de `domain` e portas de `application` |
+| **Application** | Portas internas de persistência e notificação, filtros/DTOs de listagem e erros compartilhados de aplicação |
+| **Repositories** | Adaptadores SQL com `pgx`; implementam portas de persistência e traduzem erros de banco para erros de aplicação |
 | **Domain** | Entidades (`WorkOrder`, `Customer`, `WorkshopService`, etc.) |
-| **packages/email** | Adaptador de saída para envio de orçamento e alertas via provider configurável |
+| **packages/email** | Adaptador de saída para envio de orçamento e alertas; implementa portas de notificação via provider configurável |
 | **Boot** | Migrations embarcadas (`go:embed`) executadas na subida da API |
 
 ### Infraestrutura provisionada

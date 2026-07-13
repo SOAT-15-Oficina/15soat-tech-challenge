@@ -1,8 +1,10 @@
 package email
 
 import (
+	"context"
 	"testing"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,4 +20,24 @@ func TestNew_UnknownProvider(t *testing.T) {
 	provider, err := New("unknown", cfg)
 	assert.Error(t, err)
 	assert.Nil(t, provider)
+}
+
+func TestWorkOrderNotificationSender_NilReceiverSkipsSend(t *testing.T) {
+	var sender *WorkOrderNotificationSender
+
+	err := sender.SendBudget(context.Background(), application.BudgetNotification{})
+	assert.NoError(t, err)
+
+	err = sender.SendPurchaseAlert(context.Background(), application.PurchaseAlertNotification{})
+	assert.NoError(t, err)
+}
+
+func TestWorkOrderNotificationSender_NilProviderSkipsSend(t *testing.T) {
+	sender := NewWorkOrderNotificationSender(nil)
+
+	err := sender.SendBudget(context.Background(), application.BudgetNotification{})
+	assert.NoError(t, err)
+
+	err = sender.SendPurchaseAlert(context.Background(), application.PurchaseAlertNotification{})
+	assert.NoError(t, err)
 }

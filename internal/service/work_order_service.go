@@ -9,7 +9,6 @@ import (
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 )
 
@@ -24,11 +23,11 @@ type WorkOrderService interface {
 }
 
 type workOrderService struct {
-	repo        repository.WorkOrderRepository
-	vehicleRepo repository.VehicleRepository
+	repo        application.WorkOrderRepository
+	vehicleRepo application.VehicleRepository
 }
 
-func NewWorkOrderService(repo repository.WorkOrderRepository, vehicleRepo repository.VehicleRepository) WorkOrderService {
+func NewWorkOrderService(repo application.WorkOrderRepository, vehicleRepo application.VehicleRepository) WorkOrderService {
 	return &workOrderService{repo: repo, vehicleRepo: vehicleRepo}
 }
 
@@ -96,19 +95,45 @@ func (s *workOrderService) Update(ctx context.Context, wo *domain.WorkOrder) (*d
 	wo.CreatedAt = existing.CreatedAt
 	wo.UpdatedAt = time.Now()
 
-	if wo.Code != "" { existing.Code = wo.Code }
-	if wo.Title != "" { existing.Title = wo.Title }
-	if wo.Description != nil { existing.Description = wo.Description }
-	if wo.CustomerID != uuid.Nil { existing.CustomerID = wo.CustomerID }
-	if wo.VehicleID != uuid.Nil { existing.VehicleID = wo.VehicleID }
-	if wo.AssignedTechnicianID != nil { existing.AssignedTechnicianID = wo.AssignedTechnicianID }
-	if wo.TotalEstimatedPriceCents != 0 { existing.TotalEstimatedPriceCents = wo.TotalEstimatedPriceCents }
-	if !wo.ReceivedAt.IsZero() { existing.ReceivedAt = wo.ReceivedAt }
-	if wo.QuoteSentAt != nil { existing.QuoteSentAt = wo.QuoteSentAt }
-	if wo.ApprovedAt != nil { existing.ApprovedAt = wo.ApprovedAt }
-	if wo.StartedAt != nil { existing.StartedAt = wo.StartedAt }
-	if wo.FinishedAt != nil { existing.FinishedAt = wo.FinishedAt }
-	if wo.DeliveredAt != nil { existing.DeliveredAt = wo.DeliveredAt }
+	if wo.Code != "" {
+		existing.Code = wo.Code
+	}
+	if wo.Title != "" {
+		existing.Title = wo.Title
+	}
+	if wo.Description != nil {
+		existing.Description = wo.Description
+	}
+	if wo.CustomerID != uuid.Nil {
+		existing.CustomerID = wo.CustomerID
+	}
+	if wo.VehicleID != uuid.Nil {
+		existing.VehicleID = wo.VehicleID
+	}
+	if wo.AssignedTechnicianID != nil {
+		existing.AssignedTechnicianID = wo.AssignedTechnicianID
+	}
+	if wo.TotalEstimatedPriceCents != 0 {
+		existing.TotalEstimatedPriceCents = wo.TotalEstimatedPriceCents
+	}
+	if !wo.ReceivedAt.IsZero() {
+		existing.ReceivedAt = wo.ReceivedAt
+	}
+	if wo.QuoteSentAt != nil {
+		existing.QuoteSentAt = wo.QuoteSentAt
+	}
+	if wo.ApprovedAt != nil {
+		existing.ApprovedAt = wo.ApprovedAt
+	}
+	if wo.StartedAt != nil {
+		existing.StartedAt = wo.StartedAt
+	}
+	if wo.FinishedAt != nil {
+		existing.FinishedAt = wo.FinishedAt
+	}
+	if wo.DeliveredAt != nil {
+		existing.DeliveredAt = wo.DeliveredAt
+	}
 
 	return s.repo.Update(ctx, existing)
 }

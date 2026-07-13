@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -137,6 +137,34 @@ func TestAddServices_WaitingApproval_AllowsAdjustment(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
 	statusSvc.AssertNotCalled(t, "TransitionTo")
+}
+
+func TestAddServices_WaitingApproval_RefreshesBudget(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	wsRepo := new(mockWorkshopServiceRepo)
+	supplyRepo := new(mockSupplyRepo)
+	statusSvc := new(mockStatusService)
+	budgetSvc := new(mockBudgetServiceUseCase)
+	svc := NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc, WithBudgetRefresh(budgetSvc))
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wsID := uuid.New()
+	wo := openWO(woID, domain.WorkOrderStatusWaitingApproval)
+	ws := activeWorkshopService(wsID)
+	created := []*domain.WorkOrderService{{ID: uuid.New(), WorkOrderID: woID, ServiceID: wsID}}
+
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil).Twice()
+	wsRepo.On("FindByID", ctx, wsID).Return(ws, nil)
+	wosRepo.On("CreateBatch", ctx, mock.AnythingOfType("[]*domain.WorkOrderService")).Return(created, nil)
+	budgetSvc.On("GenerateAndSendBudget", ctx, woID).Return(nil)
+
+	result, err := svc.AddServices(ctx, woID, []AddWorkOrderServiceInput{{ServiceID: wsID}})
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+	budgetSvc.AssertCalled(t, "GenerateAndSendBudget", ctx, woID)
 }
 
 func TestAddServices_InactiveService_ReturnsError(t *testing.T) {
@@ -379,7 +407,7 @@ func TestRemoveService_Valid_DeletesCalled(t *testing.T) {
 }
 
 func TestRemoveService_WosNotFound_ReturnsNotFoundError(t *testing.T) {
-	// when wosID does not exist, must propagate pgx.ErrNoRows
+	// when wosID does not exist, must propagate the application not-found error
 	woRepo := new(mockWorkOrderRepo)
 	wosRepo := new(mockWorkOrderServiceRepo)
 	wsRepo := new(mockWorkshopServiceRepo)
@@ -389,10 +417,10 @@ func TestRemoveService_WosNotFound_ReturnsNotFoundError(t *testing.T) {
 	ctx := context.Background()
 
 	wosID := uuid.New()
-	wosRepo.On("FindByID", ctx, wosID).Return(nil, pgx.ErrNoRows)
+	wosRepo.On("FindByID", ctx, wosID).Return(nil, application.ErrNotFound)
 
 	err := svc.RemoveService(ctx, uuid.New(), wosID)
-	assert.ErrorIs(t, err, pgx.ErrNoRows)
+	assert.ErrorIs(t, err, application.ErrNotFound)
 	wosRepo.AssertNotCalled(t, "DeleteByID")
 }
 

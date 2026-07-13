@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 )
 
@@ -30,17 +30,31 @@ type WorkOrderStatusService interface {
 }
 
 type workOrderStatusService struct {
-	woRepo  repository.WorkOrderRepository
-	wosRepo repository.WorkOrderServiceRepository
+	woRepo  application.WorkOrderRepository
+	wosRepo application.WorkOrderServiceRepository
+	budget  BudgetService
 }
 
 func NewWorkOrderStatusService(
-	woRepo repository.WorkOrderRepository,
-	wosRepo repository.WorkOrderServiceRepository,
+	woRepo application.WorkOrderRepository,
+	wosRepo application.WorkOrderServiceRepository,
+	opts ...WorkOrderStatusServiceOption,
 ) WorkOrderStatusService {
-	return &workOrderStatusService{
+	svc := &workOrderStatusService{
 		woRepo:  woRepo,
 		wosRepo: wosRepo,
+	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
+}
+
+type WorkOrderStatusServiceOption func(*workOrderStatusService)
+
+func WithBudgetGeneration(budget BudgetService) WorkOrderStatusServiceOption {
+	return func(s *workOrderStatusService) {
+		s.budget = budget
 	}
 }
 
@@ -89,6 +103,12 @@ func (s *workOrderStatusService) TransitionTo(ctx context.Context, workOrderID u
 	updated, err := s.woRepo.Update(ctx, wo)
 	if err != nil {
 		return nil, fmt.Errorf("transition: update work order: %w", err)
+	}
+
+	if updated.Status == domain.WorkOrderStatusWaitingApproval && s.budget != nil {
+		if err := s.budget.GenerateAndSendBudget(ctx, updated.ID); err != nil {
+			return nil, fmt.Errorf("transition: generate budget: %w", err)
+		}
 	}
 
 	return updated, nil

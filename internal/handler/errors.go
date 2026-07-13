@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -38,7 +39,7 @@ var foreignKeyMessages = map[string]string{
 }
 
 func dbErrResponse(c fiber.Ctx, err error, notFoundMsg string) (bool, error) {
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, application.ErrNotFound) {
 		return true, c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": notFoundMsg})
 	}
 

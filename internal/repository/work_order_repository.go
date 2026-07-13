@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,23 +10,17 @@ import (
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type WorkOrderRepository interface {
-	Create(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
-	FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrder, error)
-	FindByCode(ctx context.Context, code string) (*domain.WorkOrder, error)
-	FindAll(ctx context.Context) ([]domain.WorkOrder, error)
-	FindAllWithFilters(ctx context.Context, filters application.WorkOrderListFilters) (*application.WorkOrderListResponse, error)
-	Update(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
-}
+type WorkOrderRepository = application.WorkOrderRepository
 
 type workOrderRepository struct {
 	db *pgxpool.Pool
 }
 
-func NewWorkOrderRepository(db *pgxpool.Pool) WorkOrderRepository {
+func NewWorkOrderRepository(db *pgxpool.Pool) application.WorkOrderRepository {
 	return &workOrderRepository{db: db}
 }
 
@@ -71,6 +66,9 @@ func (r *workOrderRepository) Create(ctx context.Context, wo *domain.WorkOrder) 
 		)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, application.ErrNotFound
+		}
 		return nil, err
 	}
 	return &result, nil
@@ -105,6 +103,9 @@ func (r *workOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*doma
 			&vehicle.ID, &vehicle.LicensePlate, &vehicle.Brand, &vehicle.Model, &vehicle.Year,
 		)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, application.ErrNotFound
+		}
 		return nil, err
 	}
 
@@ -115,6 +116,9 @@ func (r *workOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*doma
 
 	services, err := r.fetchServicesForWorkOrder(ctx, result.ID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, application.ErrNotFound
+		}
 		return nil, err
 	}
 	result.Services = services
@@ -140,6 +144,9 @@ func (r *workOrderRepository) FindByCode(ctx context.Context, code string) (*dom
 			&result.CreatedAt, &result.UpdatedAt,
 		)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, application.ErrNotFound
+		}
 		return nil, err
 	}
 	return &result, nil
@@ -208,6 +215,9 @@ func (r *workOrderRepository) Update(ctx context.Context, wo *domain.WorkOrder) 
 			&result.CreatedAt, &result.UpdatedAt,
 		)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, application.ErrNotFound
+		}
 		return nil, err
 	}
 	return &result, nil

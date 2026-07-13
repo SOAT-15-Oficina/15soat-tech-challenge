@@ -2,9 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -52,6 +55,9 @@ func (r *vehicleRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain
 	err := r.db.QueryRow(ctx, query, id).
 		Scan(&result.ID, &result.LicensePlate, &result.CustomerID, &result.Model, &result.Year, &result.Brand)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, application.ErrNotFound
+		}
 		return nil, err
 	}
 	return &result, nil

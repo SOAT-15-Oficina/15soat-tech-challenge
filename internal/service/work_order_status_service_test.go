@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -32,6 +33,45 @@ func TestTransitionTo_ValidTransition_UpdatesStatus(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, domain.WorkOrderStatusInDiagnosis, wo.Status)
+}
+
+func TestTransitionTo_WaitingApproval_GeneratesBudget(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	budgetSvc := new(mockBudgetServiceUseCase)
+	svc := NewWorkOrderStatusService(woRepo, wosRepo, WithBudgetGeneration(budgetSvc))
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wo := &domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInDiagnosis}
+
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+	budgetSvc.On("GenerateAndSendBudget", ctx, woID).Return(nil)
+
+	result, err := svc.TransitionTo(ctx, woID, domain.WorkOrderStatusWaitingApproval)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	budgetSvc.AssertCalled(t, "GenerateAndSendBudget", ctx, woID)
+}
+
+func TestTransitionTo_WaitingApproval_BudgetGenerationFails(t *testing.T) {
+	woRepo := new(mockWorkOrderRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	budgetSvc := new(mockBudgetServiceUseCase)
+	svc := NewWorkOrderStatusService(woRepo, wosRepo, WithBudgetGeneration(budgetSvc))
+	ctx := context.Background()
+
+	woID := uuid.New()
+	wo := &domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInDiagnosis}
+
+	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
+	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+	budgetSvc.On("GenerateAndSendBudget", ctx, woID).Return(errors.New("smtp error"))
+
+	result, err := svc.TransitionTo(ctx, woID, domain.WorkOrderStatusWaitingApproval)
+	assert.Error(t, err)
+	assert.Nil(t, result)
 }
 
 func TestTransitionTo_InvalidTransition_ReturnsError(t *testing.T) {

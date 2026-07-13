@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -373,15 +373,22 @@ func TestEvaluate_UpdateWorkOrderFails(t *testing.T) {
 }
 
 // --- WithPurchaseAlert + sendPurchaseAlertIfNeeded ---
-// mockEmailProvider is declared in budget_service_test.go
+
+type mockPurchaseAlertSender struct {
+	mock.Mock
+}
+
+func (m *mockPurchaseAlertSender) SendPurchaseAlert(ctx context.Context, notification application.PurchaseAlertNotification) error {
+	return m.Called(ctx, notification).Error(0)
+}
 
 func TestWithPurchaseAlert_SetsFields(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
 	statusSvc := new(mockStatusService)
-	prov := new(mockEmailProvider)
+	alerts := new(mockPurchaseAlertSender)
 
-	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(prov, "admin@test.com"))
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(alerts, "admin@test.com"))
 	assert.NotNil(t, svc)
 }
 
@@ -389,9 +396,9 @@ func TestEvaluate_WithPurchaseAlert_SendsEmail(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
 	statusSvc := new(mockStatusService)
-	prov := new(mockEmailProvider)
+	alertSender := new(mockPurchaseAlertSender)
 
-	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(prov, "admin@test.com"))
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(alertSender, "admin@test.com"))
 	ctx := context.Background()
 	woID := uuid.New()
 
@@ -408,25 +415,25 @@ func TestEvaluate_WithPurchaseAlert_SendsEmail(t *testing.T) {
 
 	shortages := map[uuid.UUID]bool{uuid.New(): true}
 	wosRepo.On("FindSupplyShortagesByWorkOrderID", ctx, woID).Return(shortages, nil)
-	alerts := []repository.SupplyShortageAlert{
+	alerts := []application.SupplyShortageAlert{
 		{ServiceTitle: "Troca de óleo", SupplyTitle: "Filtro", Required: 5, InStock: 2},
 	}
 	wosRepo.On("FindApprovedServicesWithShortages", ctx).Return(alerts, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
-	prov.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(nil)
+	alertSender.On("SendPurchaseAlert", ctx, mock.AnythingOfType("application.PurchaseAlertNotification")).Return(nil)
 
 	err := svc.ApproveAllByWorkOrder(ctx, woID)
 	assert.NoError(t, err)
-	prov.AssertCalled(t, "Send", ctx, mock.AnythingOfType("email.Message"))
+	alertSender.AssertCalled(t, "SendPurchaseAlert", ctx, mock.AnythingOfType("application.PurchaseAlertNotification"))
 }
 
 func TestEvaluate_WithPurchaseAlert_NoShortages_NoEmail(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
 	statusSvc := new(mockStatusService)
-	prov := new(mockEmailProvider)
+	alertSender := new(mockPurchaseAlertSender)
 
-	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(prov, "admin@test.com"))
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(alertSender, "admin@test.com"))
 	ctx := context.Background()
 	woID := uuid.New()
 
@@ -444,16 +451,16 @@ func TestEvaluate_WithPurchaseAlert_NoShortages_NoEmail(t *testing.T) {
 
 	err := svc.ApproveAllByWorkOrder(ctx, woID)
 	assert.NoError(t, err)
-	prov.AssertNotCalled(t, "Send")
+	alertSender.AssertNotCalled(t, "SendPurchaseAlert")
 }
 
 func TestEvaluate_WithPurchaseAlert_ShortageError_NoEmail(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
 	statusSvc := new(mockStatusService)
-	prov := new(mockEmailProvider)
+	alertSender := new(mockPurchaseAlertSender)
 
-	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(prov, "admin@test.com"))
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(alertSender, "admin@test.com"))
 	ctx := context.Background()
 	woID := uuid.New()
 
@@ -471,16 +478,16 @@ func TestEvaluate_WithPurchaseAlert_ShortageError_NoEmail(t *testing.T) {
 
 	err := svc.ApproveAllByWorkOrder(ctx, woID)
 	assert.NoError(t, err)
-	prov.AssertNotCalled(t, "Send")
+	alertSender.AssertNotCalled(t, "SendPurchaseAlert")
 }
 
 func TestEvaluate_WithPurchaseAlert_AlertsFetchError_NoEmail(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
 	statusSvc := new(mockStatusService)
-	prov := new(mockEmailProvider)
+	alertSender := new(mockPurchaseAlertSender)
 
-	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(prov, "admin@test.com"))
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(alertSender, "admin@test.com"))
 	ctx := context.Background()
 	woID := uuid.New()
 
@@ -500,16 +507,16 @@ func TestEvaluate_WithPurchaseAlert_AlertsFetchError_NoEmail(t *testing.T) {
 
 	err := svc.ApproveAllByWorkOrder(ctx, woID)
 	assert.NoError(t, err)
-	prov.AssertNotCalled(t, "Send")
+	alertSender.AssertNotCalled(t, "SendPurchaseAlert")
 }
 
 func TestEvaluate_WithPurchaseAlert_FindWOFails_NoEmail(t *testing.T) {
 	wosRepo := new(mockWorkOrderServiceRepo)
 	woRepo := new(mockWorkOrderRepo)
 	statusSvc := new(mockStatusService)
-	prov := new(mockEmailProvider)
+	alertSender := new(mockPurchaseAlertSender)
 
-	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(prov, "admin@test.com"))
+	svc := NewWorkOrderItemService(wosRepo, woRepo, statusSvc, WithPurchaseAlert(alertSender, "admin@test.com"))
 	ctx := context.Background()
 	woID := uuid.New()
 
@@ -525,11 +532,11 @@ func TestEvaluate_WithPurchaseAlert_FindWOFails_NoEmail(t *testing.T) {
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 	shortages := map[uuid.UUID]bool{uuid.New(): true}
 	wosRepo.On("FindSupplyShortagesByWorkOrderID", ctx, woID).Return(shortages, nil)
-	alerts := []repository.SupplyShortageAlert{{ServiceTitle: "S", SupplyTitle: "T", Required: 3, InStock: 1}}
+	alerts := []application.SupplyShortageAlert{{ServiceTitle: "S", SupplyTitle: "T", Required: 3, InStock: 1}}
 	wosRepo.On("FindApprovedServicesWithShortages", ctx).Return(alerts, nil)
 	woRepo.On("FindByID", ctx, woID).Return(nil, errors.New("db error"))
 
 	err := svc.ApproveAllByWorkOrder(ctx, woID)
 	assert.NoError(t, err)
-	prov.AssertNotCalled(t, "Send")
+	alertSender.AssertNotCalled(t, "SendPurchaseAlert")
 }
