@@ -73,7 +73,6 @@ func TestWorkOrderStatusSortPriorityOf(t *testing.T) {
 }
 
 func TestWorkOrderListingExclusionSets(t *testing.T) {
-	// FINALIZADA e ENTREGUE são o piso rígido; CANCELADA só é escondida por padrão.
 	assert.ElementsMatch(t,
 		[]WorkOrderStatus{WorkOrderStatusFinished, WorkOrderStatusDelivered},
 		WorkOrderListingAlwaysExcludedStatuses,
@@ -83,7 +82,6 @@ func TestWorkOrderListingExclusionSets(t *testing.T) {
 		WorkOrderListingDefaultHiddenStatuses,
 	)
 
-	// A prioridade operacional é exatamente os quatro status ativos, nesta ordem.
 	assert.Equal(t,
 		[]WorkOrderStatus{
 			WorkOrderStatusInProgress,

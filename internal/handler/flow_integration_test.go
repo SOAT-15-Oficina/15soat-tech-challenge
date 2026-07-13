@@ -1929,10 +1929,6 @@ func transitionWorkOrder(t *testing.T, app *fiber.App, workOrderID, status strin
 		"failed to transition work order %s to %s", workOrderID, status)
 }
 
-// insertWorkOrderRow inserts a work order straight into the database with a
-// chosen status and received_at, bypassing the state machine. This lets the
-// listing tests build deterministic fixtures across every status and date
-// without driving the full transition flow.
 func insertWorkOrderRow(t *testing.T, pool *pgxpool.Pool, code, status string, receivedAt time.Time, customerID, vehicleID, openedBy string) string {
 	t.Helper()
 	id := uuid.New()
@@ -1951,9 +1947,6 @@ func insertWorkOrderRow(t *testing.T, pool *pgxpool.Pool, code, status string, r
 	return id.String()
 }
 
-// listWorkOrderIDs performs GET /work-orders with the given query string and
-// returns the ordered list of returned ids alongside the reported pagination
-// totals.
 func listWorkOrderIDs(t *testing.T, app *fiber.App, query string) (ids []string, statuses []string, total int, totalPages int) {
 	t.Helper()
 	resp, err := flowGet(app, "/work-orders"+query)
@@ -1973,37 +1966,19 @@ func listWorkOrderIDs(t *testing.T, app *fiber.App, query string) (ids []string,
 	return ids, statuses, total, totalPages
 }
 
-// =============================================================================
-// Test: Operational listing exclusion, priority and ordering rules (Fase 2).
-//
-// Cobre os critérios de aceite:
-//   - FINALIZADA e ENTREGUE sempre excluídas (inclusive sob filtro explícito);
-//   - filtro de status não contorna a exclusão;
-//   - prioridade EM_EXECUCAO > AGUARDANDO_APROVACAO > EM_DIAGNOSTICO > RECEBIDA;
-//   - dentro do mesmo status, received_at crescente;
-//   - APROVADO permanece na listagem (ordena por último);
-//   - CANCELADA escondida por padrão, visível via filtro explícito;
-//   - paginação e total consideram as exclusões;
-//   - filtros por data (from/to) sobre received_at.
-// =============================================================================
-
 func TestIntegration_Flow_OperationalListingRules(t *testing.T) {
 	app, pool := setupFlowApp(t)
 	openedBy := seedTestUser(t, app)
 
-	// Cliente A concentra os cenários de status/ordenação/paginação.
 	customerA := createTestCustomer(t, app, "Listagem A", "listagem.a@example.com", "12345678909", "CPF")
 	vehicleA := createTestVehicle(t, app, customerA, "LST1A23", "Fiat", "Uno", 2020)
 
-	// Cliente B isola o cenário de filtro por data.
 	customerB := createTestCustomer(t, app, "Listagem B", "listagem.b@example.com", "52998224725", "CPF")
 	vehicleB := createTestVehicle(t, app, customerB, "LST1B23", "Honda", "Fit", 2021)
 
 	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	h := func(n int) time.Time { return base.Add(time.Duration(n) * time.Hour) }
 
-	// Fixtures do cliente A (received_at escolhido para provar received_at ASC
-	// dentro do mesmo status).
 	e2 := insertWorkOrderRow(t, pool, "OS-LST-E2", "EM_EXECUCAO", h(2), customerA, vehicleA, openedBy)
 	e1 := insertWorkOrderRow(t, pool, "OS-LST-E1", "EM_EXECUCAO", h(4), customerA, vehicleA, openedBy)
 	a1 := insertWorkOrderRow(t, pool, "OS-LST-A1", "AGUARDANDO_APROVACAO", h(1), customerA, vehicleA, openedBy)
@@ -2018,13 +1993,11 @@ func TestIntegration_Flow_OperationalListingRules(t *testing.T) {
 	t.Run("DefaultListing_ExcludesTerminalAndCancelled_OrdersByPriorityThenReceivedAt", func(t *testing.T) {
 		ids, statuses, total, _ := listWorkOrderIDs(t, app, "?customerId="+customerA+"&limit=50")
 
-		// FINALIZADA, ENTREGUE e CANCELADA fora; sobram 7 OS ativas.
 		assert.Equal(t, 7, total, "total deve considerar as exclusões")
 		assert.NotContains(t, statuses, "FINALIZADA")
 		assert.NotContains(t, statuses, "ENTREGUE")
 		assert.NotContains(t, statuses, "CANCELADA")
 
-		// Prioridade + received_at ASC dentro do mesmo status.
 		assert.Equal(t, []string{e2, e1, a1, d1, r2, r1, ap1}, ids,
 			"ordem esperada: EM_EXECUCAO(received asc) > AGUARDANDO_APROVACAO > EM_DIAGNOSTICO > RECEBIDA(received asc) > APROVADO")
 	})
@@ -2063,7 +2036,6 @@ func TestIntegration_Flow_OperationalListingRules(t *testing.T) {
 	})
 
 	t.Run("PaginationConsidersExclusions", func(t *testing.T) {
-		// limit=3 sobre as 7 OS ativas → 3 páginas; total permanece 7.
 		idsP1, _, total, totalPages := listWorkOrderIDs(t, app, "?customerId="+customerA+"&limit=3&page=1")
 		assert.Equal(t, 7, total)
 		assert.Equal(t, 3, totalPages)

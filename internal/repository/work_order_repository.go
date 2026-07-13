@@ -223,9 +223,6 @@ func (r *workOrderRepository) Update(ctx context.Context, wo *domain.WorkOrder) 
 	return &result, nil
 }
 
-// workOrderStatusPriorityCase builds the ORDER BY CASE expression from the
-// domain priority order, keeping the operational listing rule single-sourced.
-// Status values come from a closed internal enum (not user input).
 func workOrderStatusPriorityCase() string {
 	var b strings.Builder
 	b.WriteString("CASE wo.status")
@@ -241,10 +238,6 @@ func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters ap
 	args := []interface{}{}
 	argIndex := 1
 
-	// Exclusão da listagem operacional (regra em domain.WorkOrder*):
-	//  - FINALIZADA/ENTREGUE são SEMPRE excluídas, mesmo sob filtro explícito
-	//    de status. Aplicada antes do filtro para que ele não a contorne.
-	//  - CANCELADA é escondida por padrão, mas visível via filtro explícito.
 	for _, excluded := range domain.WorkOrderListingAlwaysExcludedStatuses {
 		whereConditions = append(whereConditions, fmt.Sprintf("wo.status <> $%d", argIndex))
 		args = append(args, string(excluded))

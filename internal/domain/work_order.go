@@ -58,43 +58,22 @@ type WorkOrderVehicle struct {
 	Year         int       `json:"year"`
 }
 
-// Regras da listagem operacional de OS (fonte única — repositório e Swagger
-// derivam daqui):
-//
-//   - FINALIZADA e ENTREGUE são SEMPRE excluídas, inclusive quando o consumidor
-//     informa um filtro explícito de status (piso rígido — o filtro não contorna
-//     a exclusão). São estados terminais: serviço concluído / veículo entregue.
-//   - CANCELADA fica oculta na listagem padrão, mas continua acessível quando o
-//     filtro explícito `status=CANCELADA` é informado (consulta/auditoria).
-//   - APROVADO é uma OS ativa (aprovada, aguardando execução) e permanece na
-//     listagem; como não está entre os quatro status priorizados, ordena depois
-//     deles (bucket padrão), sempre por received_at ASC.
-
-// WorkOrderListingAlwaysExcludedStatuses são os status que NUNCA aparecem na
-// listagem operacional, mesmo sob filtro explícito de status.
 var WorkOrderListingAlwaysExcludedStatuses = []WorkOrderStatus{
 	WorkOrderStatusFinished,
 	WorkOrderStatusDelivered,
 }
 
-// WorkOrderListingDefaultHiddenStatuses são os status escondidos da listagem
-// padrão, mas alcançáveis por filtro explícito de status.
 var WorkOrderListingDefaultHiddenStatuses = []WorkOrderStatus{
 	WorkOrderStatusCanceled,
 }
 
-// WorkOrderListingStatusPriorityOrder define a prioridade de exibição da
-// listagem operacional (índice 0 = maior prioridade). Status ausentes desta
-// lista (ex.: APROVADO) ordenam após todos eles.
 var WorkOrderListingStatusPriorityOrder = []WorkOrderStatus{
-	WorkOrderStatusInProgress,      // EM_EXECUCAO
-	WorkOrderStatusWaitingApproval, // AGUARDANDO_APROVACAO
-	WorkOrderStatusInDiagnosis,     // EM_DIAGNOSTICO
-	WorkOrderStatusReceived,        // RECEBIDA
+	WorkOrderStatusInProgress,
+	WorkOrderStatusWaitingApproval,
+	WorkOrderStatusInDiagnosis,
+	WorkOrderStatusReceived,
 }
 
-// WorkOrderStatusDefaultSortPriority é a prioridade atribuída a qualquer status
-// fora de WorkOrderListingStatusPriorityOrder.
 const WorkOrderStatusDefaultSortPriority = 99
 
 var workOrderStatusSortPriority = func() map[WorkOrderStatus]int {
@@ -112,14 +91,10 @@ func WorkOrderStatusSortPriorityOf(status WorkOrderStatus) int {
 	return WorkOrderStatusDefaultSortPriority
 }
 
-// IsAlwaysExcludedFromListing informa se o status é excluído da listagem
-// operacional em qualquer circunstância, ignorando filtro explícito.
 func IsAlwaysExcludedFromListing(status WorkOrderStatus) bool {
 	return containsStatus(WorkOrderListingAlwaysExcludedStatuses, status)
 }
 
-// IsHiddenFromDefaultListing informa se o status é escondido da listagem padrão
-// mas ainda alcançável via filtro explícito de status.
 func IsHiddenFromDefaultListing(status WorkOrderStatus) bool {
 	return containsStatus(WorkOrderListingDefaultHiddenStatuses, status)
 }
