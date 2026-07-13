@@ -223,19 +223,44 @@ func (r *workOrderRepository) Update(ctx context.Context, wo *domain.WorkOrder) 
 	return &result, nil
 }
 
+// workOrderStatusPriorityCase builds the ORDER BY CASE expression from the
+// domain priority order, keeping the operational listing rule single-sourced.
+// Status values come from a closed internal enum (not user input).
+func workOrderStatusPriorityCase() string {
+	var b strings.Builder
+	b.WriteString("CASE wo.status")
+	for i, status := range domain.WorkOrderListingStatusPriorityOrder {
+		fmt.Fprintf(&b, " WHEN '%s' THEN %d", status, i+1)
+	}
+	fmt.Fprintf(&b, " ELSE %d END", domain.WorkOrderStatusDefaultSortPriority)
+	return b.String()
+}
+
 func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters application.WorkOrderListFilters) (*application.WorkOrderListResponse, error) {
 	whereConditions := []string{}
 	args := []interface{}{}
 	argIndex := 1
+
+	// Exclusão da listagem operacional (regra em domain.WorkOrder*):
+	//  - FINALIZADA/ENTREGUE são SEMPRE excluídas, mesmo sob filtro explícito
+	//    de status. Aplicada antes do filtro para que ele não a contorne.
+	//  - CANCELADA é escondida por padrão, mas visível via filtro explícito.
+	for _, excluded := range domain.WorkOrderListingAlwaysExcludedStatuses {
+		whereConditions = append(whereConditions, fmt.Sprintf("wo.status <> $%d", argIndex))
+		args = append(args, string(excluded))
+		argIndex++
+	}
 
 	if filters.Status != "" {
 		whereConditions = append(whereConditions, fmt.Sprintf("wo.status = $%d", argIndex))
 		args = append(args, filters.Status)
 		argIndex++
 	} else {
-		whereConditions = append(whereConditions, fmt.Sprintf("wo.status NOT IN ($%d, $%d, $%d)", argIndex, argIndex+1, argIndex+2))
-		args = append(args, string(domain.WorkOrderStatusFinished), string(domain.WorkOrderStatusDelivered), string(domain.WorkOrderStatusCanceled))
-		argIndex += 3
+		for _, hidden := range domain.WorkOrderListingDefaultHiddenStatuses {
+			whereConditions = append(whereConditions, fmt.Sprintf("wo.status <> $%d", argIndex))
+			args = append(args, string(hidden))
+			argIndex++
+		}
 	}
 
 	if filters.CustomerID != uuid.Nil {
@@ -277,10 +302,10 @@ func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters ap
 	args = append(args, filters.Limit, offset)
 
 	query := fmt.Sprintf(`
-		SELECT 
-			wo.id, wo.code, wo.title, wo.description, wo.customer_id, wo.vehicle_id, wo.opened_by_user_id, 
-			wo.assigned_technician_id, wo.status, wo.total_estimated_price_cents, wo.received_at, 
-			wo.quote_sent_at, wo.approved_at, wo.started_at, wo.finished_at, wo.delivered_at, 
+		SELECT
+			wo.id, wo.code, wo.title, wo.description, wo.customer_id, wo.vehicle_id, wo.opened_by_user_id,
+			wo.assigned_technician_id, wo.status, wo.total_estimated_price_cents, wo.received_at,
+			wo.quote_sent_at, wo.approved_at, wo.started_at, wo.finished_at, wo.delivered_at,
 			wo.created_at, wo.updated_at,
 			c.id, c.name, c.document,
 			v.id, v.license_plate, v.brand, v.model, v.year
@@ -288,18 +313,9 @@ func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters ap
 		JOIN customers c ON wo.customer_id = c.id
 		JOIN vehicles v ON wo.vehicle_id = v.id
 		WHERE %s
-		ORDER BY 
-			CASE wo.status
-				WHEN 'EM_EXECUCAO' THEN 1
-				WHEN 'APROVADO' THEN 2
-				WHEN 'AGUARDANDO_APROVACAO' THEN 3
-				WHEN 'EM_DIAGNOSTICO' THEN 4
-				WHEN 'RECEBIDA' THEN 5
-				WHEN 'CANCELADA' THEN 6
-				ELSE 99
-			END,
+		ORDER BY %s,
 			wo.received_at ASC
-		LIMIT $%d OFFSET $%d`, whereClause, len(args)-1, len(args))
+		LIMIT $%d OFFSET $%d`, whereClause, workOrderStatusPriorityCase(), len(args)-1, len(args))
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {

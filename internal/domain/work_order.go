@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -57,33 +58,72 @@ type WorkOrderVehicle struct {
 	Year         int       `json:"year"`
 }
 
-var WorkOrderListingExcludedStatuses = []WorkOrderStatus{
+// Regras da listagem operacional de OS (fonte única — repositório e Swagger
+// derivam daqui):
+//
+//   - FINALIZADA e ENTREGUE são SEMPRE excluídas, inclusive quando o consumidor
+//     informa um filtro explícito de status (piso rígido — o filtro não contorna
+//     a exclusão). São estados terminais: serviço concluído / veículo entregue.
+//   - CANCELADA fica oculta na listagem padrão, mas continua acessível quando o
+//     filtro explícito `status=CANCELADA` é informado (consulta/auditoria).
+//   - APROVADO é uma OS ativa (aprovada, aguardando execução) e permanece na
+//     listagem; como não está entre os quatro status priorizados, ordena depois
+//     deles (bucket padrão), sempre por received_at ASC.
+
+// WorkOrderListingAlwaysExcludedStatuses são os status que NUNCA aparecem na
+// listagem operacional, mesmo sob filtro explícito de status.
+var WorkOrderListingAlwaysExcludedStatuses = []WorkOrderStatus{
 	WorkOrderStatusFinished,
 	WorkOrderStatusDelivered,
+}
+
+// WorkOrderListingDefaultHiddenStatuses são os status escondidos da listagem
+// padrão, mas alcançáveis por filtro explícito de status.
+var WorkOrderListingDefaultHiddenStatuses = []WorkOrderStatus{
 	WorkOrderStatusCanceled,
 }
 
-var workOrderStatusSortPriority = map[WorkOrderStatus]int{
-	WorkOrderStatusInProgress:      1,
-	WorkOrderStatusApproved:        2,
-	WorkOrderStatusWaitingApproval: 3,
-	WorkOrderStatusInDiagnosis:     4,
-	WorkOrderStatusReceived:        5,
-	WorkOrderStatusCanceled:        6,
+// WorkOrderListingStatusPriorityOrder define a prioridade de exibição da
+// listagem operacional (índice 0 = maior prioridade). Status ausentes desta
+// lista (ex.: APROVADO) ordenam após todos eles.
+var WorkOrderListingStatusPriorityOrder = []WorkOrderStatus{
+	WorkOrderStatusInProgress,      // EM_EXECUCAO
+	WorkOrderStatusWaitingApproval, // AGUARDANDO_APROVACAO
+	WorkOrderStatusInDiagnosis,     // EM_DIAGNOSTICO
+	WorkOrderStatusReceived,        // RECEBIDA
 }
+
+// WorkOrderStatusDefaultSortPriority é a prioridade atribuída a qualquer status
+// fora de WorkOrderListingStatusPriorityOrder.
+const WorkOrderStatusDefaultSortPriority = 99
+
+var workOrderStatusSortPriority = func() map[WorkOrderStatus]int {
+	m := make(map[WorkOrderStatus]int, len(WorkOrderListingStatusPriorityOrder))
+	for i, s := range WorkOrderListingStatusPriorityOrder {
+		m[s] = i + 1
+	}
+	return m
+}()
 
 func WorkOrderStatusSortPriorityOf(status WorkOrderStatus) int {
 	if p, ok := workOrderStatusSortPriority[status]; ok {
 		return p
 	}
-	return 99
+	return WorkOrderStatusDefaultSortPriority
 }
 
-func IsExcludedFromListing(status WorkOrderStatus) bool {
-	for _, s := range WorkOrderListingExcludedStatuses {
-		if s == status {
-			return true
-		}
-	}
-	return false
+// IsAlwaysExcludedFromListing informa se o status é excluído da listagem
+// operacional em qualquer circunstância, ignorando filtro explícito.
+func IsAlwaysExcludedFromListing(status WorkOrderStatus) bool {
+	return containsStatus(WorkOrderListingAlwaysExcludedStatuses, status)
+}
+
+// IsHiddenFromDefaultListing informa se o status é escondido da listagem padrão
+// mas ainda alcançável via filtro explícito de status.
+func IsHiddenFromDefaultListing(status WorkOrderStatus) bool {
+	return containsStatus(WorkOrderListingDefaultHiddenStatuses, status)
+}
+
+func containsStatus(list []WorkOrderStatus, status WorkOrderStatus) bool {
+	return slices.Contains(list, status)
 }
