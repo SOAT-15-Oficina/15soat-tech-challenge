@@ -10,7 +10,11 @@ Além disso, o PostgreSQL oferece suporte robusto a transações ACID, o que é 
 
 ## Arquitetura
 
-Visão consolidada da solução: API Go/Fiber, painel web estático, PostgreSQL e e-mail via MailHog (dev/K8s), com preparação para AWS SES.
+A aplicação segue uma organização inspirada em **Arquitetura Hexagonal / Clean Architecture**: o domínio e os casos de uso ficam no centro, enquanto HTTP, banco de dados, e-mail, arquivos estáticos e configuração são adaptadores externos.
+
+Regra de dependência: código de domínio e serviços de aplicação não dependem de handlers HTTP, Fiber, Kubernetes, Docker ou detalhes de infraestrutura. As dependências apontam para dentro: `handlers -> services -> repositories/domain`; adaptadores externos implementam acesso a banco, e-mail e entrada HTTP.
+
+Visão consolidada da solução real: API Go/Fiber, painel web estático, PostgreSQL, e-mail via MailHog no ambiente local/Kubernetes, Terraform criando um cluster Kind local, Metrics Server para HPA e GitHub Actions com runner hospedado para lint/testes e runner self-hosted para build/deploy local.
 
 ### Componentes da aplicação
 
@@ -23,9 +27,22 @@ flowchart TB
         PUB[Cliente final - aprovacao]
     end
 
-    subgraph api [API cmd/api - Fiber v3]
-        RT[Routes + Middlewares<br/>Auth JWT / RBAC / Static]
-        H[Handlers HTTP<br/>Auth, Users, Customers, Vehicles<br/>Services, Supplies, Work Orders, Public]
+    subgraph inbound [Adaptadores de entrada]
+        HTTP[HTTP :8080<br/>Fiber v3]
+        STATIC[Static files<br/>/web]
+        DOCS[Swagger<br/>/swagger e /docs/swagger.yaml]
+        HEALTH[Health probes<br/>/ping e /ready]
+    end
+
+    subgraph app [Casos de uso]
+        WO[Work orders<br/>abrir, listar, consultar, atualizar status]
+        BUDGET[Orcamentos<br/>enviar, aprovar, recusar]
+        CATALOG[Catalogos<br/>clientes, veiculos, servicos, insumos]
+        AUTHZ[Autenticacao e RBAC]
+    end
+
+    subgraph api [Nucleo da aplicacao]
+        H[Handlers HTTP<br/>validacao, DTOs, erros]
         S[Services<br/>WorkOrder, Creation, Status, Budget<br/>Public, Workshop, Supply, Customer...]
         R[Repositories pgx<br/>WorkOrder, WorkOrderService<br/>Customer, Vehicle, User, Supply...]
         DOM[Domain - entidades e enums]
@@ -34,30 +51,43 @@ flowchart TB
         MIG[Database - migrations goose no boot]
     end
 
+    subgraph outbound [Adaptadores de saida]
+        PG[(PostgreSQL :5432)]
+        MAILHOG[MailHog SMTP :1025<br/>UI :8025]
+    end
+
     subgraph pkgs [Pacotes compartilhados]
-        EMAIL[packages/email<br/>Provider + Templates HTML]
+        EMAILPKG[packages/email<br/>Provider + Templates HTML]
         AUTH[internal/auth<br/>JWT Claims]
     end
 
-    subgraph data [Persistencia]
-        PG[(PostgreSQL<br/>schema + seed)]
-    end
+    WEB --> HTTP
+    SWAG --> DOCS
+    EXT --> HTTP
+    PUB --> HTTP
+    HTTP --> H
+    STATIC --> H
+    DOCS --> H
+    HEALTH --> H
 
-    WEB --> RT
-    SWAG --> RT
-    EXT --> RT
-    PUB --> RT
-
-    RT --> H
-    RT --> AUTH
+    H --> WO
+    H --> BUDGET
+    H --> CATALOG
+    H --> AUTHZ
+    WO --> S
+    BUDGET --> S
+    CATALOG --> S
+    AUTHZ --> S
+    H --> AUTH
     H --> S
     H --> APP
     S --> R
-    S --> EMAIL
+    S --> EMAILPKG
+    EMAILPKG --> MAILHOG
     R --> DOM
     R --> PG
     MIG --> PG
-    CFG -.-> RT
+    CFG -.-> H
 ```
 
 | Camada | Papel |
@@ -67,7 +97,7 @@ flowchart TB
 | **Services** | Regras de negócio: máquina de estados da OS, orçamento, criação de itens, aprovações públicas |
 | **Repositories** | SQL com `pgx`; isolamento do banco |
 | **Domain** | Entidades (`WorkOrder`, `Customer`, `WorkshopService`, etc.) |
-| **packages/email** | Envio de orçamento (template HTML) via provider configurável |
+| **packages/email** | Adaptador de saída para envio de orçamento e alertas via provider configurável |
 | **Boot** | Migrations embarcadas (`go:embed`) executadas na subida da API |
 
 ### Infraestrutura provisionada
@@ -90,10 +120,16 @@ flowchart LR
     API -->|"SMTP"| MH
 ```
 
-#### Ambiente Kubernetes (manifests em `k8s/`)
+#### Ambiente Kubernetes local (Terraform + Kind + manifests em `k8s/`)
 
 ```mermaid
 flowchart TB
+    subgraph IaC["Infraestrutura como Codigo"]
+        TF["Terraform<br/>terraform/local-kind"]
+        KIND["Cluster Kind<br/>techchallenge-local"]
+        KCFG["kubeconfig local"]
+    end
+
     subgraph K8s["Cluster Kubernetes — namespace: workshop"]
         subgraph Config["Configuração"]
             CM["ConfigMap api-config<br/>env não sensível"]
@@ -102,9 +138,10 @@ flowchart TB
         end
 
         subgraph Workloads["Workloads"]
-            APID["Deployment api<br/>replicas: 2<br/>image: techchallenge/api:latest"]
-            PGD["Deployment postgres<br/>replicas: 1<br/>image: techchallenge/postgres:latest"]
+            APID["Deployment api<br/>replicas: 2<br/>image: techchallenge/api:&lt;sha&gt;<br/>porta 8080"]
+            PGD["Deployment postgres<br/>replicas: 1<br/>image: postgres:18.3<br/>porta 5432"]
             MHD["Deployment mailhog<br/>replicas: 1"]
+            MS["Metrics Server<br/>kube-system"]
         end
 
         subgraph Network["Rede interna"]
@@ -120,27 +157,30 @@ flowchart TB
         HPA["HPA api-hpa<br/>2–10 pods · CPU 70% · Mem 80%"]
     end
 
+    TF --> KIND
+    KIND --> KCFG
+    KCFG --> K8s
     APID --> SVC_API
     PGD --> SVC_PG
     MHD --> SVC_MH
     PGD --> PVC
     APID --> CM
     APID --> SEC
+    MS --> HPA
     HPA --> APID
     APID -->|"SQL"| SVC_PG
     APID -->|"SMTP"| SVC_MH
 ```
 
-| Recurso | Dev (Compose) | K8s (proposto) |
+| Recurso | Dev (Compose) | K8s local real |
 |---------|---------------|----------------|
-| **API** | 1 container, build multi-stage (`Dockerfile`) | Deployment + HPA (2–10 réplicas) |
-| **PostgreSQL** | 1 container custom (`database/Dockerfile`) | Deployment + PVC 5Gi |
+| **API** | 1 container, build multi-stage (`Dockerfile`) | Deployment + Service `api-service` + HPA (2–10 réplicas) |
+| **PostgreSQL** | 1 container custom (`database/Dockerfile`) | Deployment com imagem oficial `postgres:18.3` + Service + PVC 5Gi |
 | **E-mail** | MailHog | MailHog (prod real: AWS SES — vars já no ConfigMap, provider ainda só `mailhog`) |
 | **Secrets** | `.env` | `Secret` + `ConfigMap` |
-| **Observabilidade** | SonarQube opcional (`docker-compose.sonar.yml`) | Health checks `/ping` (liveness/readiness) |
-| **CI** | — | GitHub Actions: build + test com Postgres 17 |
-
-> **Nota:** O repositório não inclui Ingress/LoadBalancer nem pipeline de CD. Em produção real, entraria um **Ingress** (ou Service `LoadBalancer`) na frente do `api-service` e um registry de imagens (ECR, GHCR, etc.).
+| **Autoscaling** | — | Metrics Server + HPA por CPU/memória |
+| **Health checks** | `/ping` e `/ready` | Liveness em `/ping`; readiness em `/ready` |
+| **CI/CD** | — | GitHub Actions: lint/testes hospedados; build/deploy no runner self-hosted `local-kind` |
 
 ### Fluxo de deploy
 
@@ -165,40 +205,48 @@ sequenceDiagram
     Dev->>API: http://localhost:8080/web
 ```
 
-#### CI (GitHub Actions — `.github/workflows/ci.yml`)
-
-```mermaid
-flowchart LR
-    A["Push / PR → main"] --> B["checkout"]
-    B --> C["setup-go 1.26"]
-    C --> D["go build ./..."]
-    D --> E["go test ./..."]
-    E --> F["Postgres 17<br/>(service container)"]
-    F --> E
-    E --> G["✓ ou ✗ pipeline"]
-```
-
-#### Deploy em Kubernetes (fluxo proposto)
+#### CI/CD (GitHub Actions — `.github/workflows/ci.yml`)
 
 ```mermaid
 flowchart TD
-    START["Código mergeado em main"] --> CI["CI: build + test OK"]
-    CI --> IMG1["docker build -t techchallenge/api:latest"]
-    CI --> IMG2["docker build -t techchallenge/postgres:latest<br/>(context: database/)"]
-    IMG1 --> PUSH["Push imagens → registry"]
-    IMG2 --> PUSH
+    EVT["Pull request ou push em main"] --> LINT["lint<br/>ubuntu-latest<br/>actionlint"]
+    EVT --> TEST["test<br/>ubuntu-latest<br/>go test ./..."]
+    TEST --> PG17["PostgreSQL 17<br/>service container"]
+    LINT --> GATE["gate"]
+    TEST --> GATE
 
-    PUSH --> K1["kubectl apply -f k8s/namespace.yaml"]
+    GATE -->|"somente push em main"| SELF["runner self-hosted<br/>labels: self-hosted, local-kind"]
+    GATE -->|"pull request"| ENDPR["encerra apos lint/testes"]
+
+    SELF --> BUILD["go build ./..."]
+    BUILD --> IMG["docker build<br/>techchallenge/api:&lt;sha&gt;<br/>techchallenge/api:latest"]
+    IMG --> LOAD["kind load docker-image<br/>imagem local no Kind"]
+    LOAD --> APPLY["kubectl apply -f k8s/"]
+    APPLY --> METRICS["instala Metrics Server<br/>aguarda metrics.k8s.io"]
+    METRICS --> SETIMG["kubectl set image<br/>api=techchallenge/api:&lt;sha&gt;"]
+    SETIMG --> ROLLOUT["rollout api/postgres<br/>valida GET /ping"]
+```
+
+#### Deploy em Kubernetes local
+
+```mermaid
+flowchart TD
+    START["Push em main"] --> CI["lint + testes OK"]
+    CI --> BUILD["runner self-hosted<br/>go build + docker build API"]
+    BUILD --> LOAD["kind load docker-image<br/>techchallenge/api:&lt;sha&gt;"]
+    LOAD --> K0["kubectl apply -f k8s/metrics-server.yaml"]
+    K0 --> K1["kubectl apply -f k8s/namespace.yaml"]
     K1 --> K2["kubectl apply -f k8s/configmap.yaml<br/>kubectl apply -f k8s/secret.yaml"]
     K2 --> K3["kubectl apply -f k8s/postgres-pvc.yaml"]
-    K3 --> K4["kubectl apply -f k8s/postgres-*.yaml"]
+    K3 --> K4["kubectl apply -f k8s/postgres-*.yaml<br/>postgres:18.3"]
     K4 --> K5["kubectl apply -f k8s/mailhog-*.yaml"]
     K5 --> K6["kubectl apply -f k8s/api-deployment.yaml<br/>kubectl apply -f k8s/api-service.yaml"]
     K6 --> K7["kubectl apply -f k8s/api-hpa.yaml"]
+    K7 --> K8["kubectl set image deployment/api<br/>techchallenge/api:&lt;sha&gt;"]
 
-    K6 --> BOOT["Pods API sobem"]
+    K8 --> BOOT["Pods API sobem"]
     BOOT --> MIG["API executa migrations goose"]
-    MIG --> READY["Readiness /ping → tráfego liberado"]
+    MIG --> READY["Readiness /ready → tráfego liberado"]
     READY --> SCALE["HPA escala 2–10 pods conforme CPU/memória"]
 ```
 
@@ -209,8 +257,9 @@ flowchart TD
 3. PVC (dados persistentes do Postgres)
 4. Postgres (aguarda `pg_isready`)
 5. MailHog (SMTP interno)
-6. API (depende de DB + e-mail; probes em `/ping`)
-7. HPA (autoscaling da API)
+6. Metrics Server (habilita métricas para o HPA)
+7. API (depende de DB + e-mail; liveness em `/ping`, readiness em `/ready`)
+8. HPA (autoscaling da API)
 
 ### Visão de contexto
 
