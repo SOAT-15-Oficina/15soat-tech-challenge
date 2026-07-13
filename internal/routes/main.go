@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/config"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/handler"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
@@ -144,7 +145,7 @@ func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string, em
 	supplyRepo := repository.NewSupplyRepository(db)
 
 	workOrderSvc := service.NewWorkOrderService(workOrderRepo, vehicleRepo)
-	var notifier *email.WorkOrderNotificationSender
+	var notifier application.BudgetNotificationSender
 	if emailProv != nil {
 		notifier = email.NewWorkOrderNotificationSender(emailProv)
 	}

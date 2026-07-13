@@ -16,6 +16,10 @@ func NewWorkOrderNotificationSender(provider Provider) *WorkOrderNotificationSen
 }
 
 func (s *WorkOrderNotificationSender) SendBudget(ctx context.Context, notification application.BudgetNotification) error {
+	if s == nil || s.provider == nil {
+		return nil
+	}
+
 	body, err := RenderBudgetEmail(BudgetEmailData{
 		CustomerName:   notification.CustomerName,
 		Amount:         notification.Amount,
@@ -37,6 +41,10 @@ func (s *WorkOrderNotificationSender) SendBudget(ctx context.Context, notificati
 }
 
 func (s *WorkOrderNotificationSender) SendPurchaseAlert(ctx context.Context, notification application.PurchaseAlertNotification) error {
+	if s == nil || s.provider == nil {
+		return nil
+	}
+
 	body, err := RenderPurchaseAlertEmail(PurchaseAlertEmailData{
 		WorkOrderCode:  notification.WorkOrderCode,
 		WorkOrderTitle: notification.WorkOrderTitle,
