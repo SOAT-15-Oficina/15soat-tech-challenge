@@ -413,11 +413,11 @@ func TestEvaluate_WithPurchaseAlert_SendsEmail(t *testing.T) {
 	}
 	wosRepo.On("FindApprovedServicesWithShortages", ctx).Return(alerts, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
-	prov.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(nil)
+	prov.On("Send", ctx, mock.AnythingOfType("port.EmailMessage")).Return(nil)
 
 	err := svc.ApproveAllByWorkOrder(ctx, woID)
 	assert.NoError(t, err)
-	prov.AssertCalled(t, "Send", ctx, mock.AnythingOfType("email.Message"))
+	prov.AssertCalled(t, "Send", ctx, mock.AnythingOfType("port.EmailMessage"))
 }
 
 func TestEvaluate_WithPurchaseAlert_NoShortages_NoEmail(t *testing.T) {

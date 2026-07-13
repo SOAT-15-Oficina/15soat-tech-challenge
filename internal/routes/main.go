@@ -37,7 +37,7 @@ func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config, emailP
 	registerCustomer(app, db, cfg.JWT.SecretKey)
 	registerVehicle(app, db, cfg.JWT.SecretKey)
 	registerSupply(app, db, cfg.JWT.SecretKey)
-	registerWorkOrderServicePublic(app, db, emailProv)
+	registerWorkOrderServicePublic(app, db, emailProv, cfg.Server.BaseURL)
 	registerPublicWorkOrder(app, db)
 	registerWorkOrder(app, db, cfg.JWT.SecretKey, emailProv, cfg.Server.BaseURL)
 	registerWorkshopService(app, db, cfg.JWT.SecretKey)
@@ -142,10 +142,11 @@ func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string, em
 	vehicleRepo := repository.NewVehicleRepository(db)
 	wsRepo := repository.NewWorkshopServiceRepository(db)
 	supplyRepo := repository.NewSupplyRepository(db)
+	emailPort := email.NewPortAdapter(emailProv)
 
-	statusSvc := service.NewWorkOrderStatusService(workOrderRepo, wosRepo)
+	statusSvc := service.NewWorkOrderStatusServiceWithNotifications(workOrderRepo, wosRepo, customerRepo, emailPort, baseURL)
 	workOrderSvc := service.NewWorkOrderService(workOrderRepo, vehicleRepo)
-	budgetSvc := service.NewBudgetService(workOrderRepo, wosRepo, customerRepo, emailProv, baseURL)
+	budgetSvc := service.NewBudgetService(workOrderRepo, wosRepo, customerRepo, emailPort, baseURL)
 	creationSvc := service.NewWorkOrderCreationService(workOrderRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
 	userRepo := repository.NewUserRepository(db)
 	userSvc := service.NewUserService(userRepo, jwtSecretKey)
@@ -175,12 +176,14 @@ func registerPublicWorkOrder(app *fiber.App, db *pgxpool.Pool) {
 	public.Get("/:code", publicHandler.GetByCode)
 }
 
-func registerWorkOrderServicePublic(app *fiber.App, db *pgxpool.Pool, emailProv email.Provider) {
+func registerWorkOrderServicePublic(app *fiber.App, db *pgxpool.Pool, emailProv email.Provider, baseURL string) {
 	wosRepo := repository.NewWorkOrderServiceRepository(db)
 	woRepo := repository.NewWorkOrderRepository(db)
-	statusSvc := service.NewWorkOrderStatusService(woRepo, wosRepo)
+	customerRepo := repository.NewCustomerRepository(db)
+	emailPort := email.NewPortAdapter(emailProv)
+	statusSvc := service.NewWorkOrderStatusServiceWithNotifications(woRepo, wosRepo, customerRepo, emailPort, baseURL)
 	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo, statusSvc,
-		service.WithPurchaseAlert(emailProv, "compras@oficina.com"))
+		service.WithPurchaseAlert(emailPort, "compras@oficina.com"))
 	wosHandler := handler.NewWorkOrderServiceHandler(itemSvc)
 
 	approval := app.Group("/public/approvals")

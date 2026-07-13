@@ -3,8 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application/port"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 	"github.com/google/uuid"
@@ -17,14 +20,14 @@ const (
 )
 
 type BudgetService interface {
-	GenerateAndSendBudget(ctx context.Context, workOrderID uuid.UUID) error
+	GenerateAndSendBudget(ctx context.Context, workOrderID uuid.UUID, previousStatus *domain.WorkOrderStatus) error
 }
 
 type budgetService struct {
 	woRepo    repository.WorkOrderRepository
 	wosRepo   repository.WorkOrderServiceRepository
 	custRepo  repository.CustomerRepository
-	emailProv email.Provider
+	emailPort port.EmailSender
 	baseURL   string
 }
 
@@ -32,19 +35,19 @@ func NewBudgetService(
 	woRepo repository.WorkOrderRepository,
 	wosRepo repository.WorkOrderServiceRepository,
 	custRepo repository.CustomerRepository,
-	emailProv email.Provider,
+	emailPort port.EmailSender,
 	baseURL string,
 ) BudgetService {
 	return &budgetService{
 		woRepo:    woRepo,
 		wosRepo:   wosRepo,
 		custRepo:  custRepo,
-		emailProv: emailProv,
+		emailPort: emailPort,
 		baseURL:   baseURL,
 	}
 }
 
-func (s *budgetService) GenerateAndSendBudget(ctx context.Context, workOrderID uuid.UUID) error {
+func (s *budgetService) GenerateAndSendBudget(ctx context.Context, workOrderID uuid.UUID, previousStatus *domain.WorkOrderStatus) error {
 	services, err := s.wosRepo.FindByWorkOrderID(ctx, workOrderID)
 	if err != nil {
 		return fmt.Errorf("budget: find services: %w", err)
@@ -63,13 +66,6 @@ func (s *budgetService) GenerateAndSendBudget(ctx context.Context, workOrderID u
 	wo, err := s.woRepo.FindByID(ctx, workOrderID)
 	if err != nil {
 		return fmt.Errorf("budget: find work order: %w", err)
-	}
-
-	wo.TotalEstimatedPriceCents = totalCents
-	now := time.Now()
-	wo.QuoteSentAt = &now
-	if _, err := s.woRepo.Update(ctx, wo); err != nil {
-		return fmt.Errorf("budget: update work order: %w", err)
 	}
 
 	customer, err := s.custRepo.FindByID(ctx, wo.CustomerID)
@@ -93,13 +89,21 @@ func (s *budgetService) GenerateAndSendBudget(ctx context.Context, workOrderID u
 		})
 	}
 
+	previousStatusLabel := ""
+	if previousStatus != nil {
+		previousStatusLabel = domain.WorkOrderStatusLabel(*previousStatus)
+	}
+
 	data := email.BudgetEmailData{
-		CustomerName:   customer.Name,
-		Amount:         formatCents(totalCents),
-		BudgetLink:     fmt.Sprintf("%s/work-orders/%s", s.baseURL, workOrderID),
-		Services:       serviceItems,
-		ApproveAllLink: fmt.Sprintf("%s/public/approvals/work-orders/%s/approve-all", s.baseURL, workOrderID),
-		RejectAllLink:  fmt.Sprintf("%s/public/approvals/work-orders/%s/reject-all", s.baseURL, workOrderID),
+		CustomerName:        customer.Name,
+		WorkOrderCode:       wo.Code,
+		PreviousStatusLabel: previousStatusLabel,
+		NewStatusLabel:      domain.WorkOrderStatusLabel(domain.WorkOrderStatusWaitingApproval),
+		Amount:              formatCents(totalCents),
+		BudgetLink:          fmt.Sprintf("%s/work-orders/%s", s.baseURL, workOrderID),
+		Services:            serviceItems,
+		ApproveAllLink:      fmt.Sprintf("%s/public/approvals/work-orders/%s/approve-all", s.baseURL, workOrderID),
+		RejectAllLink:       fmt.Sprintf("%s/public/approvals/work-orders/%s/reject-all", s.baseURL, workOrderID),
 	}
 
 	body, err := email.RenderBudgetEmail(data)
@@ -107,15 +111,23 @@ func (s *budgetService) GenerateAndSendBudget(ctx context.Context, workOrderID u
 		return fmt.Errorf("budget: render email: %w", err)
 	}
 
-	msg := email.Message{
+	msg := port.EmailMessage{
 		To:      []string{customer.Email},
 		Subject: fmt.Sprintf("Orçamento - OS %s", wo.Code),
 		Body:    body,
 		HTML:    true,
 	}
 
-	if err := s.emailProv.Send(ctx, msg); err != nil {
-		return fmt.Errorf("budget: send email: %w", err)
+	if err := s.emailPort.Send(ctx, msg); err != nil {
+		log.Printf("budget: send email for work order %s: %v", workOrderID, err)
+		return nil
+	}
+
+	wo.TotalEstimatedPriceCents = totalCents
+	now := time.Now()
+	wo.QuoteSentAt = &now
+	if _, err := s.woRepo.Update(ctx, wo); err != nil {
+		return fmt.Errorf("budget: update work order: %w", err)
 	}
 
 	return nil

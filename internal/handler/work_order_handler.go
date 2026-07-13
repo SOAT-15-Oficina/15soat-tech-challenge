@@ -38,8 +38,7 @@ func (h *WorkOrderHandler) resendBudgetIfWaitingApproval(c fiber.Ctx, workOrderI
 	if workOrder.Status != domain.WorkOrderStatusWaitingApproval {
 		return nil
 	}
-
-	return h.budgetSvc.GenerateAndSendBudget(c.Context(), workOrderID)
+	return h.budgetSvc.GenerateAndSendBudget(c.Context(), workOrderID, nil)
 }
 
 type createWorkOrderRequest struct {
@@ -196,18 +195,12 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 	}
 
 	if req.Status != "" {
-		result, err := h.statusSvc.TransitionTo(c.Context(), id, req.Status)
+		_, err := h.statusSvc.TransitionTo(c.Context(), id, req.Status)
 		if err != nil {
 			if handled, resp := mapErrorResponse(c, err, "work order not found"); handled {
 				return resp
 			}
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-		}
-
-		if result.Status == domain.WorkOrderStatusWaitingApproval && h.budgetSvc != nil {
-			if err := h.budgetSvc.GenerateAndSendBudget(c.Context(), result.ID); err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to send budget email: " + err.Error()})
-			}
 		}
 	}
 
@@ -259,7 +252,7 @@ func (h *WorkOrderHandler) AddServices(c fiber.Ctx) error {
 	}
 
 	if err := h.resendBudgetIfWaitingApproval(c, id); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to send budget email: " + err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(result)
@@ -284,7 +277,7 @@ func (h *WorkOrderHandler) RemoveService(c fiber.Ctx) error {
 	}
 
 	if err := h.resendBudgetIfWaitingApproval(c, id); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to send budget email: " + err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
@@ -329,7 +322,7 @@ func (h *WorkOrderHandler) AddSupplies(c fiber.Ctx) error {
 	}
 
 	if err := h.resendBudgetIfWaitingApproval(c, id); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to send budget email: " + err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(result)
@@ -407,7 +400,7 @@ func (h *WorkOrderHandler) RemoveSupplyFromService(c fiber.Ctx) error {
 	}
 
 	if err := h.resendBudgetIfWaitingApproval(c, id); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to send budget email: " + err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)

@@ -87,3 +87,26 @@ func IsExcludedFromListing(status WorkOrderStatus) bool {
 	}
 	return false
 }
+
+func WorkOrderStatusLabel(status WorkOrderStatus) string {
+	switch status {
+	case WorkOrderStatusReceived:
+		return "Recebida"
+	case WorkOrderStatusInDiagnosis:
+		return "Em diagnóstico"
+	case WorkOrderStatusWaitingApproval:
+		return "Aguardando aprovação"
+	case WorkOrderStatusApproved:
+		return "Aprovada"
+	case WorkOrderStatusInProgress:
+		return "Em execução"
+	case WorkOrderStatusFinished:
+		return "Finalizada"
+	case WorkOrderStatusDelivered:
+		return "Entregue"
+	case WorkOrderStatusCanceled:
+		return "Cancelada"
+	default:
+		return string(status)
+	}
+}

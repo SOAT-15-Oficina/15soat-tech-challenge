@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -13,8 +14,7 @@ import (
 
 func TestTransitionTo_ValidTransition_UpdatesStatus(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
-	wosRepo := new(mockWorkOrderServiceRepo)
-	svc := NewWorkOrderStatusService(woRepo, wosRepo)
+	svc := NewWorkOrderStatusService(woRepo, nil)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -24,20 +24,23 @@ func TestTransitionTo_ValidTransition_UpdatesStatus(t *testing.T) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
+	updated := &domain.WorkOrder{
+		ID:     woID,
+		Status: domain.WorkOrderStatusInDiagnosis,
+	}
 
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
-	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+	woRepo.On("TransitionStatus", ctx, mock.AnythingOfType("repository.WorkOrderStatusTransitionInput")).Return(updated, true, nil)
 
 	result, err := svc.TransitionTo(ctx, woID, domain.WorkOrderStatusInDiagnosis)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, domain.WorkOrderStatusInDiagnosis, wo.Status)
+	assert.Equal(t, domain.WorkOrderStatusInDiagnosis, result.Status)
 }
 
 func TestTransitionTo_InvalidTransition_ReturnsError(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
-	wosRepo := new(mockWorkOrderServiceRepo)
-	svc := NewWorkOrderStatusService(woRepo, wosRepo)
+	svc := NewWorkOrderStatusService(woRepo, nil)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -47,13 +50,12 @@ func TestTransitionTo_InvalidTransition_ReturnsError(t *testing.T) {
 
 	_, err := svc.TransitionTo(ctx, woID, domain.WorkOrderStatusReceived)
 	assert.ErrorIs(t, err, ErrInvalidStatusTransition)
-	woRepo.AssertNotCalled(t, "Update")
+	woRepo.AssertNotCalled(t, "TransitionStatus")
 }
 
 func TestTransitionTo_SameStatus_Idempotent(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
-	wosRepo := new(mockWorkOrderServiceRepo)
-	svc := NewWorkOrderStatusService(woRepo, wosRepo)
+	svc := NewWorkOrderStatusService(woRepo, nil)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -64,7 +66,7 @@ func TestTransitionTo_SameStatus_Idempotent(t *testing.T) {
 	result, err := svc.TransitionTo(ctx, woID, domain.WorkOrderStatusReceived)
 	assert.NoError(t, err)
 	assert.Equal(t, wo, result)
-	woRepo.AssertNotCalled(t, "Update")
+	woRepo.AssertNotCalled(t, "TransitionStatus")
 }
 
 func TestTransitionTo_SetsTimestamps(t *testing.T) {
@@ -72,39 +74,38 @@ func TestTransitionTo_SetsTimestamps(t *testing.T) {
 		name         string
 		from         domain.WorkOrderStatus
 		to           domain.WorkOrderStatus
-		checkFunc    func(t *testing.T, wo *domain.WorkOrder)
-		mockWosSetup func(wosRepo *mockWorkOrderServiceRepo, woID uuid.UUID)
+		checkFunc    func(t *testing.T, input repository.WorkOrderStatusTransitionInput)
 	}{
 		{
 			name: "approved sets approved_at",
 			from: domain.WorkOrderStatusWaitingApproval,
 			to:   domain.WorkOrderStatusApproved,
-			checkFunc: func(t *testing.T, wo *domain.WorkOrder) {
-				assert.NotNil(t, wo.ApprovedAt)
+			checkFunc: func(t *testing.T, input repository.WorkOrderStatusTransitionInput) {
+				assert.Equal(t, domain.WorkOrderStatusApproved, input.ToStatus)
 			},
 		},
 		{
 			name: "in_progress sets started_at",
 			from: domain.WorkOrderStatusApproved,
 			to:   domain.WorkOrderStatusInProgress,
-			checkFunc: func(t *testing.T, wo *domain.WorkOrder) {
-				assert.NotNil(t, wo.StartedAt)
+			checkFunc: func(t *testing.T, input repository.WorkOrderStatusTransitionInput) {
+				assert.Equal(t, domain.WorkOrderStatusInProgress, input.ToStatus)
 			},
 		},
 		{
 			name: "finished sets finished_at",
 			from: domain.WorkOrderStatusInProgress,
 			to:   domain.WorkOrderStatusFinished,
-			checkFunc: func(t *testing.T, wo *domain.WorkOrder) {
-				assert.NotNil(t, wo.FinishedAt)
+			checkFunc: func(t *testing.T, input repository.WorkOrderStatusTransitionInput) {
+				assert.Equal(t, domain.WorkOrderStatusFinished, input.ToStatus)
 			},
 		},
 		{
 			name: "delivered sets delivered_at",
 			from: domain.WorkOrderStatusFinished,
 			to:   domain.WorkOrderStatusDelivered,
-			checkFunc: func(t *testing.T, wo *domain.WorkOrder) {
-				assert.NotNil(t, wo.DeliveredAt)
+			checkFunc: func(t *testing.T, input repository.WorkOrderStatusTransitionInput) {
+				assert.Equal(t, domain.WorkOrderStatusDelivered, input.ToStatus)
 			},
 		},
 	}
@@ -112,67 +113,65 @@ func TestTransitionTo_SetsTimestamps(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			woRepo := new(mockWorkOrderRepo)
-			wosRepo := new(mockWorkOrderServiceRepo)
-			svc := NewWorkOrderStatusService(woRepo, wosRepo)
+			svc := NewWorkOrderStatusService(woRepo, nil)
 			ctx := context.Background()
 
 			woID := uuid.New()
 			wo := &domain.WorkOrder{ID: woID, Status: tt.from}
+			updated := &domain.WorkOrder{ID: woID, Status: tt.to}
 
 			woRepo.On("FindByID", ctx, woID).Return(wo, nil)
-			woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
-			if tt.mockWosSetup != nil {
-				tt.mockWosSetup(wosRepo, woID)
-			}
+			woRepo.On("TransitionStatus", ctx, mock.AnythingOfType("repository.WorkOrderStatusTransitionInput")).Return(updated, true, nil)
 
 			_, err := svc.TransitionTo(ctx, woID, tt.to)
 			assert.NoError(t, err)
 
-			updateCall := woRepo.Calls[len(woRepo.Calls)-1]
-			updated := updateCall.Arguments[1].(*domain.WorkOrder)
-			tt.checkFunc(t, updated)
+			transitionCall := woRepo.Calls[len(woRepo.Calls)-1]
+			input := transitionCall.Arguments[1].(repository.WorkOrderStatusTransitionInput)
+			tt.checkFunc(t, input)
 		})
 	}
 }
 
-func TestTransitionTo_InProgress_DoesNotBulkMarkServices(t *testing.T) {
+func TestTransitionTo_NotifiesOnlyWhenTransitionApplied(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
-	wosRepo := new(mockWorkOrderServiceRepo)
-	svc := NewWorkOrderStatusService(woRepo, wosRepo)
+	notifier := new(mockStatusNotifier)
+	svc := NewWorkOrderStatusService(woRepo, notifier)
 	ctx := context.Background()
 
 	woID := uuid.New()
-	wo := &domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusApproved}
+	wo := &domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusReceived, Code: "WO-001", CustomerID: uuid.New()}
+	updated := &domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInDiagnosis, Code: "WO-001", CustomerID: wo.CustomerID}
 
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
-	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+	woRepo.On("TransitionStatus", ctx, mock.AnythingOfType("repository.WorkOrderStatusTransitionInput")).Return(updated, true, nil)
+	notifier.On("NotifyTransition", ctx, updated, domain.WorkOrderStatusReceived).Once()
 
-	_, err := svc.TransitionTo(ctx, woID, domain.WorkOrderStatusInProgress)
+	_, err := svc.TransitionTo(ctx, woID, domain.WorkOrderStatusInDiagnosis)
 	assert.NoError(t, err)
-	wosRepo.AssertNotCalled(t, "MarkAsStartedByWorkOrderID")
+	notifier.AssertExpectations(t)
 }
 
-func TestTransitionTo_Finished_DoesNotBulkMarkServices(t *testing.T) {
+func TestTransitionTo_IdempotentConcurrent_DoesNotNotify(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
-	wosRepo := new(mockWorkOrderServiceRepo)
-	svc := NewWorkOrderStatusService(woRepo, wosRepo)
+	notifier := new(mockStatusNotifier)
+	svc := NewWorkOrderStatusService(woRepo, notifier)
 	ctx := context.Background()
 
 	woID := uuid.New()
-	wo := &domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInProgress}
+	wo := &domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInDiagnosis}
+	updated := &domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInDiagnosis}
 
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
-	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
+	woRepo.On("TransitionStatus", ctx, mock.AnythingOfType("repository.WorkOrderStatusTransitionInput")).Return(updated, false, nil)
 
-	_, err := svc.TransitionTo(ctx, woID, domain.WorkOrderStatusFinished)
+	_, err := svc.TransitionTo(ctx, woID, domain.WorkOrderStatusWaitingApproval)
 	assert.NoError(t, err)
-	wosRepo.AssertNotCalled(t, "MarkAsFinishedByWorkOrderID")
+	notifier.AssertNotCalled(t, "NotifyTransition")
 }
 
 func TestIsValidTransition_AllowedTransitions(t *testing.T) {
-	woRepo := new(mockWorkOrderRepo)
-	wosRepo := new(mockWorkOrderServiceRepo)
-	svc := NewWorkOrderStatusService(woRepo, wosRepo)
+	svc := NewWorkOrderStatusService(nil, nil)
 
 	valid := []struct{ from, to domain.WorkOrderStatus }{
 		{domain.WorkOrderStatusReceived, domain.WorkOrderStatusInDiagnosis},
@@ -197,4 +196,12 @@ func TestIsValidTransition_AllowedTransitions(t *testing.T) {
 	for _, tc := range invalid {
 		assert.False(t, svc.IsValidTransition(tc.from, tc.to), "%s -> %s should be invalid", tc.from, tc.to)
 	}
+}
+
+type mockStatusNotifier struct {
+	mock.Mock
+}
+
+func (m *mockStatusNotifier) NotifyTransition(ctx context.Context, workOrder *domain.WorkOrder, previousStatus domain.WorkOrderStatus) {
+	m.Called(ctx, workOrder, previousStatus)
 }

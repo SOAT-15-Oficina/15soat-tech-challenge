@@ -64,6 +64,14 @@ func (m *mockWorkOrderRepo) Update(ctx context.Context, wo *domain.WorkOrder) (*
 	return args.Get(0).(*domain.WorkOrder), args.Error(1)
 }
 
+func (m *mockWorkOrderRepo) TransitionStatus(ctx context.Context, input repository.WorkOrderStatusTransitionInput) (*domain.WorkOrder, bool, error) {
+	args := m.Called(ctx, input)
+	if args.Get(0) == nil {
+		return nil, args.Bool(1), args.Error(2)
+	}
+	return args.Get(0).(*domain.WorkOrder), args.Bool(1), args.Error(2)
+}
+
 // mockWorkOrderServiceRepo mocks repository.WorkOrderServiceRepository
 type mockWorkOrderServiceRepo struct {
 	mock.Mock

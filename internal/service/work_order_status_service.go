@@ -30,17 +30,17 @@ type WorkOrderStatusService interface {
 }
 
 type workOrderStatusService struct {
-	woRepo  repository.WorkOrderRepository
-	wosRepo repository.WorkOrderServiceRepository
+	woRepo   repository.WorkOrderRepository
+	notifier WorkOrderStatusNotifier
 }
 
 func NewWorkOrderStatusService(
 	woRepo repository.WorkOrderRepository,
-	wosRepo repository.WorkOrderServiceRepository,
+	notifier WorkOrderStatusNotifier,
 ) WorkOrderStatusService {
 	return &workOrderStatusService{
-		woRepo:  woRepo,
-		wosRepo: wosRepo,
+		woRepo:   woRepo,
+		notifier: notifier,
 	}
 }
 
@@ -63,32 +63,27 @@ func (s *workOrderStatusService) TransitionTo(ctx context.Context, workOrderID u
 		return nil, fmt.Errorf("transition: find work order: %w", err)
 	}
 
-	if wo.Status == newStatus {
+	previousStatus := wo.Status
+	if previousStatus == newStatus {
 		return wo, nil
 	}
 
-	if !s.IsValidTransition(wo.Status, newStatus) {
-		return nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStatusTransition, wo.Status, newStatus)
+	if !s.IsValidTransition(previousStatus, newStatus) {
+		return nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStatusTransition, previousStatus, newStatus)
 	}
 
-	wo.Status = newStatus
-	now := time.Now()
-	wo.UpdatedAt = now
-
-	switch newStatus {
-	case domain.WorkOrderStatusApproved:
-		wo.ApprovedAt = &now
-	case domain.WorkOrderStatusInProgress:
-		wo.StartedAt = &now
-	case domain.WorkOrderStatusFinished:
-		wo.FinishedAt = &now
-	case domain.WorkOrderStatusDelivered:
-		wo.DeliveredAt = &now
-	}
-
-	updated, err := s.woRepo.Update(ctx, wo)
+	updated, transitioned, err := s.woRepo.TransitionStatus(ctx, repository.WorkOrderStatusTransitionInput{
+		WorkOrderID: workOrderID,
+		FromStatus:  previousStatus,
+		ToStatus:    newStatus,
+		Now:         time.Now(),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("transition: update work order: %w", err)
+	}
+
+	if transitioned && s.notifier != nil {
+		s.notifier.NotifyTransition(ctx, updated, previousStatus)
 	}
 
 	return updated, nil

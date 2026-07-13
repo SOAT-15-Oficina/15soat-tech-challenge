@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application/port"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
@@ -21,7 +22,7 @@ type workOrderItemService struct {
 	wosRepo   repository.WorkOrderServiceRepository
 	woRepo    repository.WorkOrderRepository
 	statusSvc WorkOrderStatusService
-	emailProv email.Provider
+	emailPort port.EmailSender
 	emailTo   string
 }
 
@@ -44,9 +45,9 @@ func NewWorkOrderItemService(
 
 type WorkOrderItemServiceOption func(*workOrderItemService)
 
-func WithPurchaseAlert(prov email.Provider, to string) WorkOrderItemServiceOption {
+func WithPurchaseAlert(sender port.EmailSender, to string) WorkOrderItemServiceOption {
 	return func(s *workOrderItemService) {
-		s.emailProv = prov
+		s.emailPort = sender
 		s.emailTo = to
 	}
 }
@@ -139,7 +140,7 @@ func (s *workOrderItemService) evaluateWorkOrderCompletion(ctx context.Context, 
 		return fmt.Errorf("evaluate: update work order: %w", err)
 	}
 
-	if hasApproved && s.emailProv != nil {
+	if hasApproved && s.emailPort != nil {
 		s.sendPurchaseAlertIfNeeded(ctx, workOrderID)
 	}
 
@@ -182,11 +183,11 @@ func (s *workOrderItemService) sendPurchaseAlertIfNeeded(ctx context.Context, wo
 		return
 	}
 
-	msg := email.Message{
+	msg := port.EmailMessage{
 		To:      []string{s.emailTo},
 		Subject: fmt.Sprintf("Alerta de Compra - OS %s", wo.Code),
 		Body:    body,
 		HTML:    true,
 	}
-	_ = s.emailProv.Send(ctx, msg)
+	_ = s.emailPort.Send(ctx, msg)
 }

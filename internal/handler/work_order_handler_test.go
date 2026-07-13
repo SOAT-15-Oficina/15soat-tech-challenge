@@ -69,8 +69,8 @@ func (m *mockWorkOrderService) Update(ctx context.Context, wo *domain.WorkOrder)
 
 type mockBudgetService struct{ mock.Mock }
 
-func (m *mockBudgetService) GenerateAndSendBudget(ctx context.Context, workOrderID uuid.UUID) error {
-	return m.Called(ctx, workOrderID).Error(0)
+func (m *mockBudgetService) GenerateAndSendBudget(ctx context.Context, workOrderID uuid.UUID, previousStatus *domain.WorkOrderStatus) error {
+	return m.Called(ctx, workOrderID, previousStatus).Error(0)
 }
 
 type mockCreationService struct{ mock.Mock }
@@ -433,12 +433,11 @@ func TestWorkOrder_Update_StatusTransitionInvalid(t *testing.T) {
 	assert.Equal(t, fiber.StatusUnprocessableEntity, r.StatusCode)
 }
 
-func TestWorkOrder_Update_StatusWaitingApproval_SendsBudget(t *testing.T) {
+func TestWorkOrder_Update_StatusWaitingApproval_DoesNotSendBudgetFromHandler(t *testing.T) {
 	app, deps := setupFullWorkOrderApp()
 	id := uuid.New()
 	wo := &domain.WorkOrder{ID: id, Status: domain.WorkOrderStatusWaitingApproval}
 	deps.statusSvc.On("TransitionTo", mock.Anything, id, domain.WorkOrderStatusWaitingApproval).Return(wo, nil)
-	deps.budgetSvc.On("GenerateAndSendBudget", mock.Anything, id).Return(nil)
 	deps.woSvc.On("Update", mock.Anything, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	body, _ := json.Marshal(map[string]any{"status": domain.WorkOrderStatusWaitingApproval})
@@ -447,22 +446,22 @@ func TestWorkOrder_Update_StatusWaitingApproval_SendsBudget(t *testing.T) {
 	r, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, r.StatusCode)
-	deps.budgetSvc.AssertCalled(t, "GenerateAndSendBudget", mock.Anything, id)
+	deps.budgetSvc.AssertNotCalled(t, "GenerateAndSendBudget")
 }
 
-func TestWorkOrder_Update_BudgetSendFails(t *testing.T) {
+func TestWorkOrder_Update_StatusTransitionOnly(t *testing.T) {
 	app, deps := setupFullWorkOrderApp()
 	id := uuid.New()
-	wo := &domain.WorkOrder{ID: id, Status: domain.WorkOrderStatusWaitingApproval}
-	deps.statusSvc.On("TransitionTo", mock.Anything, id, domain.WorkOrderStatusWaitingApproval).Return(wo, nil)
-	deps.budgetSvc.On("GenerateAndSendBudget", mock.Anything, id).Return(errors.New("email fail"))
+	wo := &domain.WorkOrder{ID: id, Status: domain.WorkOrderStatusInDiagnosis}
+	deps.statusSvc.On("TransitionTo", mock.Anything, id, domain.WorkOrderStatusInDiagnosis).Return(wo, nil)
+	deps.woSvc.On("Update", mock.Anything, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
-	body, _ := json.Marshal(map[string]any{"status": domain.WorkOrderStatusWaitingApproval})
+	body, _ := json.Marshal(map[string]any{"status": domain.WorkOrderStatusInDiagnosis})
 	req := httptest.NewRequest(http.MethodPut, "/work-orders/"+id.String(), bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r, err := app.Test(req)
 	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusInternalServerError, r.StatusCode)
+	assert.Equal(t, fiber.StatusOK, r.StatusCode)
 }
 
 func TestWorkOrder_Update_NotFound(t *testing.T) {
