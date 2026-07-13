@@ -6,7 +6,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application/port"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
@@ -27,7 +26,7 @@ type budgetService struct {
 	woRepo    repository.WorkOrderRepository
 	wosRepo   repository.WorkOrderServiceRepository
 	custRepo  repository.CustomerRepository
-	emailPort port.EmailSender
+	emailProv email.Provider
 	baseURL   string
 }
 
@@ -35,14 +34,14 @@ func NewBudgetService(
 	woRepo repository.WorkOrderRepository,
 	wosRepo repository.WorkOrderServiceRepository,
 	custRepo repository.CustomerRepository,
-	emailPort port.EmailSender,
+	emailProv email.Provider,
 	baseURL string,
 ) BudgetService {
 	return &budgetService{
 		woRepo:    woRepo,
 		wosRepo:   wosRepo,
 		custRepo:  custRepo,
-		emailPort: emailPort,
+		emailProv: emailProv,
 		baseURL:   baseURL,
 	}
 }
@@ -111,14 +110,14 @@ func (s *budgetService) GenerateAndSendBudget(ctx context.Context, workOrderID u
 		return fmt.Errorf("budget: render email: %w", err)
 	}
 
-	msg := port.EmailMessage{
+	msg := email.Message{
 		To:      []string{customer.Email},
 		Subject: fmt.Sprintf("Orçamento - OS %s", wo.Code),
 		Body:    body,
 		HTML:    true,
 	}
 
-	if err := s.emailPort.Send(ctx, msg); err != nil {
+	if err := s.emailProv.Send(ctx, msg); err != nil {
 		log.Printf("budget: send email for work order %s: %v", workOrderID, err)
 		return nil
 	}

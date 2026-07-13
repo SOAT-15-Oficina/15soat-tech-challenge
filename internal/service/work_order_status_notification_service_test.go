@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application/port"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -40,12 +40,12 @@ func TestWorkOrderStatusNotifier_SendsStatusEmail(t *testing.T) {
 	customer := &domain.Customer{ID: custID, Name: "Ana", Email: "ana@example.com"}
 
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("port.EmailMessage")).Return(nil)
+	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(nil)
 
 	notifier.NotifyTransition(ctx, wo, domain.WorkOrderStatusApproved)
 
 	emailProv.AssertExpectations(t)
-	msg := emailProv.Calls[0].Arguments.Get(1).(port.EmailMessage)
+	msg := emailProv.Calls[0].Arguments.Get(1).(email.Message)
 	assert.Equal(t, []string{"ana@example.com"}, msg.To)
 	assert.Contains(t, msg.Subject, "WO-100")
 	assert.Contains(t, msg.Body, "WO-100")
@@ -91,11 +91,11 @@ func TestWorkOrderStatusNotifier_CanceledMessage(t *testing.T) {
 	customer := &domain.Customer{ID: custID, Name: "Pedro", Email: "pedro@example.com"}
 
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("port.EmailMessage")).Return(nil)
+	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(nil)
 
 	notifier.NotifyTransition(ctx, wo, domain.WorkOrderStatusWaitingApproval)
 
-	msg := emailProv.Calls[0].Arguments.Get(1).(port.EmailMessage)
+	msg := emailProv.Calls[0].Arguments.Get(1).(email.Message)
 	assert.True(t, strings.Contains(msg.Body, "recusado"))
 }
 
@@ -116,7 +116,7 @@ func TestWorkOrderStatusNotifier_EmailFailureIsBestEffort(t *testing.T) {
 	customer := &domain.Customer{ID: custID, Name: "Luiza", Email: "luiza@example.com"}
 
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("port.EmailMessage")).Return(errors.New("smtp down"))
+	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(errors.New("smtp down"))
 
 	require.NotPanics(t, func() {
 		notifier.NotifyTransition(ctx, wo, domain.WorkOrderStatusFinished)

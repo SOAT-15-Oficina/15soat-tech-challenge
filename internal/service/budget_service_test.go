@@ -6,20 +6,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application/port"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// mockEmailProvider mocks port.EmailSender
+// mockEmailProvider mocks email.Provider
 type mockEmailProvider struct {
 	mock.Mock
 }
 
-func (m *mockEmailProvider) Send(ctx context.Context, msg port.EmailMessage) error {
+func (m *mockEmailProvider) Send(ctx context.Context, msg email.Message) error {
 	return m.Called(ctx, msg).Error(0)
 }
 
@@ -61,7 +61,7 @@ func TestGenerateAndSendBudget_Success(t *testing.T) {
 	wosRepo.On("CalculateTotalForWorkOrder", ctx, woID).Return(5000, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("port.EmailMessage")).Return(nil)
+	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	err := svc.GenerateAndSendBudget(ctx, woID, &previous)
@@ -105,7 +105,7 @@ func TestGenerateAndSendBudget_EmailFails_BestEffort(t *testing.T) {
 	wosRepo.On("CalculateTotalForWorkOrder", ctx, woID).Return(0, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("port.EmailMessage")).Return(errors.New("smtp error"))
+	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(errors.New("smtp error"))
 
 	err := svc.GenerateAndSendBudget(ctx, woID, nil)
 	require.NoError(t, err)
@@ -139,14 +139,14 @@ func TestGenerateAndSendBudget_AddsTwoDaysWhenSupplyIsShort(t *testing.T) {
 	wosRepo.On("CalculateTotalForWorkOrder", ctx, woID).Return(7000, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("port.EmailMessage")).Return(nil)
+	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	err := svc.GenerateAndSendBudget(ctx, woID, nil)
 	require.NoError(t, err)
 
 	callArgs := emailProv.Calls[0].Arguments
-	msg := callArgs.Get(1).(port.EmailMessage)
+	msg := callArgs.Get(1).(email.Message)
 	assert.True(t, strings.Contains(msg.Body, "Prazo estimado: <strong>2 dias e 1 hora</strong>"))
 }
 
@@ -177,13 +177,13 @@ func TestGenerateAndSendBudget_IncludesStatusAndApprovalLinks(t *testing.T) {
 	wosRepo.On("CalculateTotalForWorkOrder", ctx, woID).Return(12000, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("port.EmailMessage")).Return(nil)
+	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	err := svc.GenerateAndSendBudget(ctx, woID, &previous)
 	require.NoError(t, err)
 
-	msg := emailProv.Calls[0].Arguments.Get(1).(port.EmailMessage)
+	msg := emailProv.Calls[0].Arguments.Get(1).(email.Message)
 	assert.Contains(t, msg.Body, "WO-010")
 	assert.Contains(t, msg.Body, "Em diagnóstico")
 	assert.Contains(t, msg.Body, "Aguardando aprovação")

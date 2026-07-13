@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application/port"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
@@ -17,18 +16,18 @@ type WorkOrderStatusNotifier interface {
 
 type workOrderStatusNotifier struct {
 	custRepo  repository.CustomerRepository
-	emailPort port.EmailSender
+	emailProv email.Provider
 	budgetSvc BudgetService
 }
 
 func NewWorkOrderStatusNotifier(
 	custRepo repository.CustomerRepository,
-	emailPort port.EmailSender,
+	emailProv email.Provider,
 	budgetSvc BudgetService,
 ) WorkOrderStatusNotifier {
 	return &workOrderStatusNotifier{
 		custRepo:  custRepo,
-		emailPort: emailPort,
+		emailProv: emailProv,
 		budgetSvc: budgetSvc,
 	}
 }
@@ -70,14 +69,14 @@ func (n *workOrderStatusNotifier) NotifyTransition(
 		return
 	}
 
-	msg := port.EmailMessage{
+	msg := email.Message{
 		To:      []string{customer.Email},
 		Subject: fmt.Sprintf("Atualização da OS %s - %s", workOrder.Code, domain.WorkOrderStatusLabel(newStatus)),
 		Body:    body,
 		HTML:    true,
 	}
 
-	if err := n.emailPort.Send(ctx, msg); err != nil {
+	if err := n.emailProv.Send(ctx, msg); err != nil {
 		log.Printf("work order status notification: send email for work order %s: %v", workOrder.ID, err)
 	}
 }

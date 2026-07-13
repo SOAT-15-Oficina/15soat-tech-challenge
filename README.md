@@ -526,7 +526,7 @@ Toda transição relevante da ordem de serviço dispara um e-mail ao cliente com
 - `quote_sent_at` e total do orçamento só são gravados após envio bem-sucedido do e-mail de orçamento.
 - Transições repetidas para o mesmo status não geram e-mail duplicado.
 
-O envio é feito pela porta `internal/application/port.EmailSender`, adaptada a partir de `packages/email` (MailHog em desenvolvimento).
+O envio é feito pelo `email.Provider` de `packages/email` (MailHog em desenvolvimento), exposto à aplicação pela porta `internal/application/port.EmailSender` (alias do mesmo contrato).
 
 ### Endpoints
 

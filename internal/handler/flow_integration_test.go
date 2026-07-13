@@ -37,10 +37,10 @@ import (
 	"sync"
 
 	dbmigrations "github.com/ESSantana/15soat-tech-challenge-step-1/database"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application/port"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/auth"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -52,11 +52,11 @@ import (
 // flowMockEmail captures all sent emails for assertion in tests.
 type flowMockEmail struct {
 	mu       sync.Mutex
-	messages []port.EmailMessage
+	messages []email.Message
 	failNext bool
 }
 
-func (m *flowMockEmail) Send(_ context.Context, msg port.EmailMessage) error {
+func (m *flowMockEmail) Send(_ context.Context, msg email.Message) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.failNext {
@@ -67,16 +67,16 @@ func (m *flowMockEmail) Send(_ context.Context, msg port.EmailMessage) error {
 	return nil
 }
 
-func (m *flowMockEmail) Messages() []port.EmailMessage {
+func (m *flowMockEmail) Messages() []email.Message {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	cp := make([]port.EmailMessage, len(m.messages))
+	cp := make([]email.Message, len(m.messages))
 	copy(cp, m.messages)
 	return cp
 }
 
-func findLatestEmailBySubjectContains(msgs []port.EmailMessage, fragment string) (port.EmailMessage, bool) {
-	var latest port.EmailMessage
+func findLatestEmailBySubjectContains(msgs []email.Message, fragment string) (email.Message, bool) {
+	var latest email.Message
 	found := false
 	for _, msg := range msgs {
 		if strings.Contains(msg.Subject, fragment) {

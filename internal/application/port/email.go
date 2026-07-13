@@ -1,15 +1,10 @@
 package port
 
-import "context"
+import "github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 
-type EmailMessage struct {
-	From    string
-	To      []string
-	Subject string
-	Body    string
-	HTML    bool
-}
+// EmailSender is the application outbound port for email delivery.
+// Implemented by packages/email (MailHog in development).
+type EmailSender = email.Provider
 
-type EmailSender interface {
-	Send(ctx context.Context, msg EmailMessage) error
-}
+// EmailMessage is the email payload used by the port.
+type EmailMessage = email.Message
