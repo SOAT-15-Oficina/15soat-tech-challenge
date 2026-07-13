@@ -143,13 +143,17 @@ func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string, em
 	wsRepo := repository.NewWorkshopServiceRepository(db)
 	supplyRepo := repository.NewSupplyRepository(db)
 
-	statusSvc := service.NewWorkOrderStatusService(workOrderRepo, wosRepo)
 	workOrderSvc := service.NewWorkOrderService(workOrderRepo, vehicleRepo)
-	budgetSvc := service.NewBudgetService(workOrderRepo, wosRepo, customerRepo, emailProv, baseURL)
-	creationSvc := service.NewWorkOrderCreationService(workOrderRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
+	var notifier *email.WorkOrderNotificationSender
+	if emailProv != nil {
+		notifier = email.NewWorkOrderNotificationSender(emailProv)
+	}
+	budgetSvc := service.NewBudgetService(workOrderRepo, wosRepo, customerRepo, notifier, baseURL)
+	statusSvc := service.NewWorkOrderStatusService(workOrderRepo, wosRepo, service.WithBudgetGeneration(budgetSvc))
+	creationSvc := service.NewWorkOrderCreationService(workOrderRepo, wosRepo, wsRepo, supplyRepo, statusSvc, service.WithBudgetRefresh(budgetSvc))
 	userRepo := repository.NewUserRepository(db)
 	userSvc := service.NewUserService(userRepo, jwtSecretKey)
-	workOrderHandler := handler.NewWorkOrderHandler(workOrderSvc, budgetSvc, creationSvc, statusSvc, userSvc)
+	workOrderHandler := handler.NewWorkOrderHandler(workOrderSvc, creationSvc, statusSvc, userSvc)
 
 	group := app.Group("/work-orders", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
 	group.Post("/", workOrderHandler.Create)
@@ -179,8 +183,11 @@ func registerWorkOrderServicePublic(app *fiber.App, db *pgxpool.Pool, emailProv 
 	wosRepo := repository.NewWorkOrderServiceRepository(db)
 	woRepo := repository.NewWorkOrderRepository(db)
 	statusSvc := service.NewWorkOrderStatusService(woRepo, wosRepo)
-	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo, statusSvc,
-		service.WithPurchaseAlert(emailProv, "compras@oficina.com"))
+	opts := []service.WorkOrderItemServiceOption{}
+	if emailProv != nil {
+		opts = append(opts, service.WithPurchaseAlert(email.NewWorkOrderNotificationSender(emailProv), "compras@oficina.com"))
+	}
+	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo, statusSvc, opts...)
 	wosHandler := handler.NewWorkOrderServiceHandler(itemSvc)
 
 	approval := app.Group("/public/approvals")

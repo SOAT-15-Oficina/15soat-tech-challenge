@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -38,8 +38,8 @@ func TestGetPublicStatus_Success(t *testing.T) {
 	services := []domain.WorkOrderService{
 		{
 			ServiceTitleSnapshot: "Troca de óleo",
-			Status:              domain.WorkOrderServiceStatusInProgress,
-			ApprovalStatus:      domain.WorkOrderServiceApprovalApproved,
+			Status:               domain.WorkOrderServiceStatusInProgress,
+			ApprovalStatus:       domain.WorkOrderServiceApprovalApproved,
 		},
 	}
 
@@ -63,7 +63,7 @@ func TestGetPublicStatus_WorkOrderNotFound(t *testing.T) {
 
 	ctx := context.Background()
 
-	woRepo.On("FindByCode", ctx, "OS-INVALID").Return(nil, pgx.ErrNoRows)
+	woRepo.On("FindByCode", ctx, "OS-INVALID").Return(nil, application.ErrNotFound)
 
 	view, err := svc.GetPublicStatus(ctx, "OS-INVALID", "12345678901")
 	assert.ErrorIs(t, err, ErrWorkOrderNotFound)

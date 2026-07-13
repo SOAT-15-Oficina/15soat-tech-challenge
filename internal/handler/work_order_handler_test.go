@@ -67,12 +67,6 @@ func (m *mockWorkOrderService) Update(ctx context.Context, wo *domain.WorkOrder)
 
 // --- Additional mocks for full work order handler testing ---
 
-type mockBudgetService struct{ mock.Mock }
-
-func (m *mockBudgetService) GenerateAndSendBudget(ctx context.Context, workOrderID uuid.UUID) error {
-	return m.Called(ctx, workOrderID).Error(0)
-}
-
 type mockCreationService struct{ mock.Mock }
 
 func (m *mockCreationService) AddServices(ctx context.Context, woID uuid.UUID, items []service.AddWorkOrderServiceInput) ([]domain.WorkOrderService, error) {
@@ -193,7 +187,6 @@ func (m *mockUserRepo) FindAll(ctx context.Context) ([]domain.User, error) {
 
 type woTestDeps struct {
 	woSvc       *mockWorkOrderService
-	budgetSvc   *mockBudgetService
 	creationSvc *mockCreationService
 	statusSvc   *mockStatusSvc
 	userRepo    *mockUserRepo
@@ -202,13 +195,12 @@ type woTestDeps struct {
 func setupFullWorkOrderApp() (*fiber.App, *woTestDeps) {
 	deps := &woTestDeps{
 		woSvc:       new(mockWorkOrderService),
-		budgetSvc:   new(mockBudgetService),
 		creationSvc: new(mockCreationService),
 		statusSvc:   new(mockStatusSvc),
 		userRepo:    new(mockUserRepo),
 	}
 	app := fiber.New()
-	h := NewWorkOrderHandler(deps.woSvc, deps.budgetSvc, deps.creationSvc, deps.statusSvc, deps.userRepo)
+	h := NewWorkOrderHandler(deps.woSvc, deps.creationSvc, deps.statusSvc, deps.userRepo)
 	g := app.Group("/work-orders")
 	g.Get("/", h.GetAll)
 	g.Get("/:id", h.GetByID)
@@ -337,11 +329,11 @@ func TestWorkOrder_Create_Success(t *testing.T) {
 
 func TestWorkOrder_Create_NoToken(t *testing.T) {
 	deps := &woTestDeps{
-		woSvc: new(mockWorkOrderService), budgetSvc: new(mockBudgetService),
+		woSvc:       new(mockWorkOrderService),
 		creationSvc: new(mockCreationService), statusSvc: new(mockStatusSvc), userRepo: new(mockUserRepo),
 	}
 	app := fiber.New()
-	h := NewWorkOrderHandler(deps.woSvc, deps.budgetSvc, deps.creationSvc, deps.statusSvc, deps.userRepo)
+	h := NewWorkOrderHandler(deps.woSvc, deps.creationSvc, deps.statusSvc, deps.userRepo)
 	app.Post("/work-orders", h.Create) // no middleware to set token
 
 	body, _ := json.Marshal(map[string]any{"title": "test"})
@@ -433,12 +425,11 @@ func TestWorkOrder_Update_StatusTransitionInvalid(t *testing.T) {
 	assert.Equal(t, fiber.StatusUnprocessableEntity, r.StatusCode)
 }
 
-func TestWorkOrder_Update_StatusWaitingApproval_SendsBudget(t *testing.T) {
+func TestWorkOrder_Update_StatusWaitingApproval_DelegatesToStatusUseCase(t *testing.T) {
 	app, deps := setupFullWorkOrderApp()
 	id := uuid.New()
 	wo := &domain.WorkOrder{ID: id, Status: domain.WorkOrderStatusWaitingApproval}
 	deps.statusSvc.On("TransitionTo", mock.Anything, id, domain.WorkOrderStatusWaitingApproval).Return(wo, nil)
-	deps.budgetSvc.On("GenerateAndSendBudget", mock.Anything, id).Return(nil)
 	deps.woSvc.On("Update", mock.Anything, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	body, _ := json.Marshal(map[string]any{"status": domain.WorkOrderStatusWaitingApproval})
@@ -447,15 +438,13 @@ func TestWorkOrder_Update_StatusWaitingApproval_SendsBudget(t *testing.T) {
 	r, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, r.StatusCode)
-	deps.budgetSvc.AssertCalled(t, "GenerateAndSendBudget", mock.Anything, id)
+	deps.statusSvc.AssertCalled(t, "TransitionTo", mock.Anything, id, domain.WorkOrderStatusWaitingApproval)
 }
 
-func TestWorkOrder_Update_BudgetSendFails(t *testing.T) {
+func TestWorkOrder_Update_StatusUseCaseFails(t *testing.T) {
 	app, deps := setupFullWorkOrderApp()
 	id := uuid.New()
-	wo := &domain.WorkOrder{ID: id, Status: domain.WorkOrderStatusWaitingApproval}
-	deps.statusSvc.On("TransitionTo", mock.Anything, id, domain.WorkOrderStatusWaitingApproval).Return(wo, nil)
-	deps.budgetSvc.On("GenerateAndSendBudget", mock.Anything, id).Return(errors.New("email fail"))
+	deps.statusSvc.On("TransitionTo", mock.Anything, id, domain.WorkOrderStatusWaitingApproval).Return(nil, errors.New("generate budget"))
 
 	body, _ := json.Marshal(map[string]any{"status": domain.WorkOrderStatusWaitingApproval})
 	req := httptest.NewRequest(http.MethodPut, "/work-orders/"+id.String(), bytes.NewReader(body))
@@ -834,4 +823,3 @@ func TestWorkOrder_RemoveSupply_InvalidStatus(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusUnprocessableEntity, r.StatusCode)
 }
-

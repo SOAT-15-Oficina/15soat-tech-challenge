@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/google/uuid"
 )
 
@@ -21,26 +20,26 @@ type BudgetService interface {
 }
 
 type budgetService struct {
-	woRepo    repository.WorkOrderRepository
-	wosRepo   repository.WorkOrderServiceRepository
-	custRepo  repository.CustomerRepository
-	emailProv email.Provider
-	baseURL   string
+	woRepo   application.WorkOrderRepository
+	wosRepo  application.WorkOrderServiceRepository
+	custRepo application.CustomerRepository
+	notifier application.BudgetNotificationSender
+	baseURL  string
 }
 
 func NewBudgetService(
-	woRepo repository.WorkOrderRepository,
-	wosRepo repository.WorkOrderServiceRepository,
-	custRepo repository.CustomerRepository,
-	emailProv email.Provider,
+	woRepo application.WorkOrderRepository,
+	wosRepo application.WorkOrderServiceRepository,
+	custRepo application.CustomerRepository,
+	notifier application.BudgetNotificationSender,
 	baseURL string,
 ) BudgetService {
 	return &budgetService{
-		woRepo:    woRepo,
-		wosRepo:   wosRepo,
-		custRepo:  custRepo,
-		emailProv: emailProv,
-		baseURL:   baseURL,
+		woRepo:   woRepo,
+		wosRepo:  wosRepo,
+		custRepo: custRepo,
+		notifier: notifier,
+		baseURL:  baseURL,
 	}
 }
 
@@ -77,14 +76,14 @@ func (s *budgetService) GenerateAndSendBudget(ctx context.Context, workOrderID u
 		return fmt.Errorf("budget: find customer: %w", err)
 	}
 
-	var serviceItems []email.BudgetServiceItem
+	var serviceItems []application.BudgetNotificationService
 	for _, svc := range services {
 		estimatedTimeMinutes := svc.ServiceEstimatedTimeMinutesSnapshot
 		if shortagesByServiceID[svc.ID] {
 			estimatedTimeMinutes += shortageExtraEstimatedTimeMinutes
 		}
 
-		serviceItems = append(serviceItems, email.BudgetServiceItem{
+		serviceItems = append(serviceItems, application.BudgetNotificationService{
 			Title:       svc.ServiceTitleSnapshot,
 			Amount:      formatCents(svc.ServicePriceCentsSnapshot),
 			Estimated:   formatEstimatedTimeMinutes(estimatedTimeMinutes),
@@ -93,8 +92,11 @@ func (s *budgetService) GenerateAndSendBudget(ctx context.Context, workOrderID u
 		})
 	}
 
-	data := email.BudgetEmailData{
+	notification := application.BudgetNotification{
 		CustomerName:   customer.Name,
+		CustomerEmail:  customer.Email,
+		WorkOrderID:    workOrderID,
+		WorkOrderCode:  wo.Code,
 		Amount:         formatCents(totalCents),
 		BudgetLink:     fmt.Sprintf("%s/work-orders/%s", s.baseURL, workOrderID),
 		Services:       serviceItems,
@@ -102,20 +104,10 @@ func (s *budgetService) GenerateAndSendBudget(ctx context.Context, workOrderID u
 		RejectAllLink:  fmt.Sprintf("%s/public/approvals/work-orders/%s/reject-all", s.baseURL, workOrderID),
 	}
 
-	body, err := email.RenderBudgetEmail(data)
-	if err != nil {
-		return fmt.Errorf("budget: render email: %w", err)
-	}
-
-	msg := email.Message{
-		To:      []string{customer.Email},
-		Subject: fmt.Sprintf("Orçamento - OS %s", wo.Code),
-		Body:    body,
-		HTML:    true,
-	}
-
-	if err := s.emailProv.Send(ctx, msg); err != nil {
-		return fmt.Errorf("budget: send email: %w", err)
+	if s.notifier != nil {
+		if err := s.notifier.SendBudget(ctx, notification); err != nil {
+			return fmt.Errorf("budget: send notification: %w", err)
+		}
 	}
 
 	return nil

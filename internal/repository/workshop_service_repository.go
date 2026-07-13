@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -55,6 +57,9 @@ func (r *workshopServiceRepository) Create(ctx context.Context, ws *domain.Works
 		&result.EstimatedTimeMinutes, &result.Active, &result.CreatedAt, &result.UpdatedAt,
 	)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, application.ErrNotFound
+		}
 		return nil, err
 	}
 
@@ -163,7 +168,7 @@ func (r *workshopServiceRepository) Delete(ctx context.Context, id uuid.UUID) er
 		return err
 	}
 	if commandTag.RowsAffected() == 0 {
-		return pgx.ErrNoRows
+		return application.ErrNotFound
 	}
 
 	return nil

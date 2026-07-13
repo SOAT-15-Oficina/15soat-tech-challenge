@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 	"github.com/google/uuid"
 )
 
@@ -18,16 +17,16 @@ type WorkOrderItemService interface {
 }
 
 type workOrderItemService struct {
-	wosRepo   repository.WorkOrderServiceRepository
-	woRepo    repository.WorkOrderRepository
+	wosRepo   application.WorkOrderServiceRepository
+	woRepo    application.WorkOrderRepository
 	statusSvc WorkOrderStatusService
-	emailProv email.Provider
-	emailTo   string
+	alerts    application.PurchaseAlertSender
+	alertTo   string
 }
 
 func NewWorkOrderItemService(
-	wosRepo repository.WorkOrderServiceRepository,
-	woRepo repository.WorkOrderRepository,
+	wosRepo application.WorkOrderServiceRepository,
+	woRepo application.WorkOrderRepository,
 	statusSvc WorkOrderStatusService,
 	opts ...WorkOrderItemServiceOption,
 ) WorkOrderItemService {
@@ -44,10 +43,10 @@ func NewWorkOrderItemService(
 
 type WorkOrderItemServiceOption func(*workOrderItemService)
 
-func WithPurchaseAlert(prov email.Provider, to string) WorkOrderItemServiceOption {
+func WithPurchaseAlert(sender application.PurchaseAlertSender, to string) WorkOrderItemServiceOption {
 	return func(s *workOrderItemService) {
-		s.emailProv = prov
-		s.emailTo = to
+		s.alerts = sender
+		s.alertTo = to
 	}
 }
 
@@ -139,7 +138,7 @@ func (s *workOrderItemService) evaluateWorkOrderCompletion(ctx context.Context, 
 		return fmt.Errorf("evaluate: update work order: %w", err)
 	}
 
-	if hasApproved && s.emailProv != nil {
+	if hasApproved && s.alerts != nil {
 		s.sendPurchaseAlertIfNeeded(ctx, workOrderID)
 	}
 
@@ -162,9 +161,9 @@ func (s *workOrderItemService) sendPurchaseAlertIfNeeded(ctx context.Context, wo
 		return
 	}
 
-	var items []email.PurchaseAlertItem
+	var items []application.PurchaseAlertNotificationItem
 	for _, a := range alerts {
-		items = append(items, email.PurchaseAlertItem{
+		items = append(items, application.PurchaseAlertNotificationItem{
 			ServiceTitle: a.ServiceTitle,
 			SupplyTitle:  a.SupplyTitle,
 			Required:     a.Required,
@@ -173,20 +172,10 @@ func (s *workOrderItemService) sendPurchaseAlertIfNeeded(ctx context.Context, wo
 		})
 	}
 
-	body, err := email.RenderPurchaseAlertEmail(email.PurchaseAlertEmailData{
+	_ = s.alerts.SendPurchaseAlert(ctx, application.PurchaseAlertNotification{
+		To:             s.alertTo,
 		WorkOrderCode:  wo.Code,
 		WorkOrderTitle: wo.Title,
 		Items:          items,
 	})
-	if err != nil {
-		return
-	}
-
-	msg := email.Message{
-		To:      []string{s.emailTo},
-		Subject: fmt.Sprintf("Alerta de Compra - OS %s", wo.Code),
-		Body:    body,
-		HTML:    true,
-	}
-	_ = s.emailProv.Send(ctx, msg)
 }

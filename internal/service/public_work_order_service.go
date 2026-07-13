@@ -7,21 +7,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
-	"github.com/jackc/pgx/v5"
 )
 
 var ErrWorkOrderNotFound = errors.New("work order not found")
 
 type PublicServiceView struct {
-	Title          string                              `json:"title"`
-	Status         domain.WorkOrderServiceStatus       `json:"status"`
+	Title          string                                `json:"title"`
+	Status         domain.WorkOrderServiceStatus         `json:"status"`
 	ApprovalStatus domain.WorkOrderServiceApprovalStatus `json:"approval_status"`
 }
 
 type PublicWorkOrderView struct {
-	Code                     string                `json:"code"`
+	Code                     string                 `json:"code"`
 	Status                   domain.WorkOrderStatus `json:"status"`
 	TotalEstimatedPriceCents int                    `json:"total_estimated_price_cents"`
 	ReceivedAt               time.Time              `json:"received_at"`
@@ -38,15 +37,15 @@ type PublicWorkOrderService interface {
 }
 
 type publicWorkOrderService struct {
-	woRepo       repository.WorkOrderRepository
-	customerRepo repository.CustomerRepository
-	wosRepo      repository.WorkOrderServiceRepository
+	woRepo       application.WorkOrderRepository
+	customerRepo application.CustomerRepository
+	wosRepo      application.WorkOrderServiceRepository
 }
 
 func NewPublicWorkOrderService(
-	woRepo repository.WorkOrderRepository,
-	customerRepo repository.CustomerRepository,
-	wosRepo repository.WorkOrderServiceRepository,
+	woRepo application.WorkOrderRepository,
+	customerRepo application.CustomerRepository,
+	wosRepo application.WorkOrderServiceRepository,
 ) PublicWorkOrderService {
 	return &publicWorkOrderService{
 		woRepo:       woRepo,
@@ -64,7 +63,7 @@ func normalizeDocument(doc string) string {
 func (s *publicWorkOrderService) GetPublicStatus(ctx context.Context, code, document string) (*PublicWorkOrderView, error) {
 	wo, err := s.woRepo.FindByCode(ctx, code)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, application.ErrNotFound) {
 			return nil, ErrWorkOrderNotFound
 		}
 		return nil, err
