@@ -126,6 +126,12 @@ func (r *customerRepository) Update(ctx context.Context, customer *domain.Custom
 
 func (r *customerRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM customers WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
-	return err
+	tag, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return application.ErrNotFound
+	}
+	return nil
 }

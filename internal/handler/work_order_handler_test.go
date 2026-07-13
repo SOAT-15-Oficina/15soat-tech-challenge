@@ -246,6 +246,50 @@ func TestWorkOrder_GetAll_WithFilters(t *testing.T) {
 	assert.Equal(t, fiber.StatusOK, r.StatusCode)
 }
 
+func TestWorkOrder_GetAll_WithCanonicalFilters(t *testing.T) {
+	app, deps := setupFullWorkOrderApp()
+	customerID := uuid.New()
+	vehicleID := uuid.New()
+	deps.woSvc.On("GetAllWithFilters", mock.Anything, mock.MatchedBy(func(filters application.WorkOrderListFilters) bool {
+		return filters.CustomerID == customerID && filters.VehicleID == vehicleID
+	})).Return(&application.WorkOrderListResponse{Data: []domain.WorkOrder{}, Page: 1, Limit: 10}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/work-orders/?customer_id="+customerID.String()+"&vehicle_id="+vehicleID.String(), nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestWorkOrder_GetAll_RejectsConflictingAliases(t *testing.T) {
+	app, _ := setupFullWorkOrderApp()
+	req := httptest.NewRequest(http.MethodGet, "/work-orders/?customer_id="+uuid.NewString()+"&customerId="+uuid.NewString(), nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestWorkOrder_GetAll_RejectsInvalidFilters(t *testing.T) {
+	invalidURLs := []string{
+		"/work-orders/?page=0",
+		"/work-orders/?limit=101",
+		"/work-orders/?status=DESCONHECIDA",
+		"/work-orders/?customer_id=invalid",
+		"/work-orders/?vehicle_id=invalid",
+		"/work-orders/?from=13-07-2026",
+		"/work-orders/?to=13-07-2026",
+		"/work-orders/?from=2026-07-14&to=2026-07-13",
+	}
+
+	for _, url := range invalidURLs {
+		t.Run(url, func(t *testing.T) {
+			app, _ := setupFullWorkOrderApp()
+			resp, err := app.Test(httptest.NewRequest(http.MethodGet, url, nil))
+			require.NoError(t, err)
+			assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+		})
+	}
+}
+
 func TestWorkOrder_GetAll_NilResult(t *testing.T) {
 	app, deps := setupFullWorkOrderApp()
 	deps.woSvc.On("GetAllWithFilters", mock.Anything, mock.Anything).Return(nil, nil)
@@ -360,14 +404,27 @@ func TestWorkOrder_Create_ServiceError(t *testing.T) {
 	app, deps := setupFullWorkOrderApp()
 	user := &domain.User{ID: uuid.New(), Username: "testuser"}
 	deps.userRepo.On("GetByUsername", mock.Anything, "testuser").Return(user, nil)
-	deps.woSvc.On("Create", mock.Anything, mock.AnythingOfType("*domain.WorkOrder")).Return(nil, errors.New("validation error"))
+	deps.woSvc.On("Create", mock.Anything, mock.AnythingOfType("*domain.WorkOrder")).Return(nil, application.NewValidationError("validation error"))
 
 	body, _ := json.Marshal(map[string]any{"title": "test", "customer_id": uuid.New(), "vehicle_id": uuid.New()})
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r, err := app.Test(req)
 	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusInternalServerError, r.StatusCode)
+	assert.Equal(t, fiber.StatusBadRequest, r.StatusCode)
+}
+
+func TestWorkOrder_InternalErrorDoesNotLeakDetails(t *testing.T) {
+	app, deps := setupFullWorkOrderApp()
+	deps.woSvc.On("GetAllWithFilters", mock.Anything, mock.Anything).Return(nil, errors.New("password authentication failed for database techchallenge"))
+
+	resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/work-orders/", nil))
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+
+	var payload map[string]string
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&payload))
+	assert.Equal(t, "internal server error", payload["error"])
 }
 
 // --- Update tests ---

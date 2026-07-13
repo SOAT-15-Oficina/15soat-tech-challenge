@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -106,6 +107,12 @@ func (r *userRepository) Update(ctx context.Context, user *domain.User) (*domain
 
 func (r *userRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM users WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
-	return err
+	tag, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return application.ErrNotFound
+	}
+	return nil
 }

@@ -11,10 +11,23 @@ import (
 
 var ErrNotFound = errors.New("not found")
 
+// ValidationError represents input that is syntactically valid but violates
+// the API contract. Handlers translate it to HTTP 400 without treating it as
+// an internal failure.
+type ValidationError struct {
+	Message string
+}
+
+func (e *ValidationError) Error() string { return e.Message }
+
+func NewValidationError(message string) error {
+	return &ValidationError{Message: message}
+}
+
 type WorkOrderListFilters struct {
 	Status     string    `query:"status"`
-	CustomerID uuid.UUID `query:"customerId"`
-	VehicleID  uuid.UUID `query:"vehicleId"`
+	CustomerID uuid.UUID `query:"customer_id"`
+	VehicleID  uuid.UUID `query:"vehicle_id"`
 	FromDate   *time.Time
 	ToDate     *time.Time
 	Page       int
@@ -79,13 +92,13 @@ type WorkOrderServiceRepository interface {
 }
 
 type SupplyShortageAlert struct {
-	WorkOrderCode  string
-	WorkOrderTitle string
-	ServiceTitle   string
-	SupplyTitle    string
-	SupplyID       uuid.UUID
-	Required       int
-	InStock        int
+	WorkOrderCode  string    `json:"work_order_code"`
+	WorkOrderTitle string    `json:"work_order_title"`
+	ServiceTitle   string    `json:"service_title"`
+	SupplyTitle    string    `json:"supply_title"`
+	SupplyID       uuid.UUID `json:"supply_id"`
+	Required       int       `json:"required"`
+	InStock        int       `json:"in_stock"`
 }
 
 type BudgetNotification struct {

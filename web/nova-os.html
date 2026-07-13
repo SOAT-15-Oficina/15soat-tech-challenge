@@ -74,7 +74,7 @@
       sel.disabled = !customerId;
       if (!customerId) return;
       try {
-        const resp = await api.get('/vehicles?customerId=' + customerId);
+        const resp = await api.get('/vehicles?customer_id=' + customerId);
         const data = await api.json(resp);
         (data.data || []).forEach(v => {
           sel.insertAdjacentHTML('beforeend',

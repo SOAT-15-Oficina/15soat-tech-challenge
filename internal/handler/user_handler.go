@@ -23,7 +23,7 @@ func NewUserHandler(svc service.UserService) *UserHandler {
 func (h *UserHandler) GetAll(c fiber.Ctx) error {
 	users, err := h.svc.GetAll(c.Context())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 	if users == nil {
 		users = []domain.User{}
@@ -42,7 +42,7 @@ func (h *UserHandler) GetByID(c fiber.Ctx) error {
 		if handled, resp := mapErrorResponse(c, err, "user not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 	return c.JSON(user)
 }
@@ -63,7 +63,7 @@ func (h *UserHandler) Update(c fiber.Ctx) error {
 		if handled, resp := mapErrorResponse(c, err, "user not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 	return c.JSON(user)
 }
@@ -78,7 +78,7 @@ func (h *UserHandler) Delete(c fiber.Ctx) error {
 		if handled, resp := mapErrorResponse(c, err, "user not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }

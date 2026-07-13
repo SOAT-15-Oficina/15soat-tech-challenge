@@ -32,7 +32,7 @@ func (h *VehicleHandler) Create(c fiber.Ctx) error {
 		if handled, resp := dbErrResponse(c, err, "vehicle not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(result)
@@ -41,15 +41,21 @@ func (h *VehicleHandler) Create(c fiber.Ctx) error {
 func (h *VehicleHandler) GetAll(c fiber.Ctx) error {
 	filters := domain.VehicleListFilters{}
 
-	if customerID := c.Query("customerId"); customerID != "" {
-		if id, err := uuid.Parse(customerID); err == nil {
-			filters.CustomerID = id
+	customerID, err := queryWithAlias(c, "customer_id", "customerId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if customerID != "" {
+		id, err := uuid.Parse(customerID)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "customer_id must be a valid UUID"})
 		}
+		filters.CustomerID = id
 	}
 
 	vehicles, err := h.svc.GetAllWithFilters(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	if vehicles == nil {
@@ -70,7 +76,7 @@ func (h *VehicleHandler) GetByID(c fiber.Ctx) error {
 		if handled, resp := dbErrResponse(c, err, "vehicle not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.JSON(vehicle)
@@ -97,7 +103,7 @@ func (h *VehicleHandler) Update(c fiber.Ctx) error {
 		if handled, resp := dbErrResponse(c, err, "vehicle not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.JSON(result)
@@ -113,7 +119,7 @@ func (h *VehicleHandler) Delete(c fiber.Ctx) error {
 		if handled, resp := dbErrResponse(c, err, "vehicle not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)

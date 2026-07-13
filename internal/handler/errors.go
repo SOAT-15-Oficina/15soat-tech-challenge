@@ -49,19 +49,23 @@ func dbErrResponse(c fiber.Ctx, err error, notFoundMsg string) (bool, error) {
 		case pgErrUniqueViolation:
 			msg := uniqueConstraintMessages[pgErr.ConstraintName]
 			if msg == "" {
-				msg = pgErr.Detail
+				msg = "resource already exists"
 			}
 			return true, c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": msg})
 		case pgErrForeignKeyViolation:
 			msg := foreignKeyMessages[pgErr.ConstraintName]
 			if msg == "" {
-				msg = pgErr.Detail
+				msg = "resource conflicts with an existing relationship"
 			}
 			return true, c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": msg})
 		case pgErrNotNullViolation, pgErrCheckViolation:
-			return true, c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": pgErr.Message})
+			return true, c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid resource data"})
 		}
 	}
 
 	return false, nil
+}
+
+func internalServerError(c fiber.Ctx) error {
+	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal server error"})
 }

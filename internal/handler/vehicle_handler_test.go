@@ -149,6 +149,32 @@ func TestVehicleGetAll_FilterByCustomerID(t *testing.T) {
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }
 
+func TestVehicleGetAll_FilterByCanonicalCustomerID(t *testing.T) {
+	svc := new(mockVehicleService)
+	app := setupVehicleApp(svc)
+	customerID := uuid.New()
+
+	svc.On("GetAllWithFilters", mock.Anything, domain.VehicleListFilters{CustomerID: customerID}).Return([]domain.Vehicle{}, nil)
+	req := httptest.NewRequest(http.MethodGet, "/vehicles?customer_id="+customerID.String(), nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestVehicleGetAll_RejectsInvalidOrConflictingCustomerID(t *testing.T) {
+	urls := []string{
+		"/vehicles?customer_id=invalid",
+		"/vehicles?customer_id=" + uuid.NewString() + "&customerId=" + uuid.NewString(),
+	}
+	for _, url := range urls {
+		svc := new(mockVehicleService)
+		app := setupVehicleApp(svc)
+		resp, err := app.Test(httptest.NewRequest(http.MethodGet, url, nil))
+		require.NoError(t, err)
+		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+	}
+}
+
 func TestVehicleGetByID_Success(t *testing.T) {
 	svc := new(mockVehicleService)
 	app := setupVehicleApp(svc)

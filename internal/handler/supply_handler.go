@@ -28,7 +28,7 @@ func (h *SupplyHandler) Create(c fiber.Ctx) error {
 		if handled, resp := dbErrResponse(c, err, "supply not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(result)
@@ -37,7 +37,7 @@ func (h *SupplyHandler) Create(c fiber.Ctx) error {
 func (h *SupplyHandler) GetAll(c fiber.Ctx) error {
 	supplies, err := h.svc.GetAll(c.Context())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	if supplies == nil {
@@ -58,7 +58,7 @@ func (h *SupplyHandler) GetByID(c fiber.Ctx) error {
 		if handled, resp := dbErrResponse(c, err, "supply not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.JSON(supply)
@@ -81,7 +81,7 @@ func (h *SupplyHandler) Update(c fiber.Ctx) error {
 		if handled, resp := dbErrResponse(c, err, "supply not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.JSON(result)
@@ -97,7 +97,7 @@ func (h *SupplyHandler) Delete(c fiber.Ctx) error {
 		if handled, resp := dbErrResponse(c, err, "supply not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
@@ -106,7 +106,7 @@ func (h *SupplyHandler) Delete(c fiber.Ctx) error {
 func (h *SupplyHandler) PendingPurchases(c fiber.Ctx) error {
 	alerts, err := h.wosRepo.FindApprovedServicesWithShortages(c.Context())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 	if alerts == nil {
 		alerts = []repository.SupplyShortageAlert{}

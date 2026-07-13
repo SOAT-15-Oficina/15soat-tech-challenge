@@ -82,16 +82,21 @@ func (r *workOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*doma
 			wo.quote_sent_at, wo.approved_at, wo.started_at, wo.finished_at, wo.delivered_at, 
 			wo.created_at, wo.updated_at,
 			c.id, c.name, c.document,
-			v.id, v.license_plate, v.brand, v.model, v.year
+			v.id, v.license_plate, v.brand, v.model, v.year,
+			t.id, t.username, t.role
 		FROM work_orders wo
 		JOIN customers c ON wo.customer_id = c.id
 		JOIN vehicles v ON wo.vehicle_id = v.id
+		LEFT JOIN users t ON wo.assigned_technician_id = t.id
 		WHERE wo.id = $1`
 
 	var result domain.WorkOrder
 	var customer domain.WorkOrderCustomer
 	var vehicle domain.WorkOrderVehicle
 	var customerID, vehicleID uuid.UUID
+	var technicianID *uuid.UUID
+	var technicianUsername *string
+	var technicianRole *domain.UserRole
 
 	err := r.db.QueryRow(ctx, query, id).
 		Scan(
@@ -101,6 +106,7 @@ func (r *workOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*doma
 			&result.CreatedAt, &result.UpdatedAt,
 			&customer.ID, &customer.Name, &customer.Document,
 			&vehicle.ID, &vehicle.LicensePlate, &vehicle.Brand, &vehicle.Model, &vehicle.Year,
+			&technicianID, &technicianUsername, &technicianRole,
 		)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -113,6 +119,11 @@ func (r *workOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*doma
 	result.VehicleID = vehicleID
 	result.Customer = &customer
 	result.Vehicle = &vehicle
+	if technicianID != nil && technicianUsername != nil && technicianRole != nil {
+		result.AssignedTechnician = &domain.WorkOrderTechnician{
+			ID: *technicianID, Username: *technicianUsername, Role: *technicianRole,
+		}
+	}
 
 	services, err := r.fetchServicesForWorkOrder(ctx, result.ID)
 	if err != nil {
@@ -283,10 +294,12 @@ func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters ap
 			wo.quote_sent_at, wo.approved_at, wo.started_at, wo.finished_at, wo.delivered_at, 
 			wo.created_at, wo.updated_at,
 			c.id, c.name, c.document,
-			v.id, v.license_plate, v.brand, v.model, v.year
+			v.id, v.license_plate, v.brand, v.model, v.year,
+			t.id, t.username, t.role
 		FROM work_orders wo
 		JOIN customers c ON wo.customer_id = c.id
 		JOIN vehicles v ON wo.vehicle_id = v.id
+		LEFT JOIN users t ON wo.assigned_technician_id = t.id
 		WHERE %s
 		ORDER BY 
 			CASE wo.status
@@ -313,6 +326,9 @@ func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters ap
 		var customer domain.WorkOrderCustomer
 		var vehicle domain.WorkOrderVehicle
 		var customerID, vehicleID uuid.UUID
+		var technicianID *uuid.UUID
+		var technicianUsername *string
+		var technicianRole *domain.UserRole
 
 		if err := rows.Scan(
 			&wo.ID, &wo.Code, &wo.Title, &wo.Description, &customerID, &vehicleID, &wo.OpenedByUserID,
@@ -321,12 +337,18 @@ func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters ap
 			&wo.CreatedAt, &wo.UpdatedAt,
 			&customer.ID, &customer.Name, &customer.Document,
 			&vehicle.ID, &vehicle.LicensePlate, &vehicle.Brand, &vehicle.Model, &vehicle.Year,
+			&technicianID, &technicianUsername, &technicianRole,
 		); err != nil {
 			return nil, err
 		}
 
 		wo.Customer = &customer
 		wo.Vehicle = &vehicle
+		if technicianID != nil && technicianUsername != nil && technicianRole != nil {
+			wo.AssignedTechnician = &domain.WorkOrderTechnician{
+				ID: *technicianID, Username: *technicianUsername, Role: *technicianRole,
+			}
+		}
 		wo.CustomerID = customerID
 		wo.VehicleID = vehicleID
 
@@ -352,7 +374,7 @@ func (r *workOrderRepository) fetchServicesForWorkOrder(ctx context.Context, wor
 	}
 	defer rows.Close()
 
-	var services []domain.WorkOrderService
+	services := make([]domain.WorkOrderService, 0)
 	for rows.Next() {
 		var svc domain.WorkOrderService
 		if err := rows.Scan(
@@ -382,7 +404,7 @@ func (r *workOrderRepository) fetchSuppliesForService(ctx context.Context, servi
 	}
 	defer rows.Close()
 
-	var supplies []domain.WorkOrderServiceSupply
+	supplies := make([]domain.WorkOrderServiceSupply, 0)
 	for rows.Next() {
 		var sup domain.WorkOrderServiceSupply
 		if err := rows.Scan(
