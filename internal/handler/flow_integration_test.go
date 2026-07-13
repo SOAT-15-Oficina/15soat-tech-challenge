@@ -49,25 +49,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockEmailProvider captures all sent emails for assertion in tests.
-type mockEmailProvider struct {
+// flowMockEmail captures all sent emails for assertion in tests.
+type flowMockEmail struct {
 	mu       sync.Mutex
 	messages []email.Message
+	failNext bool
 }
 
-func (m *mockEmailProvider) Send(_ context.Context, msg email.Message) error {
+func (m *flowMockEmail) Send(_ context.Context, msg email.Message) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.failNext {
+		m.failNext = false
+		return fmt.Errorf("smtp unavailable")
+	}
 	m.messages = append(m.messages, msg)
 	return nil
 }
 
-func (m *mockEmailProvider) Messages() []email.Message {
+func (m *flowMockEmail) Messages() []email.Message {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	cp := make([]email.Message, len(m.messages))
 	copy(cp, m.messages)
 	return cp
+}
+
+func findLatestEmailBySubjectContains(msgs []email.Message, fragment string) (email.Message, bool) {
+	var latest email.Message
+	found := false
+	for _, msg := range msgs {
+		if strings.Contains(msg.Subject, fragment) {
+			latest = msg
+			found = true
+		}
+	}
+	return latest, found
 }
 
 const testUsername = "mechanic_test"
@@ -95,9 +112,10 @@ func setupFlowApp(t *testing.T) (*fiber.App, *pgxpool.Pool) {
 	vehicleSvc := service.NewVehicleService(vehicleRepo)
 	supplySvc := service.NewSupplyService(supplyRepo)
 	wsSvc := service.NewWorkshopServiceManager(wsRepo)
+	statusSvc := service.NewWorkOrderStatusServiceWithNotifications(woRepo, wosRepo, customerRepo, nil, "http://localhost:8080")
 	woSvc := service.NewWorkOrderService(woRepo, vehicleRepo)
-	statusSvc := service.NewWorkOrderStatusService(woRepo, wosRepo)
-	creationSvc := service.NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
+	budgetSvc := service.NewBudgetService(woRepo, wosRepo, customerRepo, nil, "http://localhost:8080")
+	creationSvc := service.NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc, service.WithBudgetRefresh(budgetSvc))
 	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
 	userSvc := service.NewUserService(userRepo, "test-secret")
 	publicSvc := service.NewPublicWorkOrderService(woRepo, customerRepo, wosRepo)
@@ -188,13 +206,13 @@ func setupFlowApp(t *testing.T) (*fiber.App, *pgxpool.Pool) {
 
 // setupFlowAppWithBudget is like setupFlowApp but wires up the BudgetService
 // with a mock email provider, so budget generation and notification tests work.
-func setupFlowAppWithBudget(t *testing.T) (*fiber.App, *pgxpool.Pool, *mockEmailProvider) {
+func setupFlowAppWithBudget(t *testing.T) (*fiber.App, *pgxpool.Pool, *flowMockEmail) {
 	t.Helper()
 
 	pool := connectTestDB(t)
 	setupFlowSchema(t, pool)
 
-	mockEmail := &mockEmailProvider{}
+	mockEmail := &flowMockEmail{}
 
 	// Repositories
 	customerRepo := repository.NewCustomerRepository(pool)
@@ -210,13 +228,14 @@ func setupFlowAppWithBudget(t *testing.T) (*fiber.App, *pgxpool.Pool, *mockEmail
 	vehicleSvc := service.NewVehicleService(vehicleRepo)
 	supplySvc := service.NewSupplyService(supplyRepo)
 	wsSvc := service.NewWorkshopServiceManager(wsRepo)
+	notificationSender := email.NewWorkOrderNotificationSender(mockEmail)
+	budgetSvc := service.NewBudgetService(woRepo, wosRepo, customerRepo, notificationSender, "http://localhost:8080")
+	statusSvc := service.NewWorkOrderStatusServiceWithNotifications(woRepo, wosRepo, customerRepo, mockEmail, "http://localhost:8080")
 	woSvc := service.NewWorkOrderService(woRepo, vehicleRepo)
-	userSvc := service.NewUserService(userRepo, "test-secret")
-	publicSvc := service.NewPublicWorkOrderService(woRepo, customerRepo, wosRepo)
-	budgetSvc := service.NewBudgetService(woRepo, wosRepo, customerRepo, email.NewWorkOrderNotificationSender(mockEmail), "http://localhost:8080")
-	statusSvc := service.NewWorkOrderStatusService(woRepo, wosRepo, service.WithBudgetGeneration(budgetSvc))
 	creationSvc := service.NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc, service.WithBudgetRefresh(budgetSvc))
 	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
+	userSvc := service.NewUserService(userRepo, "test-secret")
+	publicSvc := service.NewPublicWorkOrderService(woRepo, customerRepo, wosRepo)
 
 	// Handlers
 	customerHandler := NewCustomerHandler(customerSvc)
@@ -1607,9 +1626,10 @@ func TestIntegration_Flow_BudgetGenerationAndNotification(t *testing.T) {
 	// Verify email was sent to customer
 	t.Run("EmailEnviadoParaCliente", func(t *testing.T) {
 		msgs := mockEmail.Messages()
-		require.Len(t, msgs, 1, "should have sent exactly one email")
+		require.GreaterOrEqual(t, len(msgs), 2, "should send diagnosis and budget emails")
 
-		msg := msgs[0]
+		msg, ok := findLatestEmailBySubjectContains(msgs, "Orçamento")
+		require.True(t, ok)
 		assert.Contains(t, msg.To, "orcamento@example.com", "email should be sent to customer")
 		assert.Contains(t, msg.Subject, "Orçamento", "subject should mention orçamento")
 		assert.True(t, msg.HTML, "email should be HTML")
@@ -1618,9 +1638,10 @@ func TestIntegration_Flow_BudgetGenerationAndNotification(t *testing.T) {
 	// Verify email body contains approval links
 	t.Run("EmailContemLinksDeAprovacao", func(t *testing.T) {
 		msgs := mockEmail.Messages()
-		require.Len(t, msgs, 1)
+		msg, ok := findLatestEmailBySubjectContains(msgs, "Orçamento")
+		require.True(t, ok)
 
-		body := msgs[0].Body
+		body := msg.Body
 		assert.Contains(t, body, "Cliente Orçamento", "email should contain customer name")
 		assert.Contains(t, body, "approve-all", "email should contain approve-all link")
 		assert.Contains(t, body, "reject-all", "email should contain reject-all link")
@@ -1647,7 +1668,8 @@ func TestIntegration_Flow_AdjustmentWhileWaitingApprovalResendsBudget(t *testing
 	addServicesToWorkOrder(t, app, workOrderID, []string{svc1ID})
 
 	transitionWorkOrder(t, app, workOrderID, "AGUARDANDO_APROVACAO")
-	require.Len(t, mockEmail.Messages(), 1)
+	_, ok := findLatestEmailBySubjectContains(mockEmail.Messages(), "Orçamento")
+	require.True(t, ok)
 
 	svc2ID := createTestWorkshopService(t, app, "Serviço Ajuste B", 7000, 45)
 	resp, err := flowPostJSON(app,
@@ -1658,8 +1680,16 @@ func TestIntegration_Flow_AdjustmentWhileWaitingApprovalResendsBudget(t *testing
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 
 	msgs := mockEmail.Messages()
-	require.Len(t, msgs, 2, "adjusting services while waiting approval should send a new budget")
-	assert.Contains(t, msgs[1].Body, "Serviço Ajuste B")
+	budgetEmails := 0
+	for _, msg := range msgs {
+		if strings.Contains(msg.Subject, "Orçamento") {
+			budgetEmails++
+		}
+	}
+	require.Equal(t, 2, budgetEmails, "adjusting services while waiting approval should send a new budget")
+	latest, ok := findLatestEmailBySubjectContains(msgs, "Orçamento")
+	require.True(t, ok)
+	assert.Contains(t, latest.Body, "Serviço Ajuste B")
 }
 
 // =============================================================================
@@ -1700,8 +1730,9 @@ func TestIntegration_Flow_SupplyShortageDelay(t *testing.T) {
 	// Verify the email body contains extended time (30min + 2 days = "2 dias")
 	t.Run("EmailContemAtrasoDeEstoque", func(t *testing.T) {
 		msgs := mockEmail.Messages()
-		require.Len(t, msgs, 1)
-		body := msgs[0].Body
+		msg, ok := findLatestEmailBySubjectContains(msgs, "Orçamento")
+		require.True(t, ok)
+		body := msg.Body
 		assert.Contains(t, body, "2 dias",
 			"email should show extended estimated time when supply has shortage (+2 days)")
 	})
@@ -1742,8 +1773,9 @@ func TestIntegration_Flow_NoShortageNormalTime(t *testing.T) {
 
 	t.Run("EmailSemAtraso", func(t *testing.T) {
 		msgs := mockEmail.Messages()
-		require.Len(t, msgs, 1)
-		body := msgs[0].Body
+		msg, ok := findLatestEmailBySubjectContains(msgs, "Orçamento")
+		require.True(t, ok)
+		body := msg.Body
 		// 90 min = "1 hora e 30 min", should NOT contain "dias"
 		assert.Contains(t, body, "1 hora",
 			"email should show normal estimated time without delay")
@@ -1775,8 +1807,9 @@ func TestIntegration_Flow_HappyPathWithBudgetAndEmail(t *testing.T) {
 	// Extract the approve-all link from the email body
 	t.Run("ClienteAprovaViaLinkDoEmail", func(t *testing.T) {
 		msgs := mockEmail.Messages()
-		require.Len(t, msgs, 1)
-		body := msgs[0].Body
+		msg, ok := findLatestEmailBySubjectContains(msgs, "Orçamento")
+		require.True(t, ok)
+		body := msg.Body
 
 		// Find the approve-all URL in the email
 		approveAllSuffix := fmt.Sprintf("/public/approvals/work-orders/%s/approve-all", workOrderID)
@@ -1811,6 +1844,90 @@ func TestIntegration_Flow_HappyPathWithBudgetAndEmail(t *testing.T) {
 
 		transitionWorkOrder(t, app, workOrderID, "ENTREGUE")
 	})
+}
+
+func TestIntegration_Flow_StatusNotificationsForAllTransitions(t *testing.T) {
+	app, _, mockEmail := setupFlowAppWithBudget(t)
+	seedTestUser(t, app)
+
+	customerID := createTestCustomer(t, app, "Cliente Status", "status@example.com", "12345678909", "CPF")
+	vehicleID := createTestVehicle(t, app, customerID, "STS1A23", "Ford", "Ka", 2021)
+	workOrderID := createTestWorkOrder(t, app, "Notificações de status", customerID, vehicleID)
+
+	svcID := createTestWorkshopService(t, app, "Serviço Status", 9000, 45)
+	wosIDs := addServicesToWorkOrder(t, app, workOrderID, []string{svcID})
+
+	assertStatusEmail(t, mockEmail, "Em diagnóstico")
+
+	transitionWorkOrder(t, app, workOrderID, "AGUARDANDO_APROVACAO")
+	budgetMsg, ok := findLatestEmailBySubjectContains(mockEmail.Messages(), "Orçamento")
+	require.True(t, ok)
+	assert.Contains(t, budgetMsg.Body, "Em diagnóstico")
+	assert.Contains(t, budgetMsg.Body, "Aguardando aprovação")
+
+	approveAllSuffix := fmt.Sprintf("/public/approvals/work-orders/%s/approve-all", workOrderID)
+	resp, err := flowGet(app, approveAllSuffix)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+	assertStatusEmail(t, mockEmail, "Aprovada")
+
+	transitionWorkOrder(t, app, workOrderID, "EM_EXECUCAO")
+	assertStatusEmail(t, mockEmail, "Em execução")
+
+	startAndFinalizeService(t, app, workOrderID, wosIDs[0])
+	assertStatusEmail(t, mockEmail, "Finalizada")
+
+	transitionWorkOrder(t, app, workOrderID, "ENTREGUE")
+	assertStatusEmail(t, mockEmail, "Entregue")
+}
+
+func TestIntegration_Flow_IdempotentTransitionDoesNotDuplicateEmail(t *testing.T) {
+	app, _, mockEmail := setupFlowAppWithBudget(t)
+	seedTestUser(t, app)
+
+	customerID := createTestCustomer(t, app, "Cliente Idempotente", "idempotente@example.com", "12345678909", "CPF")
+	vehicleID := createTestVehicle(t, app, customerID, "IDP1A23", "Chevrolet", "Onix", 2020)
+	workOrderID := createTestWorkOrder(t, app, "Idempotência", customerID, vehicleID)
+
+	svcID := createTestWorkshopService(t, app, "Serviço Idempotente", 5000, 20)
+	addServicesToWorkOrder(t, app, workOrderID, []string{svcID})
+
+	before := len(mockEmail.Messages())
+	transitionWorkOrder(t, app, workOrderID, "EM_DIAGNOSTICO")
+	transitionWorkOrder(t, app, workOrderID, "EM_DIAGNOSTICO")
+	after := len(mockEmail.Messages())
+
+	assert.Equal(t, before, after, "idempotent transition should not send duplicate email")
+}
+
+func TestIntegration_Flow_EmailFailureDoesNotRollbackTransition(t *testing.T) {
+	app, _, mockEmail := setupFlowAppWithBudget(t)
+	seedTestUser(t, app)
+
+	customerID := createTestCustomer(t, app, "Cliente Falha Email", "falha@example.com", "12345678909", "CPF")
+	vehicleID := createTestVehicle(t, app, customerID, "FAL1A23", "Renault", "Kwid", 2019)
+	workOrderID := createTestWorkOrder(t, app, "Falha email", customerID, vehicleID)
+	svcID := createTestWorkshopService(t, app, "Serviço Falha", 4000, 15)
+	addServicesToWorkOrder(t, app, workOrderID, []string{svcID})
+
+	mockEmail.failNext = true
+	resp, err := flowPutJSON(app, "/work-orders/"+workOrderID, map[string]any{"status": "AGUARDANDO_APROVACAO"})
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	woResp, err := flowGet(app, "/work-orders/"+workOrderID)
+	require.NoError(t, err)
+	body := flowReadBody(t, woResp)
+	assert.Equal(t, "AGUARDANDO_APROVACAO", body["status"])
+	assert.Nil(t, body["quote_sent_at"], "quote_sent_at should not be set when email fails")
+}
+
+func assertStatusEmail(t *testing.T, mockEmail *flowMockEmail, statusLabel string) {
+	t.Helper()
+	msg, ok := findLatestEmailBySubjectContains(mockEmail.Messages(), statusLabel)
+	require.True(t, ok, "expected status email for %s", statusLabel)
+	assert.Contains(t, msg.Body, "Status anterior:")
+	assert.Contains(t, msg.Body, "Novo status:")
 }
 
 // =============================================================================

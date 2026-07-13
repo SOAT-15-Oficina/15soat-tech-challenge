@@ -14,7 +14,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type WorkOrderRepository = application.WorkOrderRepository
+type WorkOrderRepository interface {
+	Create(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
+	FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrder, error)
+	FindByCode(ctx context.Context, code string) (*domain.WorkOrder, error)
+	FindAll(ctx context.Context) ([]domain.WorkOrder, error)
+	FindAllWithFilters(ctx context.Context, filters application.WorkOrderListFilters) (*application.WorkOrderListResponse, error)
+	Update(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
+	TransitionStatus(ctx context.Context, input application.WorkOrderStatusTransitionInput) (*domain.WorkOrder, bool, error)
+}
+
+type WorkOrderStatusTransitionInput = application.WorkOrderStatusTransitionInput
 
 type workOrderRepository struct {
 	db *pgxpool.Pool
@@ -221,6 +231,70 @@ func (r *workOrderRepository) Update(ctx context.Context, wo *domain.WorkOrder) 
 		return nil, err
 	}
 	return &result, nil
+}
+
+func (r *workOrderRepository) TransitionStatus(ctx context.Context, input WorkOrderStatusTransitionInput) (*domain.WorkOrder, bool, error) {
+	var approvedAt, startedAt, finishedAt, deliveredAt *time.Time
+
+	switch input.ToStatus {
+	case domain.WorkOrderStatusApproved:
+		approvedAt = &input.Now
+	case domain.WorkOrderStatusInProgress:
+		startedAt = &input.Now
+	case domain.WorkOrderStatusFinished:
+		finishedAt = &input.Now
+	case domain.WorkOrderStatusDelivered:
+		deliveredAt = &input.Now
+	}
+
+	query := `
+		UPDATE work_orders
+		SET
+			status = $1,
+			approved_at = COALESCE($2, approved_at),
+			started_at = COALESCE($3, started_at),
+			finished_at = COALESCE($4, finished_at),
+			delivered_at = COALESCE($5, delivered_at),
+			updated_at = $6
+		WHERE id = $7 AND status = $8
+		RETURNING
+			id, code, title, description, customer_id, vehicle_id, opened_by_user_id,
+			assigned_technician_id, status, total_estimated_price_cents, received_at,
+			quote_sent_at, approved_at, started_at, finished_at, delivered_at,
+			created_at, updated_at`
+
+	var result domain.WorkOrder
+	err := r.db.QueryRow(ctx, query,
+		input.ToStatus,
+		approvedAt,
+		startedAt,
+		finishedAt,
+		deliveredAt,
+		input.Now,
+		input.WorkOrderID,
+		input.FromStatus,
+	).Scan(
+		&result.ID, &result.Code, &result.Title, &result.Description, &result.CustomerID, &result.VehicleID, &result.OpenedByUserID,
+		&result.AssignedTechnicianID, &result.Status, &result.TotalEstimatedPriceCents, &result.ReceivedAt,
+		&result.QuoteSentAt, &result.ApprovedAt, &result.StartedAt, &result.FinishedAt, &result.DeliveredAt,
+		&result.CreatedAt, &result.UpdatedAt,
+	)
+	if err == nil {
+		return &result, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, err
+	}
+
+	current, findErr := r.FindByID(ctx, input.WorkOrderID)
+	if findErr != nil {
+		return nil, false, findErr
+	}
+	if current.Status == input.ToStatus {
+		return current, false, nil
+	}
+
+	return nil, false, fmt.Errorf("%w: %s -> %s", ErrInvalidWorkOrderStatusTransition, current.Status, input.ToStatus)
 }
 
 func (r *workOrderRepository) FindAllWithFilters(ctx context.Context, filters application.WorkOrderListFilters) (*application.WorkOrderListResponse, error) {

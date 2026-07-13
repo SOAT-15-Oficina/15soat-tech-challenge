@@ -158,13 +158,13 @@ func TestAddServices_WaitingApproval_RefreshesBudget(t *testing.T) {
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil).Twice()
 	wsRepo.On("FindByID", ctx, wsID).Return(ws, nil)
 	wosRepo.On("CreateBatch", ctx, mock.AnythingOfType("[]*domain.WorkOrderService")).Return(created, nil)
-	budgetSvc.On("GenerateAndSendBudget", ctx, woID).Return(nil)
+	budgetSvc.On("GenerateAndSendBudget", ctx, woID, mock.Anything).Return(nil)
 
 	result, err := svc.AddServices(ctx, woID, []AddWorkOrderServiceInput{{ServiceID: wsID}})
 
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
-	budgetSvc.AssertCalled(t, "GenerateAndSendBudget", ctx, woID)
+	budgetSvc.AssertCalled(t, "GenerateAndSendBudget", ctx, woID, mock.Anything)
 }
 
 func TestAddServices_InactiveService_ReturnsError(t *testing.T) {

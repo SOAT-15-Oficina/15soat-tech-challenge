@@ -568,6 +568,29 @@ Com o projeto rodando, acesse o Swagger UI para visualizar e testar todos os end
 
 Para endpoints autenticados, clique em **Authorize** no Swagger UI e insira o token JWT de desenvolvimento (seção abaixo).
 
+### Notificações de status da OS
+
+Toda transição relevante da ordem de serviço dispara um e-mail ao cliente com **código da OS**, **status anterior** e **novo status**.
+
+| Transição | E-mail |
+|-----------|--------|
+| `RECEBIDA` → `EM_DIAGNOSTICO` | Atualização de status |
+| `EM_DIAGNOSTICO` → `AGUARDANDO_APROVACAO` | Orçamento com links de aprovação/recusa |
+| `AGUARDANDO_APROVACAO` → `APROVADO` | Atualização de status |
+| `AGUARDANDO_APROVACAO` → `CANCELADA` | Atualização de status (recusa total ou cancelamento) |
+| `RECEBIDA` / `EM_DIAGNOSTICO` → `CANCELADA` | Atualização de status |
+| `APROVADO` → `EM_EXECUCAO` | Atualização de status |
+| `EM_EXECUCAO` → `FINALIZADA` | Atualização de status |
+| `FINALIZADA` → `ENTREGUE` | Atualização de status |
+
+**Política de falha (best effort):**
+- A transição de status é persistida de forma atômica e idempotente.
+- Falhas no provedor de e-mail são apenas registradas em log; a API não retorna erro e não reverte o status.
+- `quote_sent_at` e total do orçamento só são gravados após envio bem-sucedido do e-mail de orçamento.
+- Transições repetidas para o mesmo status não geram e-mail duplicado.
+
+O envio é feito pelo `email.Provider` de `packages/email` (MailHog em desenvolvimento), exposto à aplicação pela porta `internal/application/port.EmailSender` (alias do mesmo contrato).
+
 ### Endpoints
 
 | Metodo | Rota    | Descricao    |

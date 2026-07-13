@@ -30,31 +30,17 @@ type WorkOrderStatusService interface {
 }
 
 type workOrderStatusService struct {
-	woRepo  application.WorkOrderRepository
-	wosRepo application.WorkOrderServiceRepository
-	budget  BudgetService
+	woRepo   application.WorkOrderRepository
+	notifier WorkOrderStatusNotifier
 }
 
 func NewWorkOrderStatusService(
 	woRepo application.WorkOrderRepository,
-	wosRepo application.WorkOrderServiceRepository,
-	opts ...WorkOrderStatusServiceOption,
+	notifier WorkOrderStatusNotifier,
 ) WorkOrderStatusService {
-	svc := &workOrderStatusService{
-		woRepo:  woRepo,
-		wosRepo: wosRepo,
-	}
-	for _, opt := range opts {
-		opt(svc)
-	}
-	return svc
-}
-
-type WorkOrderStatusServiceOption func(*workOrderStatusService)
-
-func WithBudgetGeneration(budget BudgetService) WorkOrderStatusServiceOption {
-	return func(s *workOrderStatusService) {
-		s.budget = budget
+	return &workOrderStatusService{
+		woRepo:   woRepo,
+		notifier: notifier,
 	}
 }
 
@@ -77,38 +63,27 @@ func (s *workOrderStatusService) TransitionTo(ctx context.Context, workOrderID u
 		return nil, fmt.Errorf("transition: find work order: %w", err)
 	}
 
-	if wo.Status == newStatus {
+	previousStatus := wo.Status
+	if previousStatus == newStatus {
 		return wo, nil
 	}
 
-	if !s.IsValidTransition(wo.Status, newStatus) {
-		return nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStatusTransition, wo.Status, newStatus)
+	if !s.IsValidTransition(previousStatus, newStatus) {
+		return nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStatusTransition, previousStatus, newStatus)
 	}
 
-	wo.Status = newStatus
-	now := time.Now()
-	wo.UpdatedAt = now
-
-	switch newStatus {
-	case domain.WorkOrderStatusApproved:
-		wo.ApprovedAt = &now
-	case domain.WorkOrderStatusInProgress:
-		wo.StartedAt = &now
-	case domain.WorkOrderStatusFinished:
-		wo.FinishedAt = &now
-	case domain.WorkOrderStatusDelivered:
-		wo.DeliveredAt = &now
-	}
-
-	updated, err := s.woRepo.Update(ctx, wo)
+	updated, transitioned, err := s.woRepo.TransitionStatus(ctx, application.WorkOrderStatusTransitionInput{
+		WorkOrderID: workOrderID,
+		FromStatus:  previousStatus,
+		ToStatus:    newStatus,
+		Now:         time.Now(),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("transition: update work order: %w", err)
 	}
 
-	if updated.Status == domain.WorkOrderStatusWaitingApproval && s.budget != nil {
-		if err := s.budget.GenerateAndSendBudget(ctx, updated.ID); err != nil {
-			return nil, fmt.Errorf("transition: generate budget: %w", err)
-		}
+	if transitioned && s.notifier != nil {
+		s.notifier.NotifyTransition(ctx, updated, previousStatus)
 	}
 
 	return updated, nil
