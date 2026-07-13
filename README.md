@@ -142,7 +142,7 @@ sudo ./svc.sh start
 sudo ./svc.sh status
 ```
 
-Como alternativa, use o script do projeto. Ele solicita o token de registro via `gh` ou usa o token informado em `RUNNER_TOKEN`.
+Como alternativa, use o script do projeto. Ele solicita o token de registro via `gh` ou usa o token informado em `RUNNER_TOKEN`. A conta autenticada precisa ter permissao de administrador no repositorio; permissao de push nao permite registrar runners.
 
 ```bash
 chmod +x scripts/setup-self-hosted-runner.sh
@@ -152,10 +152,22 @@ scripts/setup-self-hosted-runner.sh
 RUNNER_TOKEN="<token-do-github>" scripts/setup-self-hosted-runner.sh
 ```
 
-O script detecta a arquitetura local automaticamente (`x64`, `arm64` ou `arm`). Para sobrescrever a deteccao, informe `RUNNER_ARCH`, por exemplo:
+Para um repositorio de organizacao, informe o repositorio explicitamente. O token deve ser um token de registro temporario gerado em `Settings` > `Actions` > `Runners` > `New self-hosted runner`, e nao um Personal Access Token:
 
 ```bash
-RUNNER_ARCH=arm64 RUNNER_TOKEN="<token-do-github>" scripts/setup-self-hosted-runner.sh
+REPO=SOAT-15-Oficina/15soat-tech-challenge \
+RUNNER_TOKEN="<token-de-registro>" \
+scripts/setup-self-hosted-runner.sh
+```
+
+O script executa todo o fluxo: detecta a arquitetura local (`x64`, `arm64` ou `arm`), descobre a versao mais recente, baixa o pacote, valida o SHA256 publicado pelo GitHub, configura o runner com o label `local-kind`, instala-o como servico e inicia o servico. Por padrao, o servico e instalado e iniciado automaticamente.
+
+Para apenas configurar sem instalar o servico, use `INSTALL_SERVICE=false`; para instalar mas deixar parado, use `START_SERVICE=false`. Para sobrescrever a arquitetura, informe `RUNNER_ARCH`, por exemplo:
+
+```bash
+RUNNER_ARCH=arm64 INSTALL_SERVICE=false \
+RUNNER_TOKEN="<token-de-registro>" \
+scripts/setup-self-hosted-runner.sh
 ```
 
 Confirme que o runner aparece como `Idle` em `Settings` > `Actions` > `Runners`.
