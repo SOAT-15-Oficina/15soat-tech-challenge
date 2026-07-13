@@ -1,18 +1,19 @@
 package service
 
 import (
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 )
 
 func NewWorkOrderStatusServiceWithNotifications(
-	woRepo repository.WorkOrderRepository,
-	wosRepo repository.WorkOrderServiceRepository,
-	customerRepo repository.CustomerRepository,
+	woRepo application.WorkOrderRepository,
+	wosRepo application.WorkOrderServiceRepository,
+	customerRepo application.CustomerRepository,
 	emailProv email.Provider,
 	baseURL string,
 ) WorkOrderStatusService {
-	budgetSvc := NewBudgetService(woRepo, wosRepo, customerRepo, emailProv, baseURL)
-	notifier := NewWorkOrderStatusNotifier(customerRepo, emailProv, budgetSvc)
+	sender := email.NewWorkOrderNotificationSender(emailProv)
+	budgetSvc := NewBudgetService(woRepo, wosRepo, customerRepo, sender, baseURL)
+	notifier := NewWorkOrderStatusNotifier(customerRepo, sender, budgetSvc)
 	return NewWorkOrderStatusService(woRepo, notifier)
 }

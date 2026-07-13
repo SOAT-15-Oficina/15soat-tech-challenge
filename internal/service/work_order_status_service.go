@@ -30,29 +30,17 @@ type WorkOrderStatusService interface {
 }
 
 type workOrderStatusService struct {
-	woRepo   repository.WorkOrderRepository
+	woRepo   application.WorkOrderRepository
 	notifier WorkOrderStatusNotifier
 }
 
 func NewWorkOrderStatusService(
-	woRepo repository.WorkOrderRepository,
+	woRepo application.WorkOrderRepository,
 	notifier WorkOrderStatusNotifier,
 ) WorkOrderStatusService {
 	return &workOrderStatusService{
 		woRepo:   woRepo,
 		notifier: notifier,
-	}
-	for _, opt := range opts {
-		opt(svc)
-	}
-	return svc
-}
-
-type WorkOrderStatusServiceOption func(*workOrderStatusService)
-
-func WithBudgetGeneration(budget BudgetService) WorkOrderStatusServiceOption {
-	return func(s *workOrderStatusService) {
-		s.budget = budget
 	}
 }
 
@@ -84,7 +72,7 @@ func (s *workOrderStatusService) TransitionTo(ctx context.Context, workOrderID u
 		return nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStatusTransition, previousStatus, newStatus)
 	}
 
-	updated, transitioned, err := s.woRepo.TransitionStatus(ctx, repository.WorkOrderStatusTransitionInput{
+	updated, transitioned, err := s.woRepo.TransitionStatus(ctx, application.WorkOrderStatusTransitionInput{
 		WorkOrderID: workOrderID,
 		FromStatus:  previousStatus,
 		ToStatus:    newStatus,

@@ -59,12 +59,12 @@ func TestGenerateAndSendBudget_Success(t *testing.T) {
 	wosRepo.On("CalculateTotalForWorkOrder", ctx, woID).Return(5000, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(nil)
+	notifier.On("SendBudget", ctx, mock.AnythingOfType("application.BudgetNotification")).Return(nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	err := svc.GenerateAndSendBudget(ctx, woID, &previous)
 	require.NoError(t, err)
-	emailProv.AssertExpectations(t)
+	notifier.AssertExpectations(t)
 	woRepo.AssertCalled(t, "Update", ctx, mock.AnythingOfType("*domain.WorkOrder"))
 }
 
@@ -137,14 +137,13 @@ func TestGenerateAndSendBudget_AddsTwoDaysWhenSupplyIsShort(t *testing.T) {
 	wosRepo.On("CalculateTotalForWorkOrder", ctx, woID).Return(7000, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(nil)
+	notifier.On("SendBudget", ctx, mock.AnythingOfType("application.BudgetNotification")).Return(nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	err := svc.GenerateAndSendBudget(ctx, woID, nil)
 	require.NoError(t, err)
 
-	callArgs := notifier.Calls[0].Arguments
-	notification := callArgs.Get(1).(application.BudgetNotification)
+	notification := notifier.Calls[0].Arguments.Get(1).(application.BudgetNotification)
 	assert.Equal(t, "2 dias e 1 hora", notification.Services[0].Estimated)
 }
 
@@ -152,8 +151,8 @@ func TestGenerateAndSendBudget_IncludesStatusAndApprovalLinks(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
 	wosRepo := new(mockWorkOrderServiceRepo)
 	custRepo := new(mockCustomerRepo)
-	emailProv := new(mockEmailProvider)
-	svc := newBudgetService(woRepo, wosRepo, custRepo, emailProv)
+	notifier := new(mockBudgetNotifier)
+	svc := newBudgetService(woRepo, wosRepo, custRepo, notifier)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -175,20 +174,20 @@ func TestGenerateAndSendBudget_IncludesStatusAndApprovalLinks(t *testing.T) {
 	wosRepo.On("CalculateTotalForWorkOrder", ctx, woID).Return(12000, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(nil)
+	notifier.On("SendBudget", ctx, mock.AnythingOfType("application.BudgetNotification")).Return(nil)
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
 	err := svc.GenerateAndSendBudget(ctx, woID, &previous)
 	require.NoError(t, err)
 
-	msg := emailProv.Calls[0].Arguments.Get(1).(email.Message)
-	assert.Contains(t, msg.Body, "WO-010")
-	assert.Contains(t, msg.Body, "Em diagnóstico")
-	assert.Contains(t, msg.Body, "Aguardando aprovação")
-	assert.Contains(t, msg.Body, "http://localhost:3000/public/approvals/services/"+wosID.String()+"/approve")
-	assert.Contains(t, msg.Body, "http://localhost:3000/public/approvals/services/"+wosID.String()+"/reject")
-	assert.Contains(t, msg.Body, "http://localhost:3000/public/approvals/work-orders/"+woID.String()+"/approve-all")
-	assert.Contains(t, msg.Body, "http://localhost:3000/public/approvals/work-orders/"+woID.String()+"/reject-all")
+	notification := notifier.Calls[0].Arguments.Get(1).(application.BudgetNotification)
+	assert.Equal(t, "WO-010", notification.WorkOrderCode)
+	assert.Equal(t, "Em diagnóstico", notification.PreviousStatusLabel)
+	assert.Equal(t, "Aguardando aprovação", notification.NewStatusLabel)
+	assert.Contains(t, notification.Services[0].ApproveLink, wosID.String()+"/approve")
+	assert.Contains(t, notification.Services[0].RejectLink, wosID.String()+"/reject")
+	assert.Contains(t, notification.ApproveAllLink, woID.String()+"/approve-all")
+	assert.Contains(t, notification.RejectAllLink, woID.String()+"/reject-all")
 }
 
 func TestGenerateAndSendBudget_FindSupplyShortagesFails(t *testing.T) {
@@ -207,8 +206,6 @@ func TestGenerateAndSendBudget_FindSupplyShortagesFails(t *testing.T) {
 	assert.Error(t, err)
 	notifier.AssertNotCalled(t, "SendBudget")
 }
-
-// --- formatCents ---
 
 func TestFormatCents(t *testing.T) {
 	tests := []struct {

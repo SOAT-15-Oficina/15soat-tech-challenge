@@ -6,28 +6,27 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-type mockBudgetService struct {
+type mockStatusSender struct {
 	mock.Mock
 }
 
-func (m *mockBudgetService) GenerateAndSendBudget(ctx context.Context, workOrderID uuid.UUID, previousStatus *domain.WorkOrderStatus) error {
-	args := m.Called(ctx, workOrderID, previousStatus)
-	return args.Error(0)
+func (m *mockStatusSender) SendStatusChange(ctx context.Context, notification application.StatusChangeNotification) error {
+	return m.Called(ctx, notification).Error(0)
 }
 
 func TestWorkOrderStatusNotifier_SendsStatusEmail(t *testing.T) {
 	custRepo := new(mockCustomerRepo)
-	emailProv := new(mockEmailProvider)
-	budgetSvc := new(mockBudgetService)
-	notifier := NewWorkOrderStatusNotifier(custRepo, emailProv, budgetSvc)
+	statusSender := new(mockStatusSender)
+	budgetSvc := new(mockBudgetServiceUseCase)
+	notifier := NewWorkOrderStatusNotifier(custRepo, statusSender, budgetSvc)
 	ctx := context.Background()
 
 	custID := uuid.New()
@@ -40,24 +39,23 @@ func TestWorkOrderStatusNotifier_SendsStatusEmail(t *testing.T) {
 	customer := &domain.Customer{ID: custID, Name: "Ana", Email: "ana@example.com"}
 
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(nil)
+	statusSender.On("SendStatusChange", ctx, mock.AnythingOfType("application.StatusChangeNotification")).Return(nil)
 
 	notifier.NotifyTransition(ctx, wo, domain.WorkOrderStatusApproved)
 
-	emailProv.AssertExpectations(t)
-	msg := emailProv.Calls[0].Arguments.Get(1).(email.Message)
-	assert.Equal(t, []string{"ana@example.com"}, msg.To)
-	assert.Contains(t, msg.Subject, "WO-100")
-	assert.Contains(t, msg.Body, "WO-100")
-	assert.Contains(t, msg.Body, "Aprovada")
-	assert.Contains(t, msg.Body, "Em execução")
+	statusSender.AssertExpectations(t)
+	notification := statusSender.Calls[0].Arguments.Get(1).(application.StatusChangeNotification)
+	assert.Equal(t, "ana@example.com", notification.CustomerEmail)
+	assert.Equal(t, "WO-100", notification.WorkOrderCode)
+	assert.Equal(t, "Aprovada", notification.PreviousStatusLabel)
+	assert.Equal(t, "Em execução", notification.NewStatusLabel)
 }
 
 func TestWorkOrderStatusNotifier_WaitingApprovalUsesBudgetService(t *testing.T) {
 	custRepo := new(mockCustomerRepo)
-	emailProv := new(mockEmailProvider)
-	budgetSvc := new(mockBudgetService)
-	notifier := NewWorkOrderStatusNotifier(custRepo, emailProv, budgetSvc)
+	statusSender := new(mockStatusSender)
+	budgetSvc := new(mockBudgetServiceUseCase)
+	notifier := NewWorkOrderStatusNotifier(custRepo, statusSender, budgetSvc)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -71,14 +69,14 @@ func TestWorkOrderStatusNotifier_WaitingApprovalUsesBudgetService(t *testing.T) 
 	notifier.NotifyTransition(ctx, wo, domain.WorkOrderStatusInDiagnosis)
 
 	budgetSvc.AssertExpectations(t)
-	emailProv.AssertNotCalled(t, "Send")
+	statusSender.AssertNotCalled(t, "SendStatusChange")
 }
 
 func TestWorkOrderStatusNotifier_CanceledMessage(t *testing.T) {
 	custRepo := new(mockCustomerRepo)
-	emailProv := new(mockEmailProvider)
-	budgetSvc := new(mockBudgetService)
-	notifier := NewWorkOrderStatusNotifier(custRepo, emailProv, budgetSvc)
+	statusSender := new(mockStatusSender)
+	budgetSvc := new(mockBudgetServiceUseCase)
+	notifier := NewWorkOrderStatusNotifier(custRepo, statusSender, budgetSvc)
 	ctx := context.Background()
 
 	custID := uuid.New()
@@ -91,19 +89,19 @@ func TestWorkOrderStatusNotifier_CanceledMessage(t *testing.T) {
 	customer := &domain.Customer{ID: custID, Name: "Pedro", Email: "pedro@example.com"}
 
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(nil)
+	statusSender.On("SendStatusChange", ctx, mock.AnythingOfType("application.StatusChangeNotification")).Return(nil)
 
 	notifier.NotifyTransition(ctx, wo, domain.WorkOrderStatusWaitingApproval)
 
-	msg := emailProv.Calls[0].Arguments.Get(1).(email.Message)
-	assert.True(t, strings.Contains(msg.Body, "recusado"))
+	notification := statusSender.Calls[0].Arguments.Get(1).(application.StatusChangeNotification)
+	assert.True(t, strings.Contains(notification.Message, "recusado"))
 }
 
 func TestWorkOrderStatusNotifier_EmailFailureIsBestEffort(t *testing.T) {
 	custRepo := new(mockCustomerRepo)
-	emailProv := new(mockEmailProvider)
-	budgetSvc := new(mockBudgetService)
-	notifier := NewWorkOrderStatusNotifier(custRepo, emailProv, budgetSvc)
+	statusSender := new(mockStatusSender)
+	budgetSvc := new(mockBudgetServiceUseCase)
+	notifier := NewWorkOrderStatusNotifier(custRepo, statusSender, budgetSvc)
 	ctx := context.Background()
 
 	custID := uuid.New()
@@ -116,7 +114,7 @@ func TestWorkOrderStatusNotifier_EmailFailureIsBestEffort(t *testing.T) {
 	customer := &domain.Customer{ID: custID, Name: "Luiza", Email: "luiza@example.com"}
 
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(errors.New("smtp down"))
+	statusSender.On("SendStatusChange", ctx, mock.AnythingOfType("application.StatusChangeNotification")).Return(errors.New("smtp down"))
 
 	require.NotPanics(t, func() {
 		notifier.NotifyTransition(ctx, wo, domain.WorkOrderStatusFinished)

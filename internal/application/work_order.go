@@ -36,6 +36,14 @@ type WorkOrderRepository interface {
 	FindAll(ctx context.Context) ([]domain.WorkOrder, error)
 	FindAllWithFilters(ctx context.Context, filters WorkOrderListFilters) (*WorkOrderListResponse, error)
 	Update(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
+	TransitionStatus(ctx context.Context, input WorkOrderStatusTransitionInput) (*domain.WorkOrder, bool, error)
+}
+
+type WorkOrderStatusTransitionInput struct {
+	WorkOrderID uuid.UUID
+	FromStatus  domain.WorkOrderStatus
+	ToStatus    domain.WorkOrderStatus
+	Now         time.Time
 }
 
 type VehicleRepository interface {
@@ -89,15 +97,17 @@ type SupplyShortageAlert struct {
 }
 
 type BudgetNotification struct {
-	CustomerName   string
-	CustomerEmail  string
-	WorkOrderID    uuid.UUID
-	WorkOrderCode  string
-	Amount         string
-	Services       []BudgetNotificationService
-	ApproveAllLink string
-	RejectAllLink  string
-	BudgetLink     string
+	CustomerName        string
+	CustomerEmail       string
+	WorkOrderID         uuid.UUID
+	WorkOrderCode       string
+	PreviousStatusLabel string
+	NewStatusLabel      string
+	Amount              string
+	Services            []BudgetNotificationService
+	ApproveAllLink      string
+	RejectAllLink       string
+	BudgetLink          string
 }
 
 type BudgetNotificationService struct {
@@ -110,6 +120,19 @@ type BudgetNotificationService struct {
 
 type BudgetNotificationSender interface {
 	SendBudget(ctx context.Context, notification BudgetNotification) error
+}
+
+type StatusChangeNotification struct {
+	CustomerEmail       string
+	CustomerName        string
+	WorkOrderCode       string
+	PreviousStatusLabel string
+	NewStatusLabel      string
+	Message             string
+}
+
+type StatusChangeSender interface {
+	SendStatusChange(ctx context.Context, notification StatusChangeNotification) error
 }
 
 type PurchaseAlertNotification struct {

@@ -2,12 +2,10 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"log"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 )
 
 type WorkOrderStatusNotifier interface {
@@ -15,20 +13,20 @@ type WorkOrderStatusNotifier interface {
 }
 
 type workOrderStatusNotifier struct {
-	custRepo  repository.CustomerRepository
-	emailProv email.Provider
-	budgetSvc BudgetService
+	custRepo      application.CustomerRepository
+	statusSender  application.StatusChangeSender
+	budgetSvc     BudgetService
 }
 
 func NewWorkOrderStatusNotifier(
-	custRepo repository.CustomerRepository,
-	emailProv email.Provider,
+	custRepo application.CustomerRepository,
+	statusSender application.StatusChangeSender,
 	budgetSvc BudgetService,
 ) WorkOrderStatusNotifier {
 	return &workOrderStatusNotifier{
-		custRepo:  custRepo,
-		emailProv: emailProv,
-		budgetSvc: budgetSvc,
+		custRepo:     custRepo,
+		statusSender: statusSender,
+		budgetSvc:    budgetSvc,
 	}
 }
 
@@ -51,32 +49,25 @@ func (n *workOrderStatusNotifier) NotifyTransition(
 		return
 	}
 
+	if n.statusSender == nil {
+		log.Printf("work order status notification: sender not configured for work order %s", workOrder.ID)
+		return
+	}
+
 	customer, err := n.custRepo.FindByID(ctx, workOrder.CustomerID)
 	if err != nil {
 		log.Printf("work order status notification: find customer for work order %s: %v", workOrder.ID, err)
 		return
 	}
 
-	body, err := email.RenderStatusChangeEmail(email.StatusChangeEmailData{
+	if err := n.statusSender.SendStatusChange(ctx, application.StatusChangeNotification{
+		CustomerEmail:       customer.Email,
 		CustomerName:        customer.Name,
 		WorkOrderCode:       workOrder.Code,
 		PreviousStatusLabel: domain.WorkOrderStatusLabel(previousStatus),
 		NewStatusLabel:      domain.WorkOrderStatusLabel(newStatus),
 		Message:             statusChangeMessage(previousStatus, newStatus),
-	})
-	if err != nil {
-		log.Printf("work order status notification: render email for work order %s: %v", workOrder.ID, err)
-		return
-	}
-
-	msg := email.Message{
-		To:      []string{customer.Email},
-		Subject: fmt.Sprintf("Atualização da OS %s - %s", workOrder.Code, domain.WorkOrderStatusLabel(newStatus)),
-		Body:    body,
-		HTML:    true,
-	}
-
-	if err := n.emailProv.Send(ctx, msg); err != nil {
+	}); err != nil {
 		log.Printf("work order status notification: send email for work order %s: %v", workOrder.ID, err)
 	}
 }

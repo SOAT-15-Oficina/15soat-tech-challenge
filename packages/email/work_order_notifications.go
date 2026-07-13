@@ -21,12 +21,15 @@ func (s *WorkOrderNotificationSender) SendBudget(ctx context.Context, notificati
 	}
 
 	body, err := RenderBudgetEmail(BudgetEmailData{
-		CustomerName:   notification.CustomerName,
-		Amount:         notification.Amount,
-		BudgetLink:     notification.BudgetLink,
-		Services:       toBudgetServiceItems(notification.Services),
-		ApproveAllLink: notification.ApproveAllLink,
-		RejectAllLink:  notification.RejectAllLink,
+		CustomerName:        notification.CustomerName,
+		WorkOrderCode:       notification.WorkOrderCode,
+		PreviousStatusLabel: notification.PreviousStatusLabel,
+		NewStatusLabel:      notification.NewStatusLabel,
+		Amount:              notification.Amount,
+		BudgetLink:          notification.BudgetLink,
+		Services:            toBudgetServiceItems(notification.Services),
+		ApproveAllLink:      notification.ApproveAllLink,
+		RejectAllLink:       notification.RejectAllLink,
 	})
 	if err != nil {
 		return err
@@ -57,6 +60,30 @@ func (s *WorkOrderNotificationSender) SendPurchaseAlert(ctx context.Context, not
 	return s.provider.Send(ctx, Message{
 		To:      []string{notification.To},
 		Subject: fmt.Sprintf("Alerta de Compra - OS %s", notification.WorkOrderCode),
+		Body:    body,
+		HTML:    true,
+	})
+}
+
+func (s *WorkOrderNotificationSender) SendStatusChange(ctx context.Context, notification application.StatusChangeNotification) error {
+	if s == nil || s.provider == nil {
+		return nil
+	}
+
+	body, err := RenderStatusChangeEmail(StatusChangeEmailData{
+		CustomerName:        notification.CustomerName,
+		WorkOrderCode:       notification.WorkOrderCode,
+		PreviousStatusLabel: notification.PreviousStatusLabel,
+		NewStatusLabel:      notification.NewStatusLabel,
+		Message:             notification.Message,
+	})
+	if err != nil {
+		return err
+	}
+
+	return s.provider.Send(ctx, Message{
+		To:      []string{notification.CustomerEmail},
+		Subject: fmt.Sprintf("Atualização da OS %s - %s", notification.WorkOrderCode, notification.NewStatusLabel),
 		Body:    body,
 		HTML:    true,
 	})

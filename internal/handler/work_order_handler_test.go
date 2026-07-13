@@ -67,12 +67,6 @@ func (m *mockWorkOrderService) Update(ctx context.Context, wo *domain.WorkOrder)
 
 // --- Additional mocks for full work order handler testing ---
 
-type mockBudgetService struct{ mock.Mock }
-
-func (m *mockBudgetService) GenerateAndSendBudget(ctx context.Context, workOrderID uuid.UUID, previousStatus *domain.WorkOrderStatus) error {
-	return m.Called(ctx, workOrderID, previousStatus).Error(0)
-}
-
 type mockCreationService struct{ mock.Mock }
 
 func (m *mockCreationService) AddServices(ctx context.Context, woID uuid.UUID, items []service.AddWorkOrderServiceInput) ([]domain.WorkOrderService, error) {
@@ -335,7 +329,7 @@ func TestWorkOrder_Create_Success(t *testing.T) {
 
 func TestWorkOrder_Create_NoToken(t *testing.T) {
 	deps := &woTestDeps{
-		woSvc:       new(mockWorkOrderService),
+		woSvc: new(mockWorkOrderService),
 		creationSvc: new(mockCreationService), statusSvc: new(mockStatusSvc), userRepo: new(mockUserRepo),
 	}
 	app := fiber.New()
@@ -431,22 +425,6 @@ func TestWorkOrder_Update_StatusTransitionInvalid(t *testing.T) {
 	assert.Equal(t, fiber.StatusUnprocessableEntity, r.StatusCode)
 }
 
-func TestWorkOrder_Update_StatusWaitingApproval_DoesNotSendBudgetFromHandler(t *testing.T) {
-	app, deps := setupFullWorkOrderApp()
-	id := uuid.New()
-	wo := &domain.WorkOrder{ID: id, Status: domain.WorkOrderStatusWaitingApproval}
-	deps.statusSvc.On("TransitionTo", mock.Anything, id, domain.WorkOrderStatusWaitingApproval).Return(wo, nil)
-	deps.woSvc.On("Update", mock.Anything, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
-
-	body, _ := json.Marshal(map[string]any{"status": domain.WorkOrderStatusWaitingApproval})
-	req := httptest.NewRequest(http.MethodPut, "/work-orders/"+id.String(), bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	r, err := app.Test(req)
-	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusOK, r.StatusCode)
-	deps.budgetSvc.AssertNotCalled(t, "GenerateAndSendBudget")
-}
-
 func TestWorkOrder_Update_StatusTransitionOnly(t *testing.T) {
 	app, deps := setupFullWorkOrderApp()
 	id := uuid.New()
@@ -482,7 +460,6 @@ func TestWorkOrder_AddServices_Success(t *testing.T) {
 	woID := uuid.New()
 	result := []domain.WorkOrderService{{ID: uuid.New(), WorkOrderID: woID}}
 	deps.creationSvc.On("AddServices", mock.Anything, woID, mock.Anything).Return(result, nil)
-	deps.woSvc.On("GetByID", mock.Anything, woID).Return(&domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInDiagnosis}, nil)
 
 	body, _ := json.Marshal([]map[string]any{{"service_id": uuid.New()}})
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/"+woID.String()+"/services", bytes.NewReader(body))

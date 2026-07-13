@@ -63,7 +63,7 @@ func (m *mockWorkOrderRepo) Update(ctx context.Context, wo *domain.WorkOrder) (*
 	return args.Get(0).(*domain.WorkOrder), args.Error(1)
 }
 
-func (m *mockWorkOrderRepo) TransitionStatus(ctx context.Context, input repository.WorkOrderStatusTransitionInput) (*domain.WorkOrder, bool, error) {
+func (m *mockWorkOrderRepo) TransitionStatus(ctx context.Context, input application.WorkOrderStatusTransitionInput) (*domain.WorkOrder, bool, error) {
 	args := m.Called(ctx, input)
 	if args.Get(0) == nil {
 		return nil, args.Bool(1), args.Error(2)
@@ -326,8 +326,8 @@ type mockBudgetServiceUseCase struct {
 	mock.Mock
 }
 
-func (m *mockBudgetServiceUseCase) GenerateAndSendBudget(ctx context.Context, workOrderID uuid.UUID) error {
-	return m.Called(ctx, workOrderID).Error(0)
+func (m *mockBudgetServiceUseCase) GenerateAndSendBudget(ctx context.Context, workOrderID uuid.UUID, previousStatus *domain.WorkOrderStatus) error {
+	return m.Called(ctx, workOrderID, previousStatus).Error(0)
 }
 
 // mockSupplyRepo mocks repository.SupplyRepository

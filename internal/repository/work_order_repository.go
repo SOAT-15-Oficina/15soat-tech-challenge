@@ -21,15 +21,10 @@ type WorkOrderRepository interface {
 	FindAll(ctx context.Context) ([]domain.WorkOrder, error)
 	FindAllWithFilters(ctx context.Context, filters application.WorkOrderListFilters) (*application.WorkOrderListResponse, error)
 	Update(ctx context.Context, workOrder *domain.WorkOrder) (*domain.WorkOrder, error)
-	TransitionStatus(ctx context.Context, input WorkOrderStatusTransitionInput) (*domain.WorkOrder, bool, error)
+	TransitionStatus(ctx context.Context, input application.WorkOrderStatusTransitionInput) (*domain.WorkOrder, bool, error)
 }
 
-type WorkOrderStatusTransitionInput struct {
-	WorkOrderID uuid.UUID
-	FromStatus  domain.WorkOrderStatus
-	ToStatus    domain.WorkOrderStatus
-	Now         time.Time
-}
+type WorkOrderStatusTransitionInput = application.WorkOrderStatusTransitionInput
 
 type workOrderRepository struct {
 	db *pgxpool.Pool
