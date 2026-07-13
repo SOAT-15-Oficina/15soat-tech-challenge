@@ -193,7 +193,6 @@ func (m *mockUserRepo) FindAll(ctx context.Context) ([]domain.User, error) {
 
 type woTestDeps struct {
 	woSvc       *mockWorkOrderService
-	budgetSvc   *mockBudgetService
 	creationSvc *mockCreationService
 	statusSvc   *mockStatusSvc
 	userRepo    *mockUserRepo
@@ -202,13 +201,12 @@ type woTestDeps struct {
 func setupFullWorkOrderApp() (*fiber.App, *woTestDeps) {
 	deps := &woTestDeps{
 		woSvc:       new(mockWorkOrderService),
-		budgetSvc:   new(mockBudgetService),
 		creationSvc: new(mockCreationService),
 		statusSvc:   new(mockStatusSvc),
 		userRepo:    new(mockUserRepo),
 	}
 	app := fiber.New()
-	h := NewWorkOrderHandler(deps.woSvc, deps.budgetSvc, deps.creationSvc, deps.statusSvc, deps.userRepo)
+	h := NewWorkOrderHandler(deps.woSvc, deps.creationSvc, deps.statusSvc, deps.userRepo)
 	g := app.Group("/work-orders")
 	g.Get("/", h.GetAll)
 	g.Get("/:id", h.GetByID)
@@ -337,11 +335,11 @@ func TestWorkOrder_Create_Success(t *testing.T) {
 
 func TestWorkOrder_Create_NoToken(t *testing.T) {
 	deps := &woTestDeps{
-		woSvc: new(mockWorkOrderService), budgetSvc: new(mockBudgetService),
+		woSvc:       new(mockWorkOrderService),
 		creationSvc: new(mockCreationService), statusSvc: new(mockStatusSvc), userRepo: new(mockUserRepo),
 	}
 	app := fiber.New()
-	h := NewWorkOrderHandler(deps.woSvc, deps.budgetSvc, deps.creationSvc, deps.statusSvc, deps.userRepo)
+	h := NewWorkOrderHandler(deps.woSvc, deps.creationSvc, deps.statusSvc, deps.userRepo)
 	app.Post("/work-orders", h.Create) // no middleware to set token
 
 	body, _ := json.Marshal(map[string]any{"title": "test"})
@@ -833,4 +831,3 @@ func TestWorkOrder_RemoveSupply_InvalidStatus(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusUnprocessableEntity, r.StatusCode)
 }
-

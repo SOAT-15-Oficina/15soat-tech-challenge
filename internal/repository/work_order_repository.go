@@ -35,7 +35,7 @@ type workOrderRepository struct {
 	db *pgxpool.Pool
 }
 
-func NewWorkOrderRepository(db *pgxpool.Pool) WorkOrderRepository {
+func NewWorkOrderRepository(db *pgxpool.Pool) application.WorkOrderRepository {
 	return &workOrderRepository{db: db}
 }
 
@@ -81,6 +81,9 @@ func (r *workOrderRepository) Create(ctx context.Context, wo *domain.WorkOrder) 
 		)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, application.ErrNotFound
+		}
 		return nil, err
 	}
 	return &result, nil
@@ -115,6 +118,9 @@ func (r *workOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*doma
 			&vehicle.ID, &vehicle.LicensePlate, &vehicle.Brand, &vehicle.Model, &vehicle.Year,
 		)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, application.ErrNotFound
+		}
 		return nil, err
 	}
 
@@ -125,6 +131,9 @@ func (r *workOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*doma
 
 	services, err := r.fetchServicesForWorkOrder(ctx, result.ID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, application.ErrNotFound
+		}
 		return nil, err
 	}
 	result.Services = services
@@ -150,6 +159,9 @@ func (r *workOrderRepository) FindByCode(ctx context.Context, code string) (*dom
 			&result.CreatedAt, &result.UpdatedAt,
 		)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, application.ErrNotFound
+		}
 		return nil, err
 	}
 	return &result, nil
@@ -218,6 +230,9 @@ func (r *workOrderRepository) Update(ctx context.Context, wo *domain.WorkOrder) 
 			&result.CreatedAt, &result.UpdatedAt,
 		)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, application.ErrNotFound
+		}
 		return nil, err
 	}
 	return &result, nil

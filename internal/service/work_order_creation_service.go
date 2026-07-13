@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 )
 
@@ -42,26 +42,40 @@ type WorkOrderCreationService interface {
 }
 
 type workOrderCreationService struct {
-	woRepo     repository.WorkOrderRepository
-	wosRepo    repository.WorkOrderServiceRepository
-	wsRepo     repository.WorkshopServiceRepository
-	supplyRepo repository.SupplyRepository
+	woRepo     application.WorkOrderRepository
+	wosRepo    application.WorkOrderServiceRepository
+	wsRepo     application.WorkshopServiceRepository
+	supplyRepo application.SupplyRepository
 	statusSvc  WorkOrderStatusService
+	budget     BudgetService
 }
 
 func NewWorkOrderCreationService(
-	woRepo repository.WorkOrderRepository,
-	wosRepo repository.WorkOrderServiceRepository,
-	wsRepo repository.WorkshopServiceRepository,
-	supplyRepo repository.SupplyRepository,
+	woRepo application.WorkOrderRepository,
+	wosRepo application.WorkOrderServiceRepository,
+	wsRepo application.WorkshopServiceRepository,
+	supplyRepo application.SupplyRepository,
 	statusSvc WorkOrderStatusService,
+	opts ...WorkOrderCreationServiceOption,
 ) WorkOrderCreationService {
-	return &workOrderCreationService{
+	svc := &workOrderCreationService{
 		woRepo:     woRepo,
 		wosRepo:    wosRepo,
 		wsRepo:     wsRepo,
 		supplyRepo: supplyRepo,
 		statusSvc:  statusSvc,
+	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
+}
+
+type WorkOrderCreationServiceOption func(*workOrderCreationService)
+
+func WithBudgetRefresh(budget BudgetService) WorkOrderCreationServiceOption {
+	return func(s *workOrderCreationService) {
+		s.budget = budget
 	}
 }
 
@@ -80,6 +94,24 @@ func (s *workOrderCreationService) ensureWorkOrderItemsCanChange(ctx context.Con
 		return nil, ErrWorkOrderInvalidStatusForItems
 	}
 	return wo, nil
+}
+
+func (s *workOrderCreationService) refreshBudgetIfWaitingApproval(ctx context.Context, workOrderID uuid.UUID, operation string) error {
+	if s.budget == nil {
+		return nil
+	}
+
+	wo, err := s.woRepo.FindByID(ctx, workOrderID)
+	if err != nil {
+		return fmt.Errorf("%s: refresh budget: find work order: %w", operation, err)
+	}
+	if wo.Status != domain.WorkOrderStatusWaitingApproval {
+		return nil
+	}
+	if err := s.budget.GenerateAndSendBudget(ctx, workOrderID); err != nil {
+		return fmt.Errorf("%s: refresh budget: %w", operation, err)
+	}
+	return nil
 }
 
 func (s *workOrderCreationService) AddServices(ctx context.Context, workOrderID uuid.UUID, items []AddWorkOrderServiceInput) ([]domain.WorkOrderService, error) {
@@ -126,6 +158,10 @@ func (s *workOrderCreationService) AddServices(ctx context.Context, workOrderID 
 		}
 	}
 
+	if err := s.refreshBudgetIfWaitingApproval(ctx, workOrderID, "add services"); err != nil {
+		return nil, err
+	}
+
 	result := make([]domain.WorkOrderService, len(created))
 	for i, item := range created {
 		result[i] = *item
@@ -155,6 +191,10 @@ func (s *workOrderCreationService) RemoveService(ctx context.Context, workOrderI
 		return fmt.Errorf("remove service: delete: %w", err)
 	}
 
+	if err := s.refreshBudgetIfWaitingApproval(ctx, workOrderID, "remove service"); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -173,6 +213,10 @@ func (s *workOrderCreationService) RemoveSupplyFromService(ctx context.Context, 
 
 	if err := s.wosRepo.DeleteSupplyForWorkOrderService(ctx, wosID, supplyID); err != nil {
 		return fmt.Errorf("remove supply: delete: %w", err)
+	}
+
+	if err := s.refreshBudgetIfWaitingApproval(ctx, workOrderID, "remove supply"); err != nil {
+		return err
 	}
 
 	return nil
@@ -215,6 +259,9 @@ func (s *workOrderCreationService) AddSupplies(ctx context.Context, workOrderID,
 	result := make([]domain.WorkOrderServiceSupply, len(created))
 	for i, item := range created {
 		result[i] = *item
+	}
+	if err := s.refreshBudgetIfWaitingApproval(ctx, workOrderID, "add supplies"); err != nil {
+		return nil, err
 	}
 	return result, nil
 }

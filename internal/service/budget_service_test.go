@@ -3,36 +3,34 @@ package service
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// mockEmailProvider mocks email.Provider
-type mockEmailProvider struct {
+type mockBudgetNotifier struct {
 	mock.Mock
 }
 
-func (m *mockEmailProvider) Send(ctx context.Context, msg email.Message) error {
-	return m.Called(ctx, msg).Error(0)
+func (m *mockBudgetNotifier) SendBudget(ctx context.Context, notification application.BudgetNotification) error {
+	return m.Called(ctx, notification).Error(0)
 }
 
-func newBudgetService(woRepo *mockWorkOrderRepo, wosRepo *mockWorkOrderServiceRepo, custRepo *mockCustomerRepo, prov *mockEmailProvider) BudgetService {
-	return NewBudgetService(woRepo, wosRepo, custRepo, prov, "http://localhost:3000")
+func newBudgetService(woRepo *mockWorkOrderRepo, wosRepo *mockWorkOrderServiceRepo, custRepo *mockCustomerRepo, notifier *mockBudgetNotifier) BudgetService {
+	return NewBudgetService(woRepo, wosRepo, custRepo, notifier, "http://localhost:3000")
 }
 
 func TestGenerateAndSendBudget_Success(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
 	wosRepo := new(mockWorkOrderServiceRepo)
 	custRepo := new(mockCustomerRepo)
-	emailProv := new(mockEmailProvider)
-	svc := newBudgetService(woRepo, wosRepo, custRepo, emailProv)
+	notifier := new(mockBudgetNotifier)
+	svc := newBudgetService(woRepo, wosRepo, custRepo, notifier)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -74,8 +72,8 @@ func TestGenerateAndSendBudget_FindServicesFails(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
 	wosRepo := new(mockWorkOrderServiceRepo)
 	custRepo := new(mockCustomerRepo)
-	emailProv := new(mockEmailProvider)
-	svc := newBudgetService(woRepo, wosRepo, custRepo, emailProv)
+	notifier := new(mockBudgetNotifier)
+	svc := newBudgetService(woRepo, wosRepo, custRepo, notifier)
 	ctx := context.Background()
 	woID := uuid.New()
 
@@ -83,15 +81,15 @@ func TestGenerateAndSendBudget_FindServicesFails(t *testing.T) {
 
 	err := svc.GenerateAndSendBudget(ctx, woID, nil)
 	assert.Error(t, err)
-	emailProv.AssertNotCalled(t, "Send")
+	notifier.AssertNotCalled(t, "SendBudget")
 }
 
 func TestGenerateAndSendBudget_EmailFails_BestEffort(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
 	wosRepo := new(mockWorkOrderServiceRepo)
 	custRepo := new(mockCustomerRepo)
-	emailProv := new(mockEmailProvider)
-	svc := newBudgetService(woRepo, wosRepo, custRepo, emailProv)
+	notifier := new(mockBudgetNotifier)
+	svc := newBudgetService(woRepo, wosRepo, custRepo, notifier)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -105,7 +103,7 @@ func TestGenerateAndSendBudget_EmailFails_BestEffort(t *testing.T) {
 	wosRepo.On("CalculateTotalForWorkOrder", ctx, woID).Return(0, nil)
 	woRepo.On("FindByID", ctx, woID).Return(wo, nil)
 	custRepo.On("FindByID", ctx, custID).Return(customer, nil)
-	emailProv.On("Send", ctx, mock.AnythingOfType("email.Message")).Return(errors.New("smtp error"))
+	notifier.On("SendBudget", ctx, mock.AnythingOfType("application.BudgetNotification")).Return(errors.New("smtp error"))
 
 	err := svc.GenerateAndSendBudget(ctx, woID, nil)
 	require.NoError(t, err)
@@ -116,8 +114,8 @@ func TestGenerateAndSendBudget_AddsTwoDaysWhenSupplyIsShort(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
 	wosRepo := new(mockWorkOrderServiceRepo)
 	custRepo := new(mockCustomerRepo)
-	emailProv := new(mockEmailProvider)
-	svc := newBudgetService(woRepo, wosRepo, custRepo, emailProv)
+	notifier := new(mockBudgetNotifier)
+	svc := newBudgetService(woRepo, wosRepo, custRepo, notifier)
 	ctx := context.Background()
 
 	woID := uuid.New()
@@ -145,9 +143,9 @@ func TestGenerateAndSendBudget_AddsTwoDaysWhenSupplyIsShort(t *testing.T) {
 	err := svc.GenerateAndSendBudget(ctx, woID, nil)
 	require.NoError(t, err)
 
-	callArgs := emailProv.Calls[0].Arguments
-	msg := callArgs.Get(1).(email.Message)
-	assert.True(t, strings.Contains(msg.Body, "Prazo estimado: <strong>2 dias e 1 hora</strong>"))
+	callArgs := notifier.Calls[0].Arguments
+	notification := callArgs.Get(1).(application.BudgetNotification)
+	assert.Equal(t, "2 dias e 1 hora", notification.Services[0].Estimated)
 }
 
 func TestGenerateAndSendBudget_IncludesStatusAndApprovalLinks(t *testing.T) {
@@ -197,8 +195,8 @@ func TestGenerateAndSendBudget_FindSupplyShortagesFails(t *testing.T) {
 	woRepo := new(mockWorkOrderRepo)
 	wosRepo := new(mockWorkOrderServiceRepo)
 	custRepo := new(mockCustomerRepo)
-	emailProv := new(mockEmailProvider)
-	svc := newBudgetService(woRepo, wosRepo, custRepo, emailProv)
+	notifier := new(mockBudgetNotifier)
+	svc := newBudgetService(woRepo, wosRepo, custRepo, notifier)
 	ctx := context.Background()
 	woID := uuid.New()
 
@@ -207,7 +205,7 @@ func TestGenerateAndSendBudget_FindSupplyShortagesFails(t *testing.T) {
 
 	err := svc.GenerateAndSendBudget(ctx, woID, nil)
 	assert.Error(t, err)
-	emailProv.AssertNotCalled(t, "Send")
+	notifier.AssertNotCalled(t, "SendBudget")
 }
 
 // --- formatCents ---

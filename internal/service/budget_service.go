@@ -23,26 +23,26 @@ type BudgetService interface {
 }
 
 type budgetService struct {
-	woRepo    repository.WorkOrderRepository
-	wosRepo   repository.WorkOrderServiceRepository
-	custRepo  repository.CustomerRepository
-	emailProv email.Provider
-	baseURL   string
+	woRepo   application.WorkOrderRepository
+	wosRepo  application.WorkOrderServiceRepository
+	custRepo application.CustomerRepository
+	notifier application.BudgetNotificationSender
+	baseURL  string
 }
 
 func NewBudgetService(
-	woRepo repository.WorkOrderRepository,
-	wosRepo repository.WorkOrderServiceRepository,
-	custRepo repository.CustomerRepository,
-	emailProv email.Provider,
+	woRepo application.WorkOrderRepository,
+	wosRepo application.WorkOrderServiceRepository,
+	custRepo application.CustomerRepository,
+	notifier application.BudgetNotificationSender,
 	baseURL string,
 ) BudgetService {
 	return &budgetService{
-		woRepo:    woRepo,
-		wosRepo:   wosRepo,
-		custRepo:  custRepo,
-		emailProv: emailProv,
-		baseURL:   baseURL,
+		woRepo:   woRepo,
+		wosRepo:  wosRepo,
+		custRepo: custRepo,
+		notifier: notifier,
+		baseURL:  baseURL,
 	}
 }
 
@@ -72,14 +72,14 @@ func (s *budgetService) GenerateAndSendBudget(ctx context.Context, workOrderID u
 		return fmt.Errorf("budget: find customer: %w", err)
 	}
 
-	var serviceItems []email.BudgetServiceItem
+	var serviceItems []application.BudgetNotificationService
 	for _, svc := range services {
 		estimatedTimeMinutes := svc.ServiceEstimatedTimeMinutesSnapshot
 		if shortagesByServiceID[svc.ID] {
 			estimatedTimeMinutes += shortageExtraEstimatedTimeMinutes
 		}
 
-		serviceItems = append(serviceItems, email.BudgetServiceItem{
+		serviceItems = append(serviceItems, application.BudgetNotificationService{
 			Title:       svc.ServiceTitleSnapshot,
 			Amount:      formatCents(svc.ServicePriceCentsSnapshot),
 			Estimated:   formatEstimatedTimeMinutes(estimatedTimeMinutes),

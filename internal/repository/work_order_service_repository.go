@@ -2,53 +2,26 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type WorkOrderServiceRepository interface {
-	Create(ctx context.Context, wos *domain.WorkOrderService) (*domain.WorkOrderService, error)
-	CreateBatch(ctx context.Context, items []*domain.WorkOrderService) ([]*domain.WorkOrderService, error)
-	CreateSupply(ctx context.Context, supply *domain.WorkOrderServiceSupply) (*domain.WorkOrderServiceSupply, error)
-	CreateSupplyBatch(ctx context.Context, items []*domain.WorkOrderServiceSupply) ([]*domain.WorkOrderServiceSupply, error)
-	DeleteSupplyForWorkOrderService(ctx context.Context, workOrderServiceID, supplyID uuid.UUID) error
-	DeleteSuppliesByWorkOrderServiceID(ctx context.Context, workOrderServiceID uuid.UUID) error
-	DeleteByID(ctx context.Context, id uuid.UUID) error
-	FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrderService, error)
-	FindByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) ([]domain.WorkOrderService, error)
-	FindSupplyShortagesByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) (map[uuid.UUID]bool, error)
-	UpdateApprovalStatus(ctx context.Context, id uuid.UUID, status domain.WorkOrderServiceApprovalStatus) error
-	UpdateApprovalStatusByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, status domain.WorkOrderServiceApprovalStatus) error
-	CalculateTotalForWorkOrder(ctx context.Context, workOrderID uuid.UUID) (int, error)
-	CalculateApprovedTotalForWorkOrder(ctx context.Context, workOrderID uuid.UUID) (int, error)
-	MarkAsStartedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, startedAt time.Time) error
-	MarkAsFinishedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, finishedAt time.Time) error
-	MarkServiceAsFinished(ctx context.Context, id uuid.UUID, finishedAt time.Time) error
-	MarkServiceAsStarted(ctx context.Context, id uuid.UUID, startedAt time.Time) error
-	HasSupplyShortagesForService(ctx context.Context, workOrderServiceID uuid.UUID) (bool, error)
-	FindApprovedServicesWithShortages(ctx context.Context) ([]SupplyShortageAlert, error)
-}
+type WorkOrderServiceRepository = application.WorkOrderServiceRepository
 
-type SupplyShortageAlert struct {
-	WorkOrderCode  string
-	WorkOrderTitle string
-	ServiceTitle   string
-	SupplyTitle    string
-	SupplyID       uuid.UUID
-	Required       int
-	InStock        int
-}
+type SupplyShortageAlert = application.SupplyShortageAlert
 
 type workOrderServiceRepository struct {
 	db *pgxpool.Pool
 }
 
-func NewWorkOrderServiceRepository(db *pgxpool.Pool) WorkOrderServiceRepository {
+func NewWorkOrderServiceRepository(db *pgxpool.Pool) application.WorkOrderServiceRepository {
 	return &workOrderServiceRepository{db: db}
 }
 
@@ -66,6 +39,9 @@ func (r *workOrderServiceRepository) FindByID(ctx context.Context, id uuid.UUID)
 		&wos.ApprovalStatus, &wos.Status, &wos.StartedAt, &wos.FinishedAt, &wos.CreatedAt, &wos.UpdatedAt,
 	)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, application.ErrNotFound
+		}
 		return nil, err
 	}
 	return &wos, nil
@@ -162,7 +138,7 @@ func (r *workOrderServiceRepository) DeleteSupplyForWorkOrderService(ctx context
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return pgx.ErrNoRows
+		return application.ErrNotFound
 	}
 	return nil
 }
@@ -173,7 +149,7 @@ func (r *workOrderServiceRepository) DeleteByID(ctx context.Context, id uuid.UUI
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return pgx.ErrNoRows
+		return application.ErrNotFound
 	}
 	return nil
 }

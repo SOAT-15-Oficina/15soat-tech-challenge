@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/config"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/handler"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
@@ -144,11 +145,16 @@ func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string, em
 	supplyRepo := repository.NewSupplyRepository(db)
 	statusSvc := service.NewWorkOrderStatusServiceWithNotifications(workOrderRepo, wosRepo, customerRepo, emailProv, baseURL)
 	workOrderSvc := service.NewWorkOrderService(workOrderRepo, vehicleRepo)
-	budgetSvc := service.NewBudgetService(workOrderRepo, wosRepo, customerRepo, emailProv, baseURL)
-	creationSvc := service.NewWorkOrderCreationService(workOrderRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
+	var notifier application.BudgetNotificationSender
+	if emailProv != nil {
+		notifier = email.NewWorkOrderNotificationSender(emailProv)
+	}
+	budgetSvc := service.NewBudgetService(workOrderRepo, wosRepo, customerRepo, notifier, baseURL)
+	statusSvc := service.NewWorkOrderStatusService(workOrderRepo, wosRepo, service.WithBudgetGeneration(budgetSvc))
+	creationSvc := service.NewWorkOrderCreationService(workOrderRepo, wosRepo, wsRepo, supplyRepo, statusSvc, service.WithBudgetRefresh(budgetSvc))
 	userRepo := repository.NewUserRepository(db)
 	userSvc := service.NewUserService(userRepo, jwtSecretKey)
-	workOrderHandler := handler.NewWorkOrderHandler(workOrderSvc, budgetSvc, creationSvc, statusSvc, userSvc)
+	workOrderHandler := handler.NewWorkOrderHandler(workOrderSvc, creationSvc, statusSvc, userSvc)
 
 	group := app.Group("/work-orders", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
 	group.Post("/", workOrderHandler.Create)

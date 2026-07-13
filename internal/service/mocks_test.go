@@ -6,7 +6,6 @@ import (
 
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 )
@@ -176,12 +175,12 @@ func (m *mockWorkOrderServiceRepo) HasSupplyShortagesForService(ctx context.Cont
 	return args.Bool(0), args.Error(1)
 }
 
-func (m *mockWorkOrderServiceRepo) FindApprovedServicesWithShortages(ctx context.Context) ([]repository.SupplyShortageAlert, error) {
+func (m *mockWorkOrderServiceRepo) FindApprovedServicesWithShortages(ctx context.Context) ([]application.SupplyShortageAlert, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]repository.SupplyShortageAlert), args.Error(1)
+	return args.Get(0).([]application.SupplyShortageAlert), args.Error(1)
 }
 
 func (m *mockWorkOrderServiceRepo) FindSupplyShortagesByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) (map[uuid.UUID]bool, error) {
@@ -321,6 +320,14 @@ func (m *mockStatusService) TransitionTo(ctx context.Context, workOrderID uuid.U
 
 func (m *mockStatusService) IsValidTransition(from, to domain.WorkOrderStatus) bool {
 	return m.Called(from, to).Bool(0)
+}
+
+type mockBudgetServiceUseCase struct {
+	mock.Mock
+}
+
+func (m *mockBudgetServiceUseCase) GenerateAndSendBudget(ctx context.Context, workOrderID uuid.UUID) error {
+	return m.Called(ctx, workOrderID).Error(0)
 }
 
 // mockSupplyRepo mocks repository.SupplyRepository

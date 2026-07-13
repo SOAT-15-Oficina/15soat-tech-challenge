@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 )
 
@@ -41,6 +41,18 @@ func NewWorkOrderStatusService(
 	return &workOrderStatusService{
 		woRepo:   woRepo,
 		notifier: notifier,
+	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
+}
+
+type WorkOrderStatusServiceOption func(*workOrderStatusService)
+
+func WithBudgetGeneration(budget BudgetService) WorkOrderStatusServiceOption {
+	return func(s *workOrderStatusService) {
+		s.budget = budget
 	}
 }
 

@@ -1,12 +1,9 @@
 package handler
 
 import (
-	"errors"
-
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type WorkOrderServiceHandler struct {
@@ -24,8 +21,8 @@ func (h *WorkOrderServiceHandler) Approve(c fiber.Ctx) error {
 	}
 
 	if err := h.svc.ApproveService(c.Context(), id); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "work order service not found"})
+		if handled, resp := dbErrResponse(c, err, "work order service not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -40,8 +37,8 @@ func (h *WorkOrderServiceHandler) Reject(c fiber.Ctx) error {
 	}
 
 	if err := h.svc.RejectService(c.Context(), id); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "work order service not found"})
+		if handled, resp := dbErrResponse(c, err, "work order service not found"); handled {
+			return resp
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -56,6 +53,9 @@ func (h *WorkOrderServiceHandler) ApproveAll(c fiber.Ctx) error {
 	}
 
 	if err := h.svc.ApproveAllByWorkOrder(c.Context(), id); err != nil {
+		if handled, resp := dbErrResponse(c, err, "work order not found"); handled {
+			return resp
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -69,6 +69,9 @@ func (h *WorkOrderServiceHandler) RejectAll(c fiber.Ctx) error {
 	}
 
 	if err := h.svc.RejectAllByWorkOrder(c.Context(), id); err != nil {
+		if handled, resp := dbErrResponse(c, err, "work order not found"); handled {
+			return resp
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
