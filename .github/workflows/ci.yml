@@ -106,12 +106,10 @@ jobs:
           done
           kubectl top nodes
 
-          kubectl apply -f k8s/namespace.yaml
-          kubectl apply -f k8s/configmap.yaml
-          kubectl apply -f k8s/secret.yaml
-          kubectl apply -f k8s/postgres-pvc.yaml
-          kubectl apply -f k8s/postgres-service.yaml
-          kubectl apply -f k8s/postgres-deployment.yaml
+          # Namespace, ConfigMap, Secret, PVC, Deployment e Service do PostgreSQL
+          # sao provisionados pelo Terraform em /infra (terraform apply no runner).
+          # O CI apenas valida que a camada de dados ja existe antes do deploy da app.
+          kubectl get namespace "$KUBE_NAMESPACE"
           kubectl rollout status deployment/postgres -n "$KUBE_NAMESPACE" --timeout=180s
           # shellcheck disable=SC2016
           kubectl exec deployment/postgres -n "$KUBE_NAMESPACE" -- sh -c '
