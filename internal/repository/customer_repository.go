@@ -11,20 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type CustomerRepository interface {
-	Create(ctx context.Context, customer *domain.Customer) (*domain.Customer, error)
-	FindByID(ctx context.Context, id uuid.UUID) (*domain.Customer, error)
-	FindAll(ctx context.Context) ([]domain.Customer, error)
-	FindAllWithFilters(ctx context.Context, filters domain.CustomerListFilters) ([]domain.Customer, error)
-	Update(ctx context.Context, customer *domain.Customer) (*domain.Customer, error)
-	Delete(ctx context.Context, id uuid.UUID) error
-}
-
 type customerRepository struct {
 	db *pgxpool.Pool
 }
 
-func NewCustomerRepository(db *pgxpool.Pool) CustomerRepository {
+func NewCustomerRepository(db *pgxpool.Pool) application.CustomerRepository {
 	return &customerRepository{db: db}
 }
 

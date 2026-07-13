@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/auth"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/argon2"
@@ -94,11 +94,11 @@ type UserService interface {
 }
 
 type userService struct {
-	repo         repository.UserRepository
+	repo         application.UserRepository
 	jwtSecretKey string
 }
 
-func NewUserService(repo repository.UserRepository, jwtSecretKey string) UserService {
+func NewUserService(repo application.UserRepository, jwtSecretKey string) UserService {
 	return &userService{repo: repo, jwtSecretKey: jwtSecretKey}
 }
 

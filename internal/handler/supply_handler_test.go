@@ -8,10 +8,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -62,83 +61,19 @@ func (m *mockSupplyService) Delete(ctx context.Context, id uuid.UUID) error {
 	return m.Called(ctx, id).Error(0)
 }
 
-// --- mock WorkOrderServiceRepository (only FindApprovedServicesWithShortages is used) ---
-
-type mockWOSRepo struct {
-	mock.Mock
-}
-
-func (m *mockWOSRepo) FindApprovedServicesWithShortages(ctx context.Context) ([]repository.SupplyShortageAlert, error) {
+func (m *mockSupplyService) PendingPurchases(ctx context.Context) ([]application.SupplyShortageAlert, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]repository.SupplyShortageAlert), args.Error(1)
-}
-
-// Stubs for the rest of the interface -- unused by the handler under test.
-
-func (m *mockWOSRepo) Create(ctx context.Context, wos *domain.WorkOrderService) (*domain.WorkOrderService, error) {
-	return nil, nil
-}
-func (m *mockWOSRepo) CreateBatch(ctx context.Context, items []*domain.WorkOrderService) ([]*domain.WorkOrderService, error) {
-	return nil, nil
-}
-func (m *mockWOSRepo) CreateSupply(ctx context.Context, supply *domain.WorkOrderServiceSupply) (*domain.WorkOrderServiceSupply, error) {
-	return nil, nil
-}
-func (m *mockWOSRepo) CreateSupplyBatch(ctx context.Context, items []*domain.WorkOrderServiceSupply) ([]*domain.WorkOrderServiceSupply, error) {
-	return nil, nil
-}
-func (m *mockWOSRepo) DeleteSupplyForWorkOrderService(ctx context.Context, workOrderServiceID, supplyID uuid.UUID) error {
-	return nil
-}
-func (m *mockWOSRepo) DeleteSuppliesByWorkOrderServiceID(ctx context.Context, workOrderServiceID uuid.UUID) error {
-	return nil
-}
-func (m *mockWOSRepo) DeleteByID(ctx context.Context, id uuid.UUID) error { return nil }
-func (m *mockWOSRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrderService, error) {
-	return nil, nil
-}
-func (m *mockWOSRepo) FindByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) ([]domain.WorkOrderService, error) {
-	return nil, nil
-}
-func (m *mockWOSRepo) FindSupplyShortagesByWorkOrderID(ctx context.Context, workOrderID uuid.UUID) (map[uuid.UUID]bool, error) {
-	return nil, nil
-}
-func (m *mockWOSRepo) UpdateApprovalStatus(ctx context.Context, id uuid.UUID, status domain.WorkOrderServiceApprovalStatus) error {
-	return nil
-}
-func (m *mockWOSRepo) UpdateApprovalStatusByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, status domain.WorkOrderServiceApprovalStatus) error {
-	return nil
-}
-func (m *mockWOSRepo) CalculateTotalForWorkOrder(ctx context.Context, workOrderID uuid.UUID) (int, error) {
-	return 0, nil
-}
-func (m *mockWOSRepo) CalculateApprovedTotalForWorkOrder(ctx context.Context, workOrderID uuid.UUID) (int, error) {
-	return 0, nil
-}
-func (m *mockWOSRepo) MarkAsStartedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, startedAt time.Time) error {
-	return nil
-}
-func (m *mockWOSRepo) MarkAsFinishedByWorkOrderID(ctx context.Context, workOrderID uuid.UUID, finishedAt time.Time) error {
-	return nil
-}
-func (m *mockWOSRepo) MarkServiceAsFinished(ctx context.Context, id uuid.UUID, finishedAt time.Time) error {
-	return nil
-}
-func (m *mockWOSRepo) MarkServiceAsStarted(ctx context.Context, id uuid.UUID, startedAt time.Time) error {
-	return nil
-}
-func (m *mockWOSRepo) HasSupplyShortagesForService(ctx context.Context, workOrderServiceID uuid.UUID) (bool, error) {
-	return false, nil
+	return args.Get(0).([]application.SupplyShortageAlert), args.Error(1)
 }
 
 // --- helpers ---
 
-func setupSupplyApp(svc *mockSupplyService, wosRepo *mockWOSRepo) *fiber.App {
+func setupSupplyApp(svc *mockSupplyService) *fiber.App {
 	app := fiber.New()
-	h := NewSupplyHandler(svc, wosRepo)
+	h := NewSupplyHandler(svc)
 	app.Post("/supplies", h.Create)
 	app.Get("/supplies/pending-purchases", h.PendingPurchases)
 	app.Get("/supplies", h.GetAll)
@@ -169,8 +104,7 @@ func sampleSupply() *domain.Supply {
 
 func TestSupplyCreate_Success(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 	s := sampleSupply()
 
 	svc.On("Create", mock.Anything, mock.AnythingOfType("*domain.Supply")).Return(s, nil)
@@ -184,8 +118,7 @@ func TestSupplyCreate_Success(t *testing.T) {
 
 func TestSupplyCreate_InvalidJSON(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 
 	req := httptest.NewRequest(http.MethodPost, "/supplies", bytes.NewReader([]byte("{invalid")))
 	req.Header.Set("Content-Type", "application/json")
@@ -196,8 +129,7 @@ func TestSupplyCreate_InvalidJSON(t *testing.T) {
 
 func TestSupplyCreate_ServiceError(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 	s := sampleSupply()
 
 	svc.On("Create", mock.Anything, mock.AnythingOfType("*domain.Supply")).Return(nil, errors.New("db error"))
@@ -211,8 +143,7 @@ func TestSupplyCreate_ServiceError(t *testing.T) {
 
 func TestSupplyGetAll_Success(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 
 	svc.On("GetAll", mock.Anything).Return([]domain.Supply{*sampleSupply()}, nil)
 
@@ -224,8 +155,7 @@ func TestSupplyGetAll_Success(t *testing.T) {
 
 func TestSupplyGetAll_Error(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 
 	svc.On("GetAll", mock.Anything).Return(nil, errors.New("db error"))
 
@@ -237,8 +167,7 @@ func TestSupplyGetAll_Error(t *testing.T) {
 
 func TestSupplyGetByID_Success(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 	s := sampleSupply()
 
 	svc.On("GetByID", mock.Anything, s.ID).Return(s, nil)
@@ -251,8 +180,7 @@ func TestSupplyGetByID_Success(t *testing.T) {
 
 func TestSupplyGetByID_InvalidID(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/supplies/not-a-uuid", nil)
 	resp, err := app.Test(req)
@@ -262,8 +190,7 @@ func TestSupplyGetByID_InvalidID(t *testing.T) {
 
 func TestSupplyGetByID_NotFound(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 	id := uuid.New()
 
 	svc.On("GetByID", mock.Anything, id).Return(nil, pgx.ErrNoRows)
@@ -276,8 +203,7 @@ func TestSupplyGetByID_NotFound(t *testing.T) {
 
 func TestSupplyUpdate_Success(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 	s := sampleSupply()
 
 	svc.On("Update", mock.Anything, mock.AnythingOfType("*domain.Supply")).Return(s, nil)
@@ -291,8 +217,7 @@ func TestSupplyUpdate_Success(t *testing.T) {
 
 func TestSupplyUpdate_InvalidID(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 
 	req := httptest.NewRequest(http.MethodPut, "/supplies/not-a-uuid", bytes.NewReader(supplyJSON(sampleSupply())))
 	req.Header.Set("Content-Type", "application/json")
@@ -303,8 +228,7 @@ func TestSupplyUpdate_InvalidID(t *testing.T) {
 
 func TestSupplyUpdate_InvalidJSON(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 	id := uuid.New()
 
 	req := httptest.NewRequest(http.MethodPut, "/supplies/"+id.String(), bytes.NewReader([]byte("{invalid")))
@@ -316,8 +240,7 @@ func TestSupplyUpdate_InvalidJSON(t *testing.T) {
 
 func TestSupplyDelete_Success(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 	id := uuid.New()
 
 	svc.On("Delete", mock.Anything, id).Return(nil)
@@ -330,8 +253,7 @@ func TestSupplyDelete_Success(t *testing.T) {
 
 func TestSupplyDelete_InvalidID(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 
 	req := httptest.NewRequest(http.MethodDelete, "/supplies/bad-id", nil)
 	resp, err := app.Test(req)
@@ -341,8 +263,7 @@ func TestSupplyDelete_InvalidID(t *testing.T) {
 
 func TestSupplyDelete_Error(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 	id := uuid.New()
 
 	svc.On("Delete", mock.Anything, id).Return(errors.New("db error"))
@@ -355,10 +276,9 @@ func TestSupplyDelete_Error(t *testing.T) {
 
 func TestSupplyPendingPurchases_Success(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 
-	alerts := []repository.SupplyShortageAlert{
+	alerts := []application.SupplyShortageAlert{
 		{
 			WorkOrderCode:  "WO-001",
 			WorkOrderTitle: "Test WO",
@@ -369,7 +289,7 @@ func TestSupplyPendingPurchases_Success(t *testing.T) {
 			InStock:        3,
 		},
 	}
-	repo.On("FindApprovedServicesWithShortages", mock.Anything).Return(alerts, nil)
+	svc.On("PendingPurchases", mock.Anything).Return(alerts, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/supplies/pending-purchases", nil)
 	resp, err := app.Test(req)
@@ -379,10 +299,9 @@ func TestSupplyPendingPurchases_Success(t *testing.T) {
 
 func TestSupplyPendingPurchases_Error(t *testing.T) {
 	svc := new(mockSupplyService)
-	repo := new(mockWOSRepo)
-	app := setupSupplyApp(svc, repo)
+	app := setupSupplyApp(svc)
 
-	repo.On("FindApprovedServicesWithShortages", mock.Anything).Return(nil, errors.New("db error"))
+	svc.On("PendingPurchases", mock.Anything).Return(nil, errors.New("db error"))
 
 	req := httptest.NewRequest(http.MethodGet, "/supplies/pending-purchases", nil)
 	resp, err := app.Test(req)

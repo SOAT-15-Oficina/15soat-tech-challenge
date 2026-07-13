@@ -2,19 +2,17 @@ package handler
 
 import (
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
 type SupplyHandler struct {
-	svc     service.SupplyService
-	wosRepo repository.WorkOrderServiceRepository
+	svc service.SupplyService
 }
 
-func NewSupplyHandler(svc service.SupplyService, wosRepo repository.WorkOrderServiceRepository) *SupplyHandler {
-	return &SupplyHandler{svc: svc, wosRepo: wosRepo}
+func NewSupplyHandler(svc service.SupplyService) *SupplyHandler {
+	return &SupplyHandler{svc: svc}
 }
 
 func (h *SupplyHandler) Create(c fiber.Ctx) error {
@@ -104,12 +102,9 @@ func (h *SupplyHandler) Delete(c fiber.Ctx) error {
 }
 
 func (h *SupplyHandler) PendingPurchases(c fiber.Ctx) error {
-	alerts, err := h.wosRepo.FindApprovedServicesWithShortages(c.Context())
+	alerts, err := h.svc.PendingPurchases(c.Context())
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-	if alerts == nil {
-		alerts = []repository.SupplyShortageAlert{}
 	}
 	return c.JSON(fiber.Map{"data": alerts})
 }

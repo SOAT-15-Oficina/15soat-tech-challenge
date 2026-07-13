@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 )
 
@@ -14,14 +14,16 @@ type SupplyService interface {
 	GetAll(ctx context.Context) ([]domain.Supply, error)
 	Update(ctx context.Context, supply *domain.Supply) (*domain.Supply, error)
 	Delete(ctx context.Context, id uuid.UUID) error
+	PendingPurchases(ctx context.Context) ([]application.SupplyShortageAlert, error)
 }
 
 type supplyService struct {
-	repo repository.SupplyRepository
+	repo    application.SupplyRepository
+	wosRepo application.WorkOrderServiceRepository
 }
 
-func NewSupplyService(repo repository.SupplyRepository) SupplyService {
-	return &supplyService{repo: repo}
+func NewSupplyService(repo application.SupplyRepository, wosRepo application.WorkOrderServiceRepository) SupplyService {
+	return &supplyService{repo: repo, wosRepo: wosRepo}
 }
 
 func (s *supplyService) Create(ctx context.Context, supply *domain.Supply) (*domain.Supply, error) {
@@ -42,4 +44,15 @@ func (s *supplyService) Update(ctx context.Context, supply *domain.Supply) (*dom
 
 func (s *supplyService) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.repo.Delete(ctx, id)
+}
+
+func (s *supplyService) PendingPurchases(ctx context.Context) ([]application.SupplyShortageAlert, error) {
+	alerts, err := s.wosRepo.FindApprovedServicesWithShortages(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if alerts == nil {
+		alerts = []application.SupplyShortageAlert{}
+	}
+	return alerts, nil
 }
