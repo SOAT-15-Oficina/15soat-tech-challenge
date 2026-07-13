@@ -8,6 +8,219 @@ O projeto utiliza **PostgreSQL** como banco de dados relacional. A escolha se ju
 
 Além disso, o PostgreSQL oferece suporte robusto a transações ACID, o que é essencial para operações como baixa de estoque e mudança de status de ordens de serviço, onde consistência é crítica.
 
+## Arquitetura
+
+Visão consolidada da solução: API Go/Fiber, painel web estático, PostgreSQL e e-mail via MailHog (dev/K8s), com preparação para AWS SES.
+
+### Componentes da aplicação
+
+```mermaid
+flowchart TB
+    subgraph clients [Clientes / Usuarios]
+        WEB[Painel Web /web]
+        SWAG[Swagger UI]
+        EXT[Cliente externo]
+        PUB[Cliente final - aprovacao]
+    end
+
+    subgraph api [API cmd/api - Fiber v3]
+        RT[Routes + Middlewares<br/>Auth JWT / RBAC / Static]
+        H[Handlers HTTP<br/>Auth, Users, Customers, Vehicles<br/>Services, Supplies, Work Orders, Public]
+        S[Services<br/>WorkOrder, Creation, Status, Budget<br/>Public, Workshop, Supply, Customer...]
+        R[Repositories pgx<br/>WorkOrder, WorkOrderService<br/>Customer, Vehicle, User, Supply...]
+        DOM[Domain - entidades e enums]
+        APP[Application - DTOs de listagem]
+        CFG[Config - env / viper]
+        MIG[Database - migrations goose no boot]
+    end
+
+    subgraph pkgs [Pacotes compartilhados]
+        EMAIL[packages/email<br/>Provider + Templates HTML]
+        AUTH[internal/auth<br/>JWT Claims]
+    end
+
+    subgraph data [Persistencia]
+        PG[(PostgreSQL<br/>schema + seed)]
+    end
+
+    WEB --> RT
+    SWAG --> RT
+    EXT --> RT
+    PUB --> RT
+
+    RT --> H
+    RT --> AUTH
+    H --> S
+    H --> APP
+    S --> R
+    S --> EMAIL
+    R --> DOM
+    R --> PG
+    MIG --> PG
+    CFG -.-> RT
+```
+
+| Camada | Papel |
+|--------|--------|
+| **Web** | Board, OS, clientes, veículos, serviços, insumos, aprovação — consome a REST API |
+| **Handlers** | HTTP, validação de entrada, tradução de erros, respostas JSON |
+| **Services** | Regras de negócio: máquina de estados da OS, orçamento, criação de itens, aprovações públicas |
+| **Repositories** | SQL com `pgx`; isolamento do banco |
+| **Domain** | Entidades (`WorkOrder`, `Customer`, `WorkshopService`, etc.) |
+| **packages/email** | Envio de orçamento (template HTML) via provider configurável |
+| **Boot** | Migrations embarcadas (`go:embed`) executadas na subida da API |
+
+### Infraestrutura provisionada
+
+#### Ambiente local (Docker Compose)
+
+```mermaid
+flowchart LR
+    subgraph Host["Máquina do desenvolvedor"]
+        subgraph Compose["docker-compose.yml"]
+            API["Container: api<br/>techchallenge (scratch)<br/>:8080"]
+            DB["Container: db<br/>PostgreSQL 18.3<br/>schema + seed"]
+            MH["Container: mailhog<br/>SMTP :1025 · UI :8025"]
+        end
+        DEV["Desenvolvedor<br/>localhost:8080"]
+    end
+
+    DEV --> API
+    API -->|"pgx TCP"| DB
+    API -->|"SMTP"| MH
+```
+
+#### Ambiente Kubernetes (manifests em `k8s/`)
+
+```mermaid
+flowchart TB
+    subgraph K8s["Cluster Kubernetes — namespace: workshop"]
+        subgraph Config["Configuração"]
+            CM["ConfigMap api-config<br/>env não sensível"]
+            SEC["Secret api-secrets<br/>JWT · senha DB"]
+            NS["Namespace workshop"]
+        end
+
+        subgraph Workloads["Workloads"]
+            APID["Deployment api<br/>replicas: 2<br/>image: techchallenge/api:latest"]
+            PGD["Deployment postgres<br/>replicas: 1<br/>image: techchallenge/postgres:latest"]
+            MHD["Deployment mailhog<br/>replicas: 1"]
+        end
+
+        subgraph Network["Rede interna"]
+            SVC_API["Service api-service<br/>ClusterIP :8080"]
+            SVC_PG["Service postgres-service<br/>:5432"]
+            SVC_MH["Service mailhog-service<br/>:1025 / :8025"]
+        end
+
+        subgraph Storage["Armazenamento"]
+            PVC["PVC postgres-pvc<br/>5Gi ReadWriteOnce"]
+        end
+
+        HPA["HPA api-hpa<br/>2–10 pods · CPU 70% · Mem 80%"]
+    end
+
+    APID --> SVC_API
+    PGD --> SVC_PG
+    MHD --> SVC_MH
+    PGD --> PVC
+    APID --> CM
+    APID --> SEC
+    HPA --> APID
+    APID -->|"SQL"| SVC_PG
+    APID -->|"SMTP"| SVC_MH
+```
+
+| Recurso | Dev (Compose) | K8s (proposto) |
+|---------|---------------|----------------|
+| **API** | 1 container, build multi-stage (`Dockerfile`) | Deployment + HPA (2–10 réplicas) |
+| **PostgreSQL** | 1 container custom (`database/Dockerfile`) | Deployment + PVC 5Gi |
+| **E-mail** | MailHog | MailHog (prod real: AWS SES — vars já no ConfigMap, provider ainda só `mailhog`) |
+| **Secrets** | `.env` | `Secret` + `ConfigMap` |
+| **Observabilidade** | SonarQube opcional (`docker-compose.sonar.yml`) | Health checks `/ping` (liveness/readiness) |
+| **CI** | — | GitHub Actions: build + test com Postgres 17 |
+
+> **Nota:** O repositório não inclui Ingress/LoadBalancer nem pipeline de CD. Em produção real, entraria um **Ingress** (ou Service `LoadBalancer`) na frente do `api-service` e um registry de imagens (ECR, GHCR, etc.).
+
+### Fluxo de deploy
+
+#### Desenvolvimento local
+
+```mermaid
+sequenceDiagram
+    participant Dev as Desenvolvedor
+    participant Git as Repositório Git
+    participant DC as Docker Compose
+    participant API as Container API
+    participant DB as PostgreSQL
+    participant MH as MailHog
+
+    Dev->>Git: git clone + cp .env.example .env
+    Dev->>DC: docker compose up --build -d
+    DC->>DB: sobe Postgres (schema init + seed)
+    DC->>MH: sobe MailHog
+    DC->>API: build Go → imagem scratch
+    API->>DB: conecta + goose migrations (boot)
+    API->>MH: configura provider de e-mail
+    Dev->>API: http://localhost:8080/web
+```
+
+#### CI (GitHub Actions — `.github/workflows/ci.yml`)
+
+```mermaid
+flowchart LR
+    A["Push / PR → main"] --> B["checkout"]
+    B --> C["setup-go 1.26"]
+    C --> D["go build ./..."]
+    D --> E["go test ./..."]
+    E --> F["Postgres 17<br/>(service container)"]
+    F --> E
+    E --> G["✓ ou ✗ pipeline"]
+```
+
+#### Deploy em Kubernetes (fluxo proposto)
+
+```mermaid
+flowchart TD
+    START["Código mergeado em main"] --> CI["CI: build + test OK"]
+    CI --> IMG1["docker build -t techchallenge/api:latest"]
+    CI --> IMG2["docker build -t techchallenge/postgres:latest<br/>(context: database/)"]
+    IMG1 --> PUSH["Push imagens → registry"]
+    IMG2 --> PUSH
+
+    PUSH --> K1["kubectl apply -f k8s/namespace.yaml"]
+    K1 --> K2["kubectl apply -f k8s/configmap.yaml<br/>kubectl apply -f k8s/secret.yaml"]
+    K2 --> K3["kubectl apply -f k8s/postgres-pvc.yaml"]
+    K3 --> K4["kubectl apply -f k8s/postgres-*.yaml"]
+    K4 --> K5["kubectl apply -f k8s/mailhog-*.yaml"]
+    K5 --> K6["kubectl apply -f k8s/api-deployment.yaml<br/>kubectl apply -f k8s/api-service.yaml"]
+    K6 --> K7["kubectl apply -f k8s/api-hpa.yaml"]
+
+    K6 --> BOOT["Pods API sobem"]
+    BOOT --> MIG["API executa migrations goose"]
+    MIG --> READY["Readiness /ping → tráfego liberado"]
+    READY --> SCALE["HPA escala 2–10 pods conforme CPU/memória"]
+```
+
+**Ordem de dependência no cluster**
+
+1. Namespace `workshop`
+2. ConfigMap + Secret (credenciais e env)
+3. PVC (dados persistentes do Postgres)
+4. Postgres (aguarda `pg_isready`)
+5. MailHog (SMTP interno)
+6. API (depende de DB + e-mail; probes em `/ping`)
+7. HPA (autoscaling da API)
+
+### Visão de contexto
+
+```mermaid
+flowchart LR
+    A["Atendente / Admin"] -->|"HTTPS"| S["Sistema Oficina Mecânica<br/>OS, estoque, clientes, orçamentos"]
+    C["Cliente"] -->|"Links públicos de aprovação"| S
+    S -->|"Envia orçamentos"| E["Serviço de E-mail<br/>MailHog (dev) / SES (futuro)"]
+```
+
 ## Setup
 
 ### Pré-requisitos
