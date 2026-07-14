@@ -124,8 +124,8 @@ func registerWorkshopService(app *fiber.App, db *pgxpool.Pool, jwtSecretKey stri
 func registerSupply(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
 	supplyRepo := repository.NewSupplyRepository(db)
 	wosRepo := repository.NewWorkOrderServiceRepository(db)
-	supplySvc := service.NewSupplyService(supplyRepo)
-	supplyHandler := handler.NewSupplyHandler(supplySvc, wosRepo)
+	supplySvc := service.NewSupplyService(supplyRepo, wosRepo)
+	supplyHandler := handler.NewSupplyHandler(supplySvc)
 
 	group := app.Group("/supplies", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
 	group.Get("/pending-purchases", supplyHandler.PendingPurchases)

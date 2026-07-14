@@ -11,20 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type SupplyRepository interface {
-	Create(ctx context.Context, supply *domain.Supply) (*domain.Supply, error)
-	FindByID(ctx context.Context, id uuid.UUID) (*domain.Supply, error)
-	FindAll(ctx context.Context) ([]domain.Supply, error)
-	Update(ctx context.Context, supply *domain.Supply) (*domain.Supply, error)
-	Delete(ctx context.Context, id uuid.UUID) error
-	DecrementStockForService(ctx context.Context, workOrderServiceID uuid.UUID) error
-}
-
 type supplyRepository struct {
 	db *pgxpool.Pool
 }
 
-func NewSupplyRepository(db *pgxpool.Pool) SupplyRepository {
+func NewSupplyRepository(db *pgxpool.Pool) application.SupplyRepository {
 	return &supplyRepository{db: db}
 }
 

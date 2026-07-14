@@ -11,20 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type VehicleRepository interface {
-	Create(ctx context.Context, vehicle *domain.Vehicle) (*domain.Vehicle, error)
-	FindByID(ctx context.Context, id uuid.UUID) (*domain.Vehicle, error)
-	FindAll(ctx context.Context) ([]domain.Vehicle, error)
-	FindAllWithFilters(ctx context.Context, filters domain.VehicleListFilters) ([]domain.Vehicle, error)
-	Update(ctx context.Context, vehicle *domain.Vehicle) (*domain.Vehicle, error)
-	Delete(ctx context.Context, id uuid.UUID) error
-}
-
 type vehicleRepository struct {
 	db *pgxpool.Pool
 }
 
-func NewVehicleRepository(db *pgxpool.Pool) VehicleRepository {
+func NewVehicleRepository(db *pgxpool.Pool) application.VehicleRepository {
 	return &vehicleRepository{db: db}
 }
 

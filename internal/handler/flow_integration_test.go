@@ -110,7 +110,7 @@ func setupFlowApp(t *testing.T) (*fiber.App, *pgxpool.Pool) {
 	// Services
 	customerSvc := service.NewCustomerService(customerRepo)
 	vehicleSvc := service.NewVehicleService(vehicleRepo)
-	supplySvc := service.NewSupplyService(supplyRepo)
+	supplySvc := service.NewSupplyService(supplyRepo, wosRepo)
 	wsSvc := service.NewWorkshopServiceManager(wsRepo)
 	statusSvc := service.NewWorkOrderStatusServiceWithNotifications(woRepo, wosRepo, customerRepo, nil, "http://localhost:8080")
 	woSvc := service.NewWorkOrderService(woRepo, vehicleRepo)
@@ -123,7 +123,7 @@ func setupFlowApp(t *testing.T) (*fiber.App, *pgxpool.Pool) {
 	// Handlers
 	customerHandler := NewCustomerHandler(customerSvc)
 	vehicleHandler := NewVehicleHandler(vehicleSvc)
-	supplyHandler := NewSupplyHandler(supplySvc, wosRepo)
+	supplyHandler := NewSupplyHandler(supplySvc)
 	wsHandler := NewWorkshopServiceHandler(wsSvc)
 	woHandler := NewWorkOrderHandler(woSvc, creationSvc, statusSvc, userSvc)
 	wosHandler := NewWorkOrderServiceHandler(itemSvc)
@@ -226,7 +226,7 @@ func setupFlowAppWithBudget(t *testing.T) (*fiber.App, *pgxpool.Pool, *flowMockE
 	// Services
 	customerSvc := service.NewCustomerService(customerRepo)
 	vehicleSvc := service.NewVehicleService(vehicleRepo)
-	supplySvc := service.NewSupplyService(supplyRepo)
+	supplySvc := service.NewSupplyService(supplyRepo, wosRepo)
 	wsSvc := service.NewWorkshopServiceManager(wsRepo)
 	notificationSender := email.NewWorkOrderNotificationSender(mockEmail)
 	budgetSvc := service.NewBudgetService(woRepo, wosRepo, customerRepo, notificationSender, "http://localhost:8080")
@@ -240,7 +240,7 @@ func setupFlowAppWithBudget(t *testing.T) (*fiber.App, *pgxpool.Pool, *flowMockE
 	// Handlers
 	customerHandler := NewCustomerHandler(customerSvc)
 	vehicleHandler := NewVehicleHandler(vehicleSvc)
-	supplyHandler := NewSupplyHandler(supplySvc, wosRepo)
+	supplyHandler := NewSupplyHandler(supplySvc)
 	wsHandler := NewWorkshopServiceHandler(wsSvc)
 	woHandler := NewWorkOrderHandler(woSvc, creationSvc, statusSvc, userSvc)
 	wosHandler := NewWorkOrderServiceHandler(itemSvc)

@@ -9,20 +9,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type UserRepository interface {
-	Create(ctx context.Context, user *domain.User) (*domain.User, error)
-	FindByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
-	FindByUsername(ctx context.Context, username string) (*domain.User, error)
-	FindAll(ctx context.Context) ([]domain.User, error)
-	Update(ctx context.Context, user *domain.User) (*domain.User, error)
-	Delete(ctx context.Context, id uuid.UUID) error
-}
-
 type userRepository struct {
 	db *pgxpool.Pool
 }
 
-func NewUserRepository(db *pgxpool.Pool) UserRepository {
+func NewUserRepository(db *pgxpool.Pool) application.UserRepository {
 	return &userRepository{db: db}
 }
 
