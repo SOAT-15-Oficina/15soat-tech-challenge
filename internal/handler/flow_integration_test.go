@@ -591,12 +591,12 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 			assert.Equal(t, "PENDENTE", item["status"])
 			if item["serviceId"] == serviceOilChangeID {
 				wosOilChangeID = item["id"].(string)
-				assert.Equal(t, "Troca de Óleo", item["service_title_snapshot"])
-				assert.Equal(t, float64(15000), item["service_price_cents_snapshot"])
+				assert.Equal(t, "Troca de Óleo", item["serviceTitleSnapshot"])
+				assert.Equal(t, float64(15000), item["servicePriceCentsSnapshot"])
 			}
 			if item["serviceId"] == serviceAlignmentID {
 				wosAlignmentID = item["id"].(string)
-				assert.Equal(t, "Alinhamento e Balanceamento", item["service_title_snapshot"])
+				assert.Equal(t, "Alinhamento e Balanceamento", item["serviceTitleSnapshot"])
 			}
 		}
 		assert.NotEmpty(t, wosOilChangeID)
@@ -648,7 +648,7 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 		require.Len(t, items, 2)
 		for _, item := range items {
 			assert.NotEmpty(t, item["id"])
-			assert.Equal(t, wosOilChangeID, item["work_order_service_id"])
+			assert.Equal(t, wosOilChangeID, item["workOrderServiceId"])
 		}
 	})
 
