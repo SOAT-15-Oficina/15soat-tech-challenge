@@ -40,7 +40,7 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_USER: techchallenge
-          POSTGRES_PASSWORD: password
+          POSTGRES_PASSWORD: ${{ secrets.CI_DATABASE_PASSWORD }}
           POSTGRES_DB: techchallenge-db
         ports:
           - 5432:5432
@@ -63,7 +63,7 @@ jobs:
           DATABASE_HOST: localhost
           DATABASE_PORT: 5432
           DATABASE_USER: techchallenge
-          DATABASE_PASSWORD: password
+          DATABASE_PASSWORD: ${{ secrets.CI_DATABASE_PASSWORD }}
           DATABASE_NAME: techchallenge-db
 
   build-and-deploy:

@@ -302,7 +302,10 @@ func connectTestDB(t *testing.T) *pgxpool.Pool {
 	host := envOrDefault("DATABASE_HOST", "localhost")
 	port := envOrDefault("DATABASE_PORT", "5432")
 	user := envOrDefault("DATABASE_USER", "techchallenge")
-	password := envOrDefault("DATABASE_PASSWORD", "password")
+	password := os.Getenv("DATABASE_PASSWORD")
+	if password == "" {
+		t.Skip("skipping integration test: DATABASE_PASSWORD not set")
+	}
 	dbName := envOrDefault("DATABASE_NAME", "techchallenge-db")
 
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", user, password, host, port, dbName)
