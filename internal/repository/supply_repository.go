@@ -11,20 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type SupplyRepository interface {
-	Create(ctx context.Context, supply *domain.Supply) (*domain.Supply, error)
-	FindByID(ctx context.Context, id uuid.UUID) (*domain.Supply, error)
-	FindAll(ctx context.Context) ([]domain.Supply, error)
-	Update(ctx context.Context, supply *domain.Supply) (*domain.Supply, error)
-	Delete(ctx context.Context, id uuid.UUID) error
-	DecrementStockForService(ctx context.Context, workOrderServiceID uuid.UUID) error
-}
-
 type supplyRepository struct {
 	db *pgxpool.Pool
 }
 
-func NewSupplyRepository(db *pgxpool.Pool) SupplyRepository {
+func NewSupplyRepository(db *pgxpool.Pool) application.SupplyRepository {
 	return &supplyRepository{db: db}
 }
 
@@ -156,8 +147,14 @@ func (r *supplyRepository) Update(ctx context.Context, supply *domain.Supply) (*
 
 func (r *supplyRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM supplies WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
-	return err
+	tag, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return application.ErrNotFound
+	}
+	return nil
 }
 
 func (r *supplyRepository) DecrementStockForService(ctx context.Context, workOrderServiceID uuid.UUID) error {

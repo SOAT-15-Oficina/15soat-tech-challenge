@@ -14,24 +14,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type WorkshopServiceRepository interface {
-	Create(ctx context.Context, ws *domain.WorkshopService) (*domain.WorkshopService, error)
-	FindByID(ctx context.Context, id uuid.UUID) (*domain.WorkshopService, error)
-	List(ctx context.Context, filters domain.WorkshopServiceListFilters) ([]domain.WorkshopService, int, error)
-	Update(ctx context.Context, ws *domain.WorkshopService) (*domain.WorkshopService, error)
-	Delete(ctx context.Context, id uuid.UUID) error
-	Deactivate(ctx context.Context, id uuid.UUID) (*domain.WorkshopService, error)
-	ExistsByTitle(ctx context.Context, title string, excludeID *uuid.UUID) (bool, error)
-	HasWorkOrderLinks(ctx context.Context, id uuid.UUID) (bool, error)
-	GetAvgExecutionTime(ctx context.Context, filters domain.AvgExecutionTimeFilters) ([]domain.AvgExecutionTimeResult, error)
-	SubtractSuppliesFromStock(ctx context.Context, serviceID uuid.UUID) error
-}
-
 type workshopServiceRepository struct {
 	db *pgxpool.Pool
 }
 
-func NewWorkshopServiceRepository(db *pgxpool.Pool) WorkshopServiceRepository {
+func NewWorkshopServiceRepository(db *pgxpool.Pool) application.WorkshopServiceRepository {
 	return &workshopServiceRepository{db: db}
 }
 

@@ -50,6 +50,7 @@ func TestCreate_AutoGeneratesCode(t *testing.T) {
 
 	vehicleRepo.On("FindByID", ctx, vehicleID).Return(vehicle, nil)
 	woRepo.On("Create", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(result, nil)
+	woRepo.On("FindByID", ctx, result.ID).Return(result, nil)
 
 	out, err := svc.Create(ctx, input)
 	assert.NoError(t, err)
@@ -191,8 +192,9 @@ func TestWorkOrderUpdate_Success(t *testing.T) {
 	existing.Title = "Revisão Original"
 	updated := makeWO(id, domain.WorkOrderStatusInDiagnosis)
 
-	woRepo.On("FindByID", ctx, id).Return(existing, nil)
+	woRepo.On("FindByID", ctx, id).Return(existing, nil).Once()
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(updated, nil)
+	woRepo.On("FindByID", ctx, id).Return(updated, nil).Once()
 
 	input := &domain.WorkOrder{ID: id, Title: "Revisão Atualizada", Status: domain.WorkOrderStatusInDiagnosis}
 	result, err := svc.Update(ctx, input)
@@ -289,8 +291,9 @@ func TestWorkOrderUpdate_AllFields(t *testing.T) {
 		DeliveredAt:              &now,
 	}
 
-	woRepo.On("FindByID", ctx, id).Return(existing, nil)
+	woRepo.On("FindByID", ctx, id).Return(existing, nil).Once()
 	woRepo.On("Update", ctx, mock.AnythingOfType("*domain.WorkOrder")).Return(updated, nil)
+	woRepo.On("FindByID", ctx, id).Return(updated, nil).Once()
 
 	result, err := svc.Update(ctx, input)
 	assert.NoError(t, err)

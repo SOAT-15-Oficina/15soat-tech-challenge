@@ -123,7 +123,7 @@ func TestRegister_Error(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := app.Test(req)
 	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
 }
 
 func TestLogin_Success(t *testing.T) {

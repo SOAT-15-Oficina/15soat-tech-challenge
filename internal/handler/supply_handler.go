@@ -2,19 +2,17 @@ package handler
 
 import (
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
 type SupplyHandler struct {
-	svc     service.SupplyService
-	wosRepo repository.WorkOrderServiceRepository
+	svc service.SupplyService
 }
 
-func NewSupplyHandler(svc service.SupplyService, wosRepo repository.WorkOrderServiceRepository) *SupplyHandler {
-	return &SupplyHandler{svc: svc, wosRepo: wosRepo}
+func NewSupplyHandler(svc service.SupplyService) *SupplyHandler {
+	return &SupplyHandler{svc: svc}
 }
 
 func (h *SupplyHandler) Create(c fiber.Ctx) error {
@@ -28,7 +26,7 @@ func (h *SupplyHandler) Create(c fiber.Ctx) error {
 		if handled, resp := dbErrResponse(c, err, "supply not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(result)
@@ -37,7 +35,7 @@ func (h *SupplyHandler) Create(c fiber.Ctx) error {
 func (h *SupplyHandler) GetAll(c fiber.Ctx) error {
 	supplies, err := h.svc.GetAll(c.Context())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	if supplies == nil {
@@ -58,7 +56,7 @@ func (h *SupplyHandler) GetByID(c fiber.Ctx) error {
 		if handled, resp := dbErrResponse(c, err, "supply not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.JSON(supply)
@@ -81,7 +79,7 @@ func (h *SupplyHandler) Update(c fiber.Ctx) error {
 		if handled, resp := dbErrResponse(c, err, "supply not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.JSON(result)
@@ -97,19 +95,16 @@ func (h *SupplyHandler) Delete(c fiber.Ctx) error {
 		if handled, resp := dbErrResponse(c, err, "supply not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
 func (h *SupplyHandler) PendingPurchases(c fiber.Ctx) error {
-	alerts, err := h.wosRepo.FindApprovedServicesWithShortages(c.Context())
+	alerts, err := h.svc.PendingPurchases(c.Context())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-	if alerts == nil {
-		alerts = []repository.SupplyShortageAlert{}
+		return internalServerError(c)
 	}
 	return c.JSON(fiber.Map{"data": alerts})
 }

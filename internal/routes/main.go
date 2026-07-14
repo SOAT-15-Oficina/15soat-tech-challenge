@@ -38,7 +38,7 @@ func RegisterRoutes(app *fiber.App, db *pgxpool.Pool, cfg *config.Config, emailP
 	registerCustomer(app, db, cfg.JWT.SecretKey)
 	registerVehicle(app, db, cfg.JWT.SecretKey)
 	registerSupply(app, db, cfg.JWT.SecretKey)
-	registerWorkOrderServicePublic(app, db, emailProv)
+	registerWorkOrderServicePublic(app, db, emailProv, cfg.Server.BaseURL)
 	registerPublicWorkOrder(app, db)
 	registerWorkOrder(app, db, cfg.JWT.SecretKey, emailProv, cfg.Server.BaseURL)
 	registerWorkshopService(app, db, cfg.JWT.SecretKey)
@@ -124,8 +124,8 @@ func registerWorkshopService(app *fiber.App, db *pgxpool.Pool, jwtSecretKey stri
 func registerSupply(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string) {
 	supplyRepo := repository.NewSupplyRepository(db)
 	wosRepo := repository.NewWorkOrderServiceRepository(db)
-	supplySvc := service.NewSupplyService(supplyRepo)
-	supplyHandler := handler.NewSupplyHandler(supplySvc, wosRepo)
+	supplySvc := service.NewSupplyService(supplyRepo, wosRepo)
+	supplyHandler := handler.NewSupplyHandler(supplySvc)
 
 	group := app.Group("/supplies", middlewares.Auth(jwtSecretKey), middlewares.RequireRoles(middlewares.RoleAdmin, middlewares.RoleEmployee))
 	group.Get("/pending-purchases", supplyHandler.PendingPurchases)
@@ -143,14 +143,13 @@ func registerWorkOrder(app *fiber.App, db *pgxpool.Pool, jwtSecretKey string, em
 	vehicleRepo := repository.NewVehicleRepository(db)
 	wsRepo := repository.NewWorkshopServiceRepository(db)
 	supplyRepo := repository.NewSupplyRepository(db)
-
-	workOrderSvc := service.NewWorkOrderService(workOrderRepo, vehicleRepo)
-	var notifier application.BudgetNotificationSender
+	var budgetNotifier application.BudgetNotificationSender
 	if emailProv != nil {
-		notifier = email.NewWorkOrderNotificationSender(emailProv)
+		budgetNotifier = email.NewWorkOrderNotificationSender(emailProv)
 	}
-	budgetSvc := service.NewBudgetService(workOrderRepo, wosRepo, customerRepo, notifier, baseURL)
-	statusSvc := service.NewWorkOrderStatusService(workOrderRepo, wosRepo, service.WithBudgetGeneration(budgetSvc))
+	budgetSvc := service.NewBudgetService(workOrderRepo, wosRepo, customerRepo, budgetNotifier, baseURL)
+	statusSvc := service.NewWorkOrderStatusServiceWithNotifications(workOrderRepo, wosRepo, customerRepo, emailProv, baseURL)
+	workOrderSvc := service.NewWorkOrderService(workOrderRepo, vehicleRepo)
 	creationSvc := service.NewWorkOrderCreationService(workOrderRepo, wosRepo, wsRepo, supplyRepo, statusSvc, service.WithBudgetRefresh(budgetSvc))
 	userRepo := repository.NewUserRepository(db)
 	userSvc := service.NewUserService(userRepo, jwtSecretKey)
@@ -180,15 +179,14 @@ func registerPublicWorkOrder(app *fiber.App, db *pgxpool.Pool) {
 	public.Get("/:code", publicHandler.GetByCode)
 }
 
-func registerWorkOrderServicePublic(app *fiber.App, db *pgxpool.Pool, emailProv email.Provider) {
+func registerWorkOrderServicePublic(app *fiber.App, db *pgxpool.Pool, emailProv email.Provider, baseURL string) {
 	wosRepo := repository.NewWorkOrderServiceRepository(db)
 	woRepo := repository.NewWorkOrderRepository(db)
-	statusSvc := service.NewWorkOrderStatusService(woRepo, wosRepo)
-	opts := []service.WorkOrderItemServiceOption{}
-	if emailProv != nil {
-		opts = append(opts, service.WithPurchaseAlert(email.NewWorkOrderNotificationSender(emailProv), "compras@oficina.com"))
-	}
-	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo, statusSvc, opts...)
+	customerRepo := repository.NewCustomerRepository(db)
+	notificationSender := email.NewWorkOrderNotificationSender(emailProv)
+	statusSvc := service.NewWorkOrderStatusServiceWithNotifications(woRepo, wosRepo, customerRepo, emailProv, baseURL)
+	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo, statusSvc,
+		service.WithPurchaseAlert(notificationSender, "compras@oficina.com"))
 	wosHandler := handler.NewWorkOrderServiceHandler(itemSvc)
 
 	approval := app.Group("/public/approvals")

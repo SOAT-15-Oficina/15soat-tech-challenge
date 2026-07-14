@@ -11,6 +11,10 @@ import (
 // mapErrorResponse centralizes mapping of domain/service errors to HTTP responses.
 // Returns (true, err) when it already wrote a response to the client.
 func mapErrorResponse(c fiber.Ctx, err error, notFoundMsg string) (bool, error) {
+	var validationErr *application.ValidationError
+	if errors.As(err, &validationErr) {
+		return true, c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": validationErr.Error()})
+	}
 	if errors.Is(err, service.ErrWorkOrderInvalidStatusForItems) || errors.Is(err, service.ErrInvalidStatusTransition) {
 		return true, c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
 	}
