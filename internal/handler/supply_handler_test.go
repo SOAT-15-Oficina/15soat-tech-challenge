@@ -299,13 +299,13 @@ func TestSupplyPendingPurchases_Success(t *testing.T) {
 	var payload map[string][]map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&payload))
 	item := payload["data"][0]
-	assert.Equal(t, "WO-001", item["work_order_code"])
-	assert.Equal(t, "Test WO", item["work_order_title"])
-	assert.Equal(t, "Service A", item["service_title"])
-	assert.Equal(t, "Supply X", item["supply_title"])
-	assert.NotEmpty(t, item["supply_id"])
+	assert.Equal(t, "WO-001", item["workOrderCode"])
+	assert.Equal(t, "Test WO", item["workOrderTitle"])
+	assert.Equal(t, "Service A", item["serviceTitle"])
+	assert.Equal(t, "Supply X", item["supplyTitle"])
+	assert.NotEmpty(t, item["supplyId"])
 	assert.Equal(t, float64(10), item["required"])
-	assert.Equal(t, float64(3), item["in_stock"])
+	assert.Equal(t, float64(3), item["inStock"])
 }
 
 func TestSupplyPendingPurchases_Error(t *testing.T) {

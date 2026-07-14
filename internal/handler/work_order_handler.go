@@ -27,25 +27,25 @@ func NewWorkOrderHandler(svc service.WorkOrderService, creationSvc service.WorkO
 type createWorkOrderRequest struct {
 	Title                string     `json:"title"`
 	Description          *string    `json:"description,omitempty"`
-	CustomerID           uuid.UUID  `json:"customer_id"`
-	VehicleID            uuid.UUID  `json:"vehicle_id"`
-	AssignedTechnicianID *uuid.UUID `json:"assigned_technician_id,omitempty"`
+	CustomerID           uuid.UUID  `json:"customerId"`
+	VehicleID            uuid.UUID  `json:"vehicleId"`
+	AssignedTechnicianID *uuid.UUID `json:"assignedTechnicianId,omitempty"`
 }
 
 type updateWorkOrderRequest struct {
 	Title                string                 `json:"title"`
 	Description          *string                `json:"description,omitempty"`
 	Status               domain.WorkOrderStatus `json:"status"`
-	AssignedTechnicianID *uuid.UUID             `json:"assigned_technician_id,omitempty"`
+	AssignedTechnicianID *uuid.UUID             `json:"assignedTechnicianId,omitempty"`
 }
 
 type addServiceRequest struct {
-	ServiceID            uuid.UUID `json:"service_id"`
-	EstimatedTimeMinutes *int      `json:"estimated_time_minutes,omitempty"`
+	ServiceID            uuid.UUID `json:"serviceId"`
+	EstimatedTimeMinutes *int      `json:"estimatedTimeMinutes,omitempty"`
 }
 
 type addSupplyRequest struct {
-	SupplyID uuid.UUID `json:"supply_id"`
+	SupplyID uuid.UUID `json:"supplyId"`
 	Quantity int       `json:"quantity"`
 }
 
@@ -82,7 +82,7 @@ func (h *WorkOrderHandler) Create(c fiber.Ctx) error {
 		return internalServerError(c)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(result)
+	return c.Status(fiber.StatusCreated).JSON(toWorkOrderResponse(result))
 }
 
 func (h *WorkOrderHandler) GetAll(c fiber.Ctx) error {
@@ -175,7 +175,18 @@ func (h *WorkOrderHandler) GetAll(c fiber.Ctx) error {
 	if result.Data == nil {
 		result.Data = []domain.WorkOrder{}
 	}
-	return c.JSON(result)
+
+	respItems := make([]workOrderResponse, 0, len(result.Data))
+	for i := range result.Data {
+		respItems = append(respItems, toWorkOrderResponse(&result.Data[i]))
+	}
+	return c.JSON(workOrderListResponse{
+		Data:       respItems,
+		Total:      result.Total,
+		Page:       result.Page,
+		Limit:      result.Limit,
+		TotalPages: result.TotalPages,
+	})
 }
 
 func (h *WorkOrderHandler) GetByID(c fiber.Ctx) error {
@@ -192,7 +203,7 @@ func (h *WorkOrderHandler) GetByID(c fiber.Ctx) error {
 		return internalServerError(c)
 	}
 
-	return c.JSON(workOrder)
+	return c.JSON(toWorkOrderResponse(workOrder))
 }
 
 func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
@@ -236,7 +247,7 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 		return internalServerError(c)
 	}
 
-	return c.JSON(result)
+	return c.JSON(toWorkOrderResponse(result))
 }
 
 func (h *WorkOrderHandler) AddServices(c fiber.Ctx) error {
@@ -275,7 +286,11 @@ func (h *WorkOrderHandler) AddServices(c fiber.Ctx) error {
 		return internalServerError(c)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(result)
+	respItems := make([]workOrderServiceResponse, 0, len(result))
+	for i := range result {
+		respItems = append(respItems, toWorkOrderServiceResponse(&result[i]))
+	}
+	return c.Status(fiber.StatusCreated).JSON(respItems)
 }
 
 func (h *WorkOrderHandler) RemoveService(c fiber.Ctx) error {
@@ -346,7 +361,20 @@ func (h *WorkOrderHandler) AddSupplies(c fiber.Ctx) error {
 		return internalServerError(c)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(result)
+	respItems := make([]workOrderServiceSupplyResponse, 0, len(result))
+	for i := range result {
+		respItems = append(respItems, workOrderServiceSupplyResponse{
+			ID:                       result[i].ID,
+			WorkOrderServiceID:       result[i].WorkOrderServiceID,
+			SupplyID:                 result[i].SupplyID,
+			SupplyTitleSnapshot:      result[i].SupplyTitleSnapshot,
+			SupplyPriceCentsSnapshot: result[i].SupplyPriceCentsSnapshot,
+			SupplyQuantity:           result[i].SupplyQuantity,
+			CreatedAt:                result[i].CreatedAt,
+			UpdatedAt:                result[i].UpdatedAt,
+		})
+	}
+	return c.Status(fiber.StatusCreated).JSON(respItems)
 }
 
 func (h *WorkOrderHandler) StartService(c fiber.Ctx) error {

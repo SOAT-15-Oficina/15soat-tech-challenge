@@ -78,12 +78,12 @@ func setupSchema(t *testing.T, pool *pgxpool.Pool) {
 			"id" uuid PRIMARY KEY,
 			"title" varchar(120) NOT NULL,
 			"description" text,
-			"price_cents" int NOT NULL,
-			"estimated_time_minutes" int NOT NULL,
+			"priceCents" int NOT NULL,
+			"estimatedTimeMinutes" int NOT NULL,
 			"status" varchar(30) NOT NULL DEFAULT 'ATIVO',
 			"active" boolean NOT NULL DEFAULT true,
-			"created_at" timestamp NOT NULL,
-			"updated_at" timestamp NOT NULL
+			"createdAt" timestamp NOT NULL,
+			"updatedAt" timestamp NOT NULL
 		)`)
 	require.NoError(t, err)
 
@@ -96,20 +96,20 @@ func setupSchema(t *testing.T, pool *pgxpool.Pool) {
 			"code" varchar(30) NOT NULL,
 			"title" varchar(150) NOT NULL,
 			"description" text,
-			"customer_id" uuid NOT NULL,
-			"vehicle_id" uuid NOT NULL,
-			"opened_by_user_id" uuid NOT NULL,
-			"assigned_technician_id" uuid,
+			"customerId" uuid NOT NULL,
+			"vehicleId" uuid NOT NULL,
+			"openedByUserId" uuid NOT NULL,
+			"assignedTechnicianId" uuid,
 			"status" varchar(30) NOT NULL,
-			"total_estimated_price_cents" int NOT NULL DEFAULT 0,
-			"received_at" timestamp NOT NULL,
-			"quote_sent_at" timestamp,
-			"approved_at" timestamp,
-			"started_at" timestamp,
-			"finished_at" timestamp,
-			"delivered_at" timestamp,
-			"created_at" timestamp NOT NULL,
-			"updated_at" timestamp NOT NULL
+			"totalEstimatedPriceCents" int NOT NULL DEFAULT 0,
+			"receivedAt" timestamp NOT NULL,
+			"quoteSentAt" timestamp,
+			"approvedAt" timestamp,
+			"startedAt" timestamp,
+			"finishedAt" timestamp,
+			"deliveredAt" timestamp,
+			"createdAt" timestamp NOT NULL,
+			"updatedAt" timestamp NOT NULL
 		)`)
 	require.NoError(t, err)
 
@@ -117,17 +117,17 @@ func setupSchema(t *testing.T, pool *pgxpool.Pool) {
 		CREATE TABLE IF NOT EXISTS "work_order_services" (
 			"id" uuid PRIMARY KEY,
 			"work_order_id" uuid NOT NULL REFERENCES "work_orders" ("id"),
-			"service_id" uuid NOT NULL,
+			"serviceId" uuid NOT NULL,
 			"service_title_snapshot" varchar(120) NOT NULL,
 			"service_description_snapshot" text,
 			"service_price_cents_snapshot" int NOT NULL,
 			"service_estimated_time_minutes_snapshot" int NOT NULL,
-			"approval_status" varchar(20) NOT NULL DEFAULT 'PENDENTE',
+			"approvalStatus" varchar(20) NOT NULL DEFAULT 'PENDENTE',
 			"status" varchar(30) NOT NULL DEFAULT 'PENDENTE',
-			"started_at" timestamp,
-			"finished_at" timestamp,
-			"created_at" timestamp NOT NULL,
-			"updated_at" timestamp NOT NULL
+			"startedAt" timestamp,
+			"finishedAt" timestamp,
+			"createdAt" timestamp NOT NULL,
+			"updatedAt" timestamp NOT NULL
 		)`)
 	require.NoError(t, err)
 
@@ -180,16 +180,16 @@ func TestIntegration_CreateAndGetByID(t *testing.T) {
 	resp, err := postJSON(app, "/services", map[string]any{
 		"title":                  "Oil Change",
 		"description":            "Full engine oil change",
-		"price_cents":            5000,
-		"estimated_time_minutes": 30,
+		"priceCents":            5000,
+		"estimatedTimeMinutes": 30,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusCreated, resp.StatusCode)
 
 	created := readBody(t, resp)
 	assert.Equal(t, "Oil Change", created["title"])
-	assert.Equal(t, float64(5000), created["price_cents"])
-	assert.Equal(t, float64(30), created["estimated_time_minutes"])
+	assert.Equal(t, float64(5000), created["priceCents"])
+	assert.Equal(t, float64(30), created["estimatedTimeMinutes"])
 	assert.Equal(t, true, created["active"])
 
 	id := created["id"].(string)
@@ -209,8 +209,8 @@ func TestIntegration_CreateDuplicateTitle(t *testing.T) {
 
 	body := map[string]any{
 		"title":                  "Wheel Alignment",
-		"price_cents":            8000,
-		"estimated_time_minutes": 45,
+		"priceCents":            8000,
+		"estimatedTimeMinutes": 45,
 	}
 
 	resp, err := postJSON(app, "/services", body)
@@ -238,8 +238,8 @@ func TestIntegration_ListPaginated(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		resp, err := postJSON(app, "/services", map[string]any{
 			"title":                  fmt.Sprintf("Service %d", i),
-			"price_cents":            i * 1000,
-			"estimated_time_minutes": i * 15,
+			"priceCents":            i * 1000,
+			"estimatedTimeMinutes": i * 15,
 		})
 		require.NoError(t, err)
 		require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -264,8 +264,8 @@ func TestIntegration_ListFilterByTitle(t *testing.T) {
 	for _, title := range []string{"Oil Change", "Alignment", "Tire Change"} {
 		resp, _ := postJSON(app, "/services", map[string]any{
 			"title":                  title,
-			"price_cents":            5000,
-			"estimated_time_minutes": 30,
+			"priceCents":            5000,
+			"estimatedTimeMinutes": 30,
 		})
 		require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	}
@@ -283,7 +283,7 @@ func TestIntegration_ListFilterByActive(t *testing.T) {
 	app, _ := setupIntegrationApp(t)
 
 	resp, _ := postJSON(app, "/services", map[string]any{
-		"title": "Active One", "price_cents": 1000, "estimated_time_minutes": 10,
+		"title": "Active One", "priceCents": 1000, "estimatedTimeMinutes": 10,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	created := readBody(t, resp)
@@ -293,7 +293,7 @@ func TestIntegration_ListFilterByActive(t *testing.T) {
 	require.Equal(t, fiber.StatusOK, resp.StatusCode)
 
 	resp, _ = postJSON(app, "/services", map[string]any{
-		"title": "Active Two", "price_cents": 2000, "estimated_time_minutes": 20,
+		"title": "Active Two", "priceCents": 2000, "estimatedTimeMinutes": 20,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 
@@ -320,7 +320,7 @@ func TestIntegration_Update(t *testing.T) {
 	app, _ := setupIntegrationApp(t)
 
 	resp, _ := postJSON(app, "/services", map[string]any{
-		"title": "Original", "price_cents": 1000, "estimated_time_minutes": 10,
+		"title": "Original", "priceCents": 1000, "estimatedTimeMinutes": 10,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	created := readBody(t, resp)
@@ -328,14 +328,14 @@ func TestIntegration_Update(t *testing.T) {
 
 	resp, err := putJSON(app, "/services/"+id, map[string]any{
 		"title":       "Updated",
-		"price_cents": 9999,
+		"priceCents": 9999,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
 	updated := readBody(t, resp)
 	assert.Equal(t, "Updated", updated["title"])
-	assert.Equal(t, float64(9999), updated["price_cents"])
+	assert.Equal(t, float64(9999), updated["priceCents"])
 
 	req, _ := http.NewRequest("GET", "/services/"+id, nil)
 	resp, _ = app.Test(req)
@@ -357,7 +357,7 @@ func TestIntegration_DeleteHard(t *testing.T) {
 	app, _ := setupIntegrationApp(t)
 
 	resp, _ := postJSON(app, "/services", map[string]any{
-		"title": "To Delete", "price_cents": 1000, "estimated_time_minutes": 10,
+		"title": "To Delete", "priceCents": 1000, "estimatedTimeMinutes": 10,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	created := readBody(t, resp)
@@ -378,7 +378,7 @@ func TestIntegration_DeleteSoft(t *testing.T) {
 	app, pool := setupIntegrationApp(t)
 
 	resp, _ := postJSON(app, "/services", map[string]any{
-		"title": "Linked Service", "price_cents": 1000, "estimated_time_minutes": 10,
+		"title": "Linked Service", "priceCents": 1000, "estimatedTimeMinutes": 10,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	created := readBody(t, resp)
@@ -429,7 +429,7 @@ func TestIntegration_AvgExecutionTime(t *testing.T) {
 	ctx := context.Background()
 
 	resp, _ := postJSON(app, "/services", map[string]any{
-		"title": "Oil Change", "price_cents": 5000, "estimated_time_minutes": 30,
+		"title": "Oil Change", "priceCents": 5000, "estimatedTimeMinutes": 30,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	created := readBody(t, resp)
@@ -474,9 +474,9 @@ func TestIntegration_AvgExecutionTime(t *testing.T) {
 	require.Len(t, items, 1)
 	first := items[0].(map[string]any)
 	assert.Equal(t, "Oil Change", first["title"])
-	assert.Equal(t, float64(2), first["execution_count"])
-	assert.Equal(t, float64(30), first["avg_real_time_minutes"])
-	assert.Equal(t, float64(30), first["estimated_time_minutes"])
+	assert.Equal(t, float64(2), first["executionCount"])
+	assert.Equal(t, float64(30), first["avgRealTimeMinutes"])
+	assert.Equal(t, float64(30), first["estimatedTimeMinutes"])
 }
 
 func TestIntegration_AvgExecutionTime_ConvertsSecondsToMinutes(t *testing.T) {
@@ -485,7 +485,7 @@ func TestIntegration_AvgExecutionTime_ConvertsSecondsToMinutes(t *testing.T) {
 	ctx := context.Background()
 
 	resp, _ := postJSON(app, "/services", map[string]any{
-		"title": "Quick Check", "price_cents": 1500, "estimated_time_minutes": 2,
+		"title": "Quick Check", "priceCents": 1500, "estimatedTimeMinutes": 2,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	created := readBody(t, resp)
@@ -519,8 +519,8 @@ func TestIntegration_AvgExecutionTime_ConvertsSecondsToMinutes(t *testing.T) {
 	items := result["data"].([]any)
 	require.Len(t, items, 1)
 	first := items[0].(map[string]any)
-	assert.Equal(t, float64(1.5), first["avg_real_time_minutes"])
-	assert.Equal(t, float64(-0.5), first["difference_minutes"])
+	assert.Equal(t, float64(1.5), first["avgRealTimeMinutes"])
+	assert.Equal(t, float64(-0.5), first["differenceMinutes"])
 }
 
 func TestIntegration_AvgExecutionTime_FilterByTechnician(t *testing.T) {
@@ -529,7 +529,7 @@ func TestIntegration_AvgExecutionTime_FilterByTechnician(t *testing.T) {
 	ctx := context.Background()
 
 	resp, _ := postJSON(app, "/services", map[string]any{
-		"title": "Alignment", "price_cents": 8000, "estimated_time_minutes": 60,
+		"title": "Alignment", "priceCents": 8000, "estimatedTimeMinutes": 60,
 	})
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 	created := readBody(t, resp)
@@ -572,8 +572,8 @@ func TestIntegration_AvgExecutionTime_FilterByTechnician(t *testing.T) {
 	items := result["data"].([]any)
 	require.Len(t, items, 1)
 	first := items[0].(map[string]any)
-	assert.Equal(t, float64(1), first["execution_count"])
-	assert.Equal(t, float64(60), first["avg_real_time_minutes"])
+	assert.Equal(t, float64(1), first["executionCount"])
+	assert.Equal(t, float64(60), first["avgRealTimeMinutes"])
 }
 
 func TestIntegration_AvgExecutionTime_Empty(t *testing.T) {

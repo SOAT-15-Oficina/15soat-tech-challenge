@@ -7,6 +7,15 @@ import (
 	"github.com/google/uuid"
 )
 
+type supplyRequest struct {
+	Title         string           `json:"title"`
+	Type          domain.SupplyType `json:"type"`
+	PriceCents    int              `json:"priceCents"`
+	StockQuantity int              `json:"stockQuantity"`
+	MinimumStock  int              `json:"minimumStock"`
+	Active        bool             `json:"active"`
+}
+
 type SupplyHandler struct {
 	svc service.SupplyService
 }
@@ -16,9 +25,18 @@ func NewSupplyHandler(svc service.SupplyService) *SupplyHandler {
 }
 
 func (h *SupplyHandler) Create(c fiber.Ctx) error {
-	var supply domain.Supply
-	if err := c.Bind().JSON(&supply); err != nil {
+	var req supplyRequest
+	if err := c.Bind().JSON(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	supply := domain.Supply{
+		Title:         req.Title,
+		Type:          req.Type,
+		PriceCents:    req.PriceCents,
+		StockQuantity: req.StockQuantity,
+		MinimumStock:  req.MinimumStock,
+		Active:        req.Active,
 	}
 
 	result, err := h.svc.Create(c.Context(), &supply)
@@ -29,7 +47,7 @@ func (h *SupplyHandler) Create(c fiber.Ctx) error {
 		return internalServerError(c)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(result)
+	return c.Status(fiber.StatusCreated).JSON(toSupplyResponse(result))
 }
 
 func (h *SupplyHandler) GetAll(c fiber.Ctx) error {
@@ -42,7 +60,11 @@ func (h *SupplyHandler) GetAll(c fiber.Ctx) error {
 		supplies = []domain.Supply{}
 	}
 
-	return c.JSON(fiber.Map{"data": supplies})
+	respItems := make([]supplyResponse, 0, len(supplies))
+	for i := range supplies {
+		respItems = append(respItems, toSupplyResponse(&supplies[i]))
+	}
+	return c.JSON(fiber.Map{"data": respItems})
 }
 
 func (h *SupplyHandler) GetByID(c fiber.Ctx) error {
@@ -59,7 +81,7 @@ func (h *SupplyHandler) GetByID(c fiber.Ctx) error {
 		return internalServerError(c)
 	}
 
-	return c.JSON(supply)
+	return c.JSON(toSupplyResponse(supply))
 }
 
 func (h *SupplyHandler) Update(c fiber.Ctx) error {
@@ -68,11 +90,19 @@ func (h *SupplyHandler) Update(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
 
-	var supply domain.Supply
-	if err := c.Bind().JSON(&supply); err != nil {
+	var req supplyRequest
+	if err := c.Bind().JSON(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	supply.ID = id
+	supply := domain.Supply{
+		ID:            id,
+		Title:         req.Title,
+		Type:          req.Type,
+		PriceCents:    req.PriceCents,
+		StockQuantity: req.StockQuantity,
+		MinimumStock:  req.MinimumStock,
+		Active:        req.Active,
+	}
 
 	result, err := h.svc.Update(c.Context(), &supply)
 	if err != nil {
@@ -82,7 +112,7 @@ func (h *SupplyHandler) Update(c fiber.Ctx) error {
 		return internalServerError(c)
 	}
 
-	return c.JSON(result)
+	return c.JSON(toSupplyResponse(result))
 }
 
 func (h *SupplyHandler) Delete(c fiber.Ctx) error {

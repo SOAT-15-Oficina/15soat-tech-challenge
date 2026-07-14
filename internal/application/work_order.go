@@ -39,7 +39,7 @@ type WorkOrderListResponse struct {
 	Total      int                `json:"total"`
 	Page       int                `json:"page"`
 	Limit      int                `json:"limit"`
-	TotalPages int                `json:"total_pages"`
+	TotalPages int                `json:"totalPages"`
 }
 
 type WorkOrderRepository interface {
@@ -132,13 +132,13 @@ type WorkOrderServiceRepository interface {
 }
 
 type SupplyShortageAlert struct {
-	WorkOrderCode  string    `json:"work_order_code"`
-	WorkOrderTitle string    `json:"work_order_title"`
-	ServiceTitle   string    `json:"service_title"`
-	SupplyTitle    string    `json:"supply_title"`
-	SupplyID       uuid.UUID `json:"supply_id"`
+	WorkOrderCode  string    `json:"workOrderCode"`
+	WorkOrderTitle string    `json:"workOrderTitle"`
+	ServiceTitle   string    `json:"serviceTitle"`
+	SupplyTitle    string    `json:"supplyTitle"`
+	SupplyID       uuid.UUID `json:"supplyId"`
 	Required       int       `json:"required"`
-	InStock        int       `json:"in_stock"`
+	InStock        int       `json:"inStock"`
 }
 
 type BudgetNotification struct {

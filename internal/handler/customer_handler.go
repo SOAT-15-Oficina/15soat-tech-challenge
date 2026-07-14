@@ -12,6 +12,13 @@ import (
 
 var onlyDigits = regexp.MustCompile(`\D`)
 
+type customerRequest struct {
+	Name         string                    `json:"name"`
+	Email        string                    `json:"email"`
+	Document     string                    `json:"document"`
+	DocumentType domain.CustomerDocumentType `json:"documentType"`
+}
+
 type CustomerHandler struct {
 	svc service.CustomerService
 }
@@ -21,9 +28,16 @@ func NewCustomerHandler(svc service.CustomerService) *CustomerHandler {
 }
 
 func (h *CustomerHandler) Create(c fiber.Ctx) error {
-	var customer domain.Customer
-	if err := c.Bind().JSON(&customer); err != nil {
+	var req customerRequest
+	if err := c.Bind().JSON(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	customer := domain.Customer{
+		Name:         req.Name,
+		Email:        req.Email,
+		Document:     req.Document,
+		DocumentType: req.DocumentType,
 	}
 
 	result, err := h.svc.Create(c.Context(), &customer)
@@ -31,7 +45,7 @@ func (h *CustomerHandler) Create(c fiber.Ctx) error {
 		return h.handleServiceError(c, err)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(result)
+	return c.Status(fiber.StatusCreated).JSON(toCustomerResponse(result))
 }
 
 func (h *CustomerHandler) GetAll(c fiber.Ctx) error {
@@ -51,7 +65,11 @@ func (h *CustomerHandler) GetAll(c fiber.Ctx) error {
 		customers = []domain.Customer{}
 	}
 
-	return c.JSON(fiber.Map{"data": customers})
+	respItems := make([]customerResponse, 0, len(customers))
+	for i := range customers {
+		respItems = append(respItems, toCustomerResponse(&customers[i]))
+	}
+	return c.JSON(fiber.Map{"data": respItems})
 }
 
 func (h *CustomerHandler) GetByID(c fiber.Ctx) error {
@@ -68,7 +86,7 @@ func (h *CustomerHandler) GetByID(c fiber.Ctx) error {
 		return internalServerError(c)
 	}
 
-	return c.JSON(customer)
+	return c.JSON(toCustomerResponse(customer))
 }
 
 func (h *CustomerHandler) Update(c fiber.Ctx) error {
@@ -77,18 +95,24 @@ func (h *CustomerHandler) Update(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
 
-	var customer domain.Customer
-	if err := c.Bind().JSON(&customer); err != nil {
+	var req customerRequest
+	if err := c.Bind().JSON(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	customer.ID = id
+	customer := domain.Customer{
+		ID:           id,
+		Name:         req.Name,
+		Email:        req.Email,
+		Document:     req.Document,
+		DocumentType: req.DocumentType,
+	}
 
 	result, err := h.svc.Update(c.Context(), &customer)
 	if err != nil {
 		return h.handleServiceError(c, err)
 	}
 
-	return c.JSON(result)
+	return c.JSON(toCustomerResponse(result))
 }
 
 func (h *CustomerHandler) handleServiceError(c fiber.Ctx, err error) error {

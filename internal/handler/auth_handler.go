@@ -41,7 +41,7 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 		return internalServerError(c)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(user)
+	return c.Status(fiber.StatusCreated).JSON(toUserResponse(user))
 }
 
 func (h *AuthHandler) Login(c fiber.Ctx) error {

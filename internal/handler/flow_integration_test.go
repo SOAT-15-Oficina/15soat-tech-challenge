@@ -450,7 +450,7 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 			"name":          "João da Silva",
 			"email":         "joao@example.com",
 			"document":      "12345678909",
-			"document_type": "CPF",
+			"documentType": "CPF",
 		})
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -477,8 +477,8 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 	// ── Step 4: Atendente cadastra veículo ──
 	t.Run("Step4_CadastraVeiculo", func(t *testing.T) {
 		resp, err := flowPostJSON(app, "/vehicles", map[string]any{
-			"license_plate": "ABC1D23",
-			"customer_id":   customerID,
+			"licensePlate": "ABC1D23",
+			"customerId":   customerID,
 			"brand":         "Fiat",
 			"model":         "Uno",
 			"year":          2020,
@@ -489,7 +489,7 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 		body := flowReadBody(t, resp)
 		vehicleID = body["id"].(string)
 		assert.NotEmpty(t, vehicleID)
-		assert.Equal(t, "ABC1D23", body["license_plate"])
+		assert.Equal(t, "ABC1D23", body["licensePlate"])
 	})
 
 	// ── Step 5: Atendente cria Ordem de Serviço (status: RECEBIDA) ──
@@ -498,8 +498,8 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 		resp, err := flowPostJSON(app, "/work-orders", map[string]any{
 			"title":       "Revisão completa",
 			"description": "Revisão dos 30.000 km",
-			"customer_id": customerID,
-			"vehicle_id":  vehicleID,
+			"customerId": customerID,
+			"vehicleId":  vehicleID,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -552,8 +552,8 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 		resp, err := flowPostJSON(app, "/services", map[string]any{
 			"title":                  "Troca de Óleo",
 			"description":            "Troca de óleo do motor completa",
-			"price_cents":            15000,
-			"estimated_time_minutes": 30,
+			"priceCents":            15000,
+			"estimatedTimeMinutes": 30,
 		})
 		require.NoError(t, err)
 		require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -564,8 +564,8 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 		resp, err = flowPostJSON(app, "/services", map[string]any{
 			"title":                  "Alinhamento e Balanceamento",
 			"description":            "Alinhamento e balanceamento das 4 rodas",
-			"price_cents":            12000,
-			"estimated_time_minutes": 60,
+			"priceCents":            12000,
+			"estimatedTimeMinutes": 60,
 		})
 		require.NoError(t, err)
 		require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -577,8 +577,8 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 	var wosOilChangeID, wosAlignmentID string
 	t.Run("Step9_AdicionaServicosNaOS", func(t *testing.T) {
 		resp, err := flowPostJSON(app, fmt.Sprintf("/work-orders/%s/services", workOrderID), []map[string]any{
-			{"service_id": serviceOilChangeID},
-			{"service_id": serviceAlignmentID},
+			{"serviceId": serviceOilChangeID},
+			{"serviceId": serviceAlignmentID},
 		})
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -587,14 +587,14 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 		require.Len(t, items, 2)
 
 		for _, item := range items {
-			assert.Equal(t, "PENDENTE", item["approval_status"])
+			assert.Equal(t, "PENDENTE", item["approvalStatus"])
 			assert.Equal(t, "PENDENTE", item["status"])
-			if item["service_id"] == serviceOilChangeID {
+			if item["serviceId"] == serviceOilChangeID {
 				wosOilChangeID = item["id"].(string)
 				assert.Equal(t, "Troca de Óleo", item["service_title_snapshot"])
 				assert.Equal(t, float64(15000), item["service_price_cents_snapshot"])
 			}
-			if item["service_id"] == serviceAlignmentID {
+			if item["serviceId"] == serviceAlignmentID {
 				wosAlignmentID = item["id"].(string)
 				assert.Equal(t, "Alinhamento e Balanceamento", item["service_title_snapshot"])
 			}
@@ -609,9 +609,9 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 		resp, err := flowPostJSON(app, "/supplies", map[string]any{
 			"title":          "Filtro de Óleo",
 			"type":           "PECA",
-			"price_cents":    3500,
-			"stock_quantity": 10,
-			"minimum_stock":  2,
+			"priceCents":    3500,
+			"stockQuantity": 10,
+			"minimumStock":  2,
 		})
 		require.NoError(t, err)
 		require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -621,9 +621,9 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 		resp, err = flowPostJSON(app, "/supplies", map[string]any{
 			"title":          "Óleo Motor 5W30 1L",
 			"type":           "INSUMO",
-			"price_cents":    4500,
-			"stock_quantity": 20,
-			"minimum_stock":  5,
+			"priceCents":    4500,
+			"stockQuantity": 20,
+			"minimumStock":  5,
 		})
 		require.NoError(t, err)
 		require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -637,8 +637,8 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 		resp, err := flowPostJSON(app,
 			fmt.Sprintf("/work-orders/%s/services/%s/supplies", workOrderID, wosOilChangeID),
 			[]map[string]any{
-				{"supply_id": supplyOilFilterID, "quantity": 1},
-				{"supply_id": supplyOilID, "quantity": 4},
+				{"supplyId": supplyOilFilterID, "quantity": 1},
+				{"supplyId": supplyOilID, "quantity": 4},
 			},
 		)
 		require.NoError(t, err)
@@ -692,7 +692,7 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 		require.NoError(t, err)
 		woBody := flowReadBody(t, resp)
 		assert.Equal(t, "APROVADO", woBody["status"])
-		assert.NotNil(t, woBody["approved_at"], "approved_at should be set")
+		assert.NotNil(t, woBody["approvedAt"], "approved_at should be set")
 	})
 
 	// ── Step 15: Transição para EM_EXECUCAO ──
@@ -705,7 +705,7 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 
 		body := flowReadBody(t, resp)
 		assert.Equal(t, "EM_EXECUCAO", body["status"])
-		assert.NotNil(t, body["started_at"], "started_at should be set")
+		assert.NotNil(t, body["startedAt"], "started_at should be set")
 	})
 
 	// ── Step 16: Serviços continuam PENDENTE após EM_EXECUCAO ──
@@ -716,7 +716,7 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 		services := body["services"].([]any)
 		for _, svc := range services {
 			s := svc.(map[string]any)
-			assert.Equal(t, "APROVADO", s["approval_status"])
+			assert.Equal(t, "APROVADO", s["approvalStatus"])
 			assert.Equal(t, "PENDENTE", s["status"],
 				"services should remain PENDENTE after WO transitions to EM_EXECUCAO")
 		}
@@ -759,7 +759,7 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 		body := flowReadBody(t, resp)
 		assert.Equal(t, "FINALIZADA", body["status"],
 			"WO should auto-transition to FINALIZADA when all services are finalized")
-		assert.NotNil(t, body["finished_at"])
+		assert.NotNil(t, body["finishedAt"])
 	})
 
 	// ── Step 20: Transição para ENTREGUE (cliente retira veículo) ──
@@ -772,7 +772,7 @@ func TestIntegration_Flow_HappyPath(t *testing.T) {
 
 		body := flowReadBody(t, resp)
 		assert.Equal(t, "ENTREGUE", body["status"])
-		assert.NotNil(t, body["delivered_at"], "delivered_at should be set")
+		assert.NotNil(t, body["deliveredAt"], "delivered_at should be set")
 	})
 }
 
@@ -820,7 +820,7 @@ func TestIntegration_Flow_PartialApproval(t *testing.T) {
 		body := flowReadBody(t, resp)
 		assert.Equal(t, "APROVADO", body["status"])
 		// Total should only include the approved service (8000 cents)
-		assert.Equal(t, float64(8000), body["total_estimated_price_cents"])
+		assert.Equal(t, float64(8000), body["totalEstimatedPriceCents"])
 	})
 
 	// Can continue flow: APROVADO → EM_EXECUCAO → start/finalize services → auto-FINALIZADA → ENTREGUE
@@ -842,7 +842,7 @@ func TestIntegration_Flow_PartialApproval(t *testing.T) {
 		require.NoError(t, err)
 		body = flowReadBody(t, resp)
 		assert.Equal(t, "ENTREGUE", body["status"])
-		assert.NotNil(t, body["delivered_at"])
+		assert.NotNil(t, body["deliveredAt"])
 	})
 }
 
@@ -998,7 +998,7 @@ func TestIntegration_Flow_CannotAddServicesInWrongStatus(t *testing.T) {
 		svc2ID := createTestWorkshopService(t, app, "Outro Serviço", 3000, 10)
 		resp, err := flowPostJSON(app,
 			fmt.Sprintf("/work-orders/%s/services", workOrderID),
-			[]map[string]any{{"service_id": svc2ID}},
+			[]map[string]any{{"serviceId": svc2ID}},
 		)
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusUnprocessableEntity, resp.StatusCode,
@@ -1067,7 +1067,7 @@ func TestIntegration_Flow_RemoveServiceAndSupply(t *testing.T) {
 	supplyID := createTestSupply(t, app, "Shampoo Automotivo", "INSUMO", 1500, 50, 5)
 	resp, err := flowPostJSON(app,
 		fmt.Sprintf("/work-orders/%s/services/%s/supplies", workOrderID, wosID),
-		[]map[string]any{{"supply_id": supplyID, "quantity": 2}},
+		[]map[string]any{{"supplyId": supplyID, "quantity": 2}},
 	)
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -1132,7 +1132,7 @@ func TestIntegration_Flow_DuplicateCustomerDocument(t *testing.T) {
 			"name":          "Outro Cliente",
 			"email":         "outro@example.com",
 			"document":      "12345678909",
-			"document_type": "CPF",
+			"documentType": "CPF",
 		})
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusConflict, resp.StatusCode)
@@ -1148,8 +1148,8 @@ func TestIntegration_Flow_DuplicateVehiclePlate(t *testing.T) {
 
 	t.Run("MesmaPlacaRetorna409", func(t *testing.T) {
 		resp, err := flowPostJSON(app, "/vehicles", map[string]any{
-			"license_plate": "ABC1D23",
-			"customer_id":   customerID,
+			"licensePlate": "ABC1D23",
+			"customerId":   customerID,
 			"brand":         "VW",
 			"model":         "Gol",
 			"year":          2021,
@@ -1168,8 +1168,8 @@ func TestIntegration_Flow_DuplicateWorkshopServiceTitle(t *testing.T) {
 	t.Run("MesmoTituloRetorna409", func(t *testing.T) {
 		resp, err := flowPostJSON(app, "/services", map[string]any{
 			"title":                  "Troca de Óleo Único",
-			"price_cents":            20000,
-			"estimated_time_minutes": 45,
+			"priceCents":            20000,
+			"estimatedTimeMinutes": 45,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusConflict, resp.StatusCode)
@@ -1191,7 +1191,7 @@ func TestIntegration_Flow_DuplicateSupplyOnService(t *testing.T) {
 	// First add — OK
 	resp, err := flowPostJSON(app,
 		fmt.Sprintf("/work-orders/%s/services/%s/supplies", workOrderID, wosIDs[0]),
-		[]map[string]any{{"supply_id": supplyID, "quantity": 1}},
+		[]map[string]any{{"supplyId": supplyID, "quantity": 1}},
 	)
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -1200,7 +1200,7 @@ func TestIntegration_Flow_DuplicateSupplyOnService(t *testing.T) {
 	t.Run("MesmoInsumoRetorna409", func(t *testing.T) {
 		resp, err := flowPostJSON(app,
 			fmt.Sprintf("/work-orders/%s/services/%s/supplies", workOrderID, wosIDs[0]),
-			[]map[string]any{{"supply_id": supplyID, "quantity": 2}},
+			[]map[string]any{{"supplyId": supplyID, "quantity": 2}},
 		)
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusConflict, resp.StatusCode)
@@ -1219,7 +1219,7 @@ func TestIntegration_Flow_CustomerValidationErrors(t *testing.T) {
 		resp, err := flowPostJSON(app, "/customers", map[string]any{
 			"email":         "sem-nome@example.com",
 			"document":      "12345678909",
-			"document_type": "CPF",
+			"documentType": "CPF",
 		})
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
@@ -1230,7 +1230,7 @@ func TestIntegration_Flow_CustomerValidationErrors(t *testing.T) {
 			"name":          "Test",
 			"email":         "nao-eh-email",
 			"document":      "12345678909",
-			"document_type": "CPF",
+			"documentType": "CPF",
 		})
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
@@ -1241,7 +1241,7 @@ func TestIntegration_Flow_CustomerValidationErrors(t *testing.T) {
 			"name":          "Test",
 			"email":         "test@example.com",
 			"document":      "00000000000",
-			"document_type": "CPF",
+			"documentType": "CPF",
 		})
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
@@ -1252,7 +1252,7 @@ func TestIntegration_Flow_CustomerValidationErrors(t *testing.T) {
 			"name":          "Test",
 			"email":         "test@example.com",
 			"document":      "12345678909",
-			"document_type": "RG",
+			"documentType": "RG",
 		})
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
@@ -1267,8 +1267,8 @@ func TestIntegration_Flow_VehicleValidationErrors(t *testing.T) {
 
 	t.Run("PlacaInvalida", func(t *testing.T) {
 		resp, err := flowPostJSON(app, "/vehicles", map[string]any{
-			"license_plate": "INVALIDA",
-			"customer_id":   customerID,
+			"licensePlate": "INVALIDA",
+			"customerId":   customerID,
 			"brand":         "Fiat",
 			"model":         "Uno",
 			"year":          2020,
@@ -1279,8 +1279,8 @@ func TestIntegration_Flow_VehicleValidationErrors(t *testing.T) {
 
 	t.Run("AnoInvalido", func(t *testing.T) {
 		resp, err := flowPostJSON(app, "/vehicles", map[string]any{
-			"license_plate": "XYZ1A23",
-			"customer_id":   customerID,
+			"licensePlate": "XYZ1A23",
+			"customerId":   customerID,
 			"brand":         "Fiat",
 			"model":         "Uno",
 			"year":          1800,
@@ -1291,7 +1291,7 @@ func TestIntegration_Flow_VehicleValidationErrors(t *testing.T) {
 
 	t.Run("SemPlaca", func(t *testing.T) {
 		resp, err := flowPostJSON(app, "/vehicles", map[string]any{
-			"customer_id": customerID,
+			"customerId": customerID,
 			"brand":       "Fiat",
 			"model":       "Uno",
 			"year":        2020,
@@ -1307,8 +1307,8 @@ func TestIntegration_Flow_WorkshopServiceValidationErrors(t *testing.T) {
 
 	t.Run("SemTitulo", func(t *testing.T) {
 		resp, err := flowPostJSON(app, "/services", map[string]any{
-			"price_cents":            5000,
-			"estimated_time_minutes": 30,
+			"priceCents":            5000,
+			"estimatedTimeMinutes": 30,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
@@ -1317,8 +1317,8 @@ func TestIntegration_Flow_WorkshopServiceValidationErrors(t *testing.T) {
 	t.Run("PrecoZero", func(t *testing.T) {
 		resp, err := flowPostJSON(app, "/services", map[string]any{
 			"title":                  "Serviço Grátis",
-			"price_cents":            0,
-			"estimated_time_minutes": 30,
+			"priceCents":            0,
+			"estimatedTimeMinutes": 30,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
@@ -1327,8 +1327,8 @@ func TestIntegration_Flow_WorkshopServiceValidationErrors(t *testing.T) {
 	t.Run("TempoZero", func(t *testing.T) {
 		resp, err := flowPostJSON(app, "/services", map[string]any{
 			"title":                  "Serviço Instantâneo",
-			"price_cents":            5000,
-			"estimated_time_minutes": 0,
+			"priceCents":            5000,
+			"estimatedTimeMinutes": 0,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
@@ -1349,8 +1349,8 @@ func TestIntegration_Flow_WorkOrderReferentialErrors(t *testing.T) {
 	t.Run("ClienteInexistente", func(t *testing.T) {
 		resp, err := flowPostJSON(app, "/work-orders", map[string]any{
 			"title":       "OS com cliente fake",
-			"customer_id": "00000000-0000-0000-0000-000000000000",
-			"vehicle_id":  vehicleID,
+			"customerId": "00000000-0000-0000-0000-000000000000",
+			"vehicleId":  vehicleID,
 		})
 		require.NoError(t, err)
 		assert.NotEqual(t, fiber.StatusCreated, resp.StatusCode)
@@ -1359,8 +1359,8 @@ func TestIntegration_Flow_WorkOrderReferentialErrors(t *testing.T) {
 	t.Run("VeiculoInexistente", func(t *testing.T) {
 		resp, err := flowPostJSON(app, "/work-orders", map[string]any{
 			"title":       "OS com veículo fake",
-			"customer_id": customerID,
-			"vehicle_id":  "00000000-0000-0000-0000-000000000000",
+			"customerId": customerID,
+			"vehicleId":  "00000000-0000-0000-0000-000000000000",
 		})
 		require.NoError(t, err)
 		assert.NotEqual(t, fiber.StatusCreated, resp.StatusCode)
@@ -1370,8 +1370,8 @@ func TestIntegration_Flow_WorkOrderReferentialErrors(t *testing.T) {
 		otherCustomerID := createTestCustomer(t, app, "Outro Dono", "outro@example.com", "98765432100", "CPF")
 		resp, err := flowPostJSON(app, "/work-orders", map[string]any{
 			"title":       "OS com veículo de outro cliente",
-			"customer_id": otherCustomerID,
-			"vehicle_id":  vehicleID,
+			"customerId": otherCustomerID,
+			"vehicleId":  vehicleID,
 		})
 		require.NoError(t, err)
 		assert.NotEqual(t, fiber.StatusCreated, resp.StatusCode,
@@ -1380,8 +1380,8 @@ func TestIntegration_Flow_WorkOrderReferentialErrors(t *testing.T) {
 
 	t.Run("SemTitulo", func(t *testing.T) {
 		resp, err := flowPostJSON(app, "/work-orders", map[string]any{
-			"customer_id": customerID,
-			"vehicle_id":  vehicleID,
+			"customerId": customerID,
+			"vehicleId":  vehicleID,
 		})
 		require.NoError(t, err)
 		assert.NotEqual(t, fiber.StatusCreated, resp.StatusCode)
@@ -1409,7 +1409,7 @@ func TestIntegration_Flow_CannotAddInactiveService(t *testing.T) {
 	// Try to add inactive service to work order — should fail
 	resp, err = flowPostJSON(app,
 		fmt.Sprintf("/work-orders/%s/services", workOrderID),
-		[]map[string]any{{"service_id": svcID}},
+		[]map[string]any{{"serviceId": svcID}},
 	)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusUnprocessableEntity, resp.StatusCode,
@@ -1437,7 +1437,7 @@ func TestIntegration_Flow_CannotStartServiceWithoutStock(t *testing.T) {
 	supplyID := createTestSupply(t, app, "Peca Escassa", "PECA", 100, 10, 2)
 	resp, err := flowPostJSON(app,
 		fmt.Sprintf("/work-orders/%s/services/%s/supplies", workOrderID, wosIDs[0]),
-		[]map[string]any{{"supply_id": supplyID, "quantity": 1000}},
+		[]map[string]any{{"supplyId": supplyID, "quantity": 1000}},
 	)
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -1471,9 +1471,9 @@ func TestIntegration_Flow_CannotStartServiceWithoutStock(t *testing.T) {
 		resp, err := flowPutJSON(app, "/supplies/"+supplyID, map[string]any{
 			"title":          "Peca Escassa",
 			"type":           "PECA",
-			"price_cents":    100,
-			"stock_quantity": 1000,
-			"minimum_stock":  2,
+			"priceCents":    100,
+			"stockQuantity": 1000,
+			"minimumStock":  2,
 		})
 		require.NoError(t, err)
 		require.Equal(t, fiber.StatusOK, resp.StatusCode)
@@ -1594,8 +1594,8 @@ func TestIntegration_Flow_BudgetGenerationAndNotification(t *testing.T) {
 	resp, err := flowPostJSON(app,
 		fmt.Sprintf("/work-orders/%s/services/%s/supplies", workOrderID, wosIDs[0]),
 		[]map[string]any{
-			{"supply_id": supply1ID, "quantity": 1},
-			{"supply_id": supply2ID, "quantity": 4},
+			{"supplyId": supply1ID, "quantity": 1},
+			{"supplyId": supply2ID, "quantity": 4},
 		},
 	)
 	require.NoError(t, err)
@@ -1616,7 +1616,7 @@ func TestIntegration_Flow_BudgetGenerationAndNotification(t *testing.T) {
 		require.NoError(t, err)
 		body := flowReadBody(t, resp)
 		assert.Equal(t, "AGUARDANDO_APROVACAO", body["status"])
-		assert.NotNil(t, body["quote_sent_at"], "quote_sent_at should be set after budget generation")
+		assert.NotNil(t, body["quoteSentAt"], "quote_sent_at should be set after budget generation")
 	})
 
 	// Verify total was calculated: services(15000+12000) + supplies(3500+18000) = 48500
@@ -1624,7 +1624,7 @@ func TestIntegration_Flow_BudgetGenerationAndNotification(t *testing.T) {
 		resp, err := flowGet(app, "/work-orders/"+workOrderID)
 		require.NoError(t, err)
 		body := flowReadBody(t, resp)
-		assert.Equal(t, float64(48500), body["total_estimated_price_cents"],
+		assert.Equal(t, float64(48500), body["totalEstimatedPriceCents"],
 			"total should be sum of services + supplies: 15000+12000+3500+(4500*4)=48500")
 	})
 
@@ -1679,7 +1679,7 @@ func TestIntegration_Flow_AdjustmentWhileWaitingApprovalResendsBudget(t *testing
 	svc2ID := createTestWorkshopService(t, app, "Serviço Ajuste B", 7000, 45)
 	resp, err := flowPostJSON(app,
 		fmt.Sprintf("/work-orders/%s/services", workOrderID),
-		[]map[string]any{{"service_id": svc2ID}},
+		[]map[string]any{{"serviceId": svc2ID}},
 	)
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -1720,7 +1720,7 @@ func TestIntegration_Flow_SupplyShortageDelay(t *testing.T) {
 	supplyID := createTestSupply(t, app, "Peça Rara", "PECA", 5000, 2, 1)
 	resp, err := flowPostJSON(app,
 		fmt.Sprintf("/work-orders/%s/services/%s/supplies", workOrderID, wosIDs[0]),
-		[]map[string]any{{"supply_id": supplyID, "quantity": 5}},
+		[]map[string]any{{"supplyId": supplyID, "quantity": 5}},
 	)
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -1765,7 +1765,7 @@ func TestIntegration_Flow_NoShortageNormalTime(t *testing.T) {
 	supplyID := createTestSupply(t, app, "Peça Abundante", "PECA", 2000, 50, 5)
 	resp, err := flowPostJSON(app,
 		fmt.Sprintf("/work-orders/%s/services/%s/supplies", workOrderID, wosIDs[0]),
-		[]map[string]any{{"supply_id": supplyID, "quantity": 2}},
+		[]map[string]any{{"supplyId": supplyID, "quantity": 2}},
 	)
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -1833,8 +1833,8 @@ func TestIntegration_Flow_HappyPathWithBudgetAndEmail(t *testing.T) {
 		require.NoError(t, err)
 		body := flowReadBody(t, resp)
 		assert.Equal(t, "APROVADO", body["status"])
-		assert.NotNil(t, body["approved_at"])
-		assert.NotNil(t, body["quote_sent_at"])
+		assert.NotNil(t, body["approvedAt"])
+		assert.NotNil(t, body["quoteSentAt"])
 	})
 
 	// Continue the flow: EM_EXECUCAO → start/finalize services → auto-FINALIZADA → ENTREGUE
@@ -1924,7 +1924,7 @@ func TestIntegration_Flow_EmailFailureDoesNotRollbackTransition(t *testing.T) {
 	require.NoError(t, err)
 	body := flowReadBody(t, woResp)
 	assert.Equal(t, "AGUARDANDO_APROVACAO", body["status"])
-	assert.Nil(t, body["quote_sent_at"], "quote_sent_at should not be set when email fails")
+	assert.Nil(t, body["quoteSentAt"], "quote_sent_at should not be set when email fails")
 }
 
 func assertStatusEmail(t *testing.T, mockEmail *flowMockEmail, statusLabel string) {
@@ -1945,7 +1945,7 @@ func createTestCustomer(t *testing.T, app *fiber.App, name, email, document, doc
 		"name":          name,
 		"email":         email,
 		"document":      document,
-		"document_type": docType,
+		"documentType": docType,
 	})
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -1956,8 +1956,8 @@ func createTestCustomer(t *testing.T, app *fiber.App, name, email, document, doc
 func createTestVehicle(t *testing.T, app *fiber.App, customerID, plate, brand, model string, year int) string {
 	t.Helper()
 	resp, err := flowPostJSON(app, "/vehicles", map[string]any{
-		"license_plate": plate,
-		"customer_id":   customerID,
+		"licensePlate": plate,
+		"customerId":   customerID,
 		"brand":         brand,
 		"model":         model,
 		"year":          year,
@@ -1972,8 +1972,8 @@ func createTestWorkOrder(t *testing.T, app *fiber.App, title, customerID, vehicl
 	t.Helper()
 	resp, err := flowPostJSON(app, "/work-orders", map[string]any{
 		"title":       title,
-		"customer_id": customerID,
-		"vehicle_id":  vehicleID,
+		"customerId": customerID,
+		"vehicleId":  vehicleID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -1985,8 +1985,8 @@ func createTestWorkshopService(t *testing.T, app *fiber.App, title string, price
 	t.Helper()
 	resp, err := flowPostJSON(app, "/services", map[string]any{
 		"title":                  title,
-		"price_cents":            priceCents,
-		"estimated_time_minutes": estMinutes,
+		"priceCents":            priceCents,
+		"estimatedTimeMinutes": estMinutes,
 	})
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -1999,9 +1999,9 @@ func createTestSupply(t *testing.T, app *fiber.App, title, supplyType string, pr
 	resp, err := flowPostJSON(app, "/supplies", map[string]any{
 		"title":          title,
 		"type":           supplyType,
-		"price_cents":    priceCents,
-		"stock_quantity": stock,
-		"minimum_stock":  minStock,
+		"priceCents":    priceCents,
+		"stockQuantity": stock,
+		"minimumStock":  minStock,
 	})
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
@@ -2013,7 +2013,7 @@ func addServicesToWorkOrder(t *testing.T, app *fiber.App, workOrderID string, se
 	t.Helper()
 	items := make([]map[string]any, len(serviceIDs))
 	for i, id := range serviceIDs {
-		items[i] = map[string]any{"service_id": id}
+		items[i] = map[string]any{"serviceId": id}
 	}
 
 	resp, err := flowPostJSON(app, fmt.Sprintf("/work-orders/%s/services", workOrderID), items)
@@ -2075,7 +2075,7 @@ func listWorkOrderIDs(t *testing.T, app *fiber.App, query string) (ids []string,
 
 	body := flowReadBody(t, resp)
 	total = int(body["total"].(float64))
-	totalPages = int(body["total_pages"].(float64))
+	totalPages = int(body["totalPages"].(float64))
 
 	data, _ := body["data"].([]any)
 	for _, item := range data {

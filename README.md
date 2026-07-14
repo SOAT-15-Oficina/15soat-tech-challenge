@@ -686,14 +686,15 @@ work_orders ────────┘
 
 ### JSON (request e response)
 
-- Campos usam **snake_case**: `estimated_time_minutes`, `created_at`, `service_id`
-- Valores monetários são inteiros em centavos e usam o sufixo `_cents`; datas e horários usam RFC 3339.
-- Coleções não paginadas usam `{ "data": [...] }`; coleções paginadas também retornam `page`, `limit`, `total` e `total_pages`.
+- Campos usam **camelCase**: `estimatedTimeMinutes`, `createdAt`, `serviceId`
+- Entidades de domínio não são expostas diretamente; handlers mapeiam para DTOs de resposta com camelCase.
+- Valores monetários são inteiros em centavos e usam o sufixo `Cents`; datas e horários usam RFC 3339.
+- Coleções não paginadas usam `{ "data": [...] }`; coleções paginadas também retornam `page`, `limit`, `total` e `totalPages`.
 
 ### Query parameters
 
 - Query params usam **snake_case**: `?active=true&title=oil&technician_id=uuid`
-- Os aliases legados `customerId`, `vehicleId` e `technicianId` são aceitos temporariamente. Enviar valores diferentes no alias e no nome canônico retorna `400`.
+- Os aliases camelCase `customerId`, `vehicleId` e `technicianId` também são aceitos. Enviar valores diferentes no alias e no nome canônico retorna `400`.
 - Paginação: `page` e `limit` (padrão: page=1, limit=10)
 - Filtros booleanos aceitam `true` ou `false`
 - Datas usam formato `YYYY-MM-DD`: `?from=2026-01-01&to=2026-12-31`
@@ -701,7 +702,7 @@ work_orders ────────┘
 ### Mensagens de erro
 
 - Erros são retornados em **inglês** no formato `{"error": "mensagem"}`
-- Exemplos: `"service not found"`, `"invalid id"`, `"title, price_cents and estimated_time_minutes are required"`
+- Exemplos: `"service not found"`, `"invalid id"`, `"title, priceCents and estimatedTimeMinutes are required"`
 - Erros de domínio são propagados como texto: `"title is required"`, `"price must be greater than zero"`
 
 ### Códigos HTTP
@@ -718,6 +719,12 @@ work_orders ────────┘
 | 409    | Conflito (ex: título duplicado) |
 | 422    | Transição de estado ou regra de negócio inválida |
 | 500    | Erro interno com mensagem genérica |
+
+### Breaking changes (Fase 2)
+
+- Todos os campos JSON de request e response migraram de **snake_case** para **camelCase** (ex: `customer_id` -> `customerId`, `total_pages` -> `totalPages`).
+- Entidades de domínio não são mais serializadas diretamente; handlers usam DTOs de resposta com camelCase.
+- Query params continuam aceitando snake_case e aliases camelCase para compatibilidade.
 
 ## JWT para desenvolvimento
 
