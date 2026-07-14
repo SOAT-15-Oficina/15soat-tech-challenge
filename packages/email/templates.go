@@ -21,12 +21,15 @@ type BudgetServiceItem struct {
 }
 
 type BudgetEmailData struct {
-	CustomerName   string
-	Amount         string
-	BudgetLink     string
-	Services       []BudgetServiceItem
-	ApproveAllLink string
-	RejectAllLink  string
+	CustomerName        string
+	WorkOrderCode       string
+	PreviousStatusLabel string
+	NewStatusLabel      string
+	Amount              string
+	BudgetLink          string
+	Services            []BudgetServiceItem
+	ApproveAllLink      string
+	RejectAllLink       string
 }
 
 func RenderBudgetEmail(data BudgetEmailData) (string, error) {
@@ -55,6 +58,22 @@ func RenderPurchaseAlertEmail(data PurchaseAlertEmailData) (string, error) {
 	var buf bytes.Buffer
 	if err := templates.ExecuteTemplate(&buf, "purchase-alert.html", data); err != nil {
 		return "", fmt.Errorf("email: render purchase-alert template: %w", err)
+	}
+	return buf.String(), nil
+}
+
+type StatusChangeEmailData struct {
+	CustomerName        string
+	WorkOrderCode       string
+	PreviousStatusLabel string
+	NewStatusLabel      string
+	Message             string
+}
+
+func RenderStatusChangeEmail(data StatusChangeEmailData) (string, error) {
+	var buf bytes.Buffer
+	if err := templates.ExecuteTemplate(&buf, "status-change.html", data); err != nil {
+		return "", fmt.Errorf("email: render status-change template: %w", err)
 	}
 	return buf.String(), nil
 }

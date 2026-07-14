@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 )
 
@@ -18,10 +18,10 @@ type CustomerService interface {
 }
 
 type customerService struct {
-	repo repository.CustomerRepository
+	repo application.CustomerRepository
 }
 
-func NewCustomerService(repo repository.CustomerRepository) CustomerService {
+func NewCustomerService(repo application.CustomerRepository) CustomerService {
 	return &customerService{repo: repo}
 }
 

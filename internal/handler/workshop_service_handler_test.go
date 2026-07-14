@@ -114,9 +114,9 @@ func TestCreateRoute_201(t *testing.T) {
 	svcMock.On("Create", mock.Anything, mock.AnythingOfType("*domain.WorkshopService")).Return(created, nil)
 
 	body, _ := json.Marshal(map[string]any{
-		"title":                "Oil Change",
-		"description":          "Full oil change",
-		"price_cents":           5000,
+		"title":                  "Oil Change",
+		"description":            "Full oil change",
+		"price_cents":            5000,
 		"estimated_time_minutes": 30,
 	})
 
@@ -167,8 +167,8 @@ func TestCreateRoute_409_DuplicateTitle(t *testing.T) {
 	svcMock.On("Create", mock.Anything, mock.Anything).Return(nil, service.ErrWorkshopServiceTitleAlreadyExists)
 
 	body, _ := json.Marshal(map[string]any{
-		"title":                "Duplicate",
-		"price_cents":           1000,
+		"title":                  "Duplicate",
+		"price_cents":            1000,
 		"estimated_time_minutes": 15,
 	})
 	req, _ := http.NewRequest("POST", "/services", bytes.NewReader(body))
@@ -187,8 +187,8 @@ func TestCreateRoute_400_ValidationError(t *testing.T) {
 	svcMock.On("Create", mock.Anything, mock.Anything).Return(nil, domain.ErrWorkshopServicePriceMustBePositive)
 
 	body, _ := json.Marshal(map[string]any{
-		"title":                "Test",
-		"price_cents":           -100,
+		"title":                  "Test",
+		"price_cents":            -100,
 		"estimated_time_minutes": 30,
 	})
 	req, _ := http.NewRequest("POST", "/services", bytes.NewReader(body))
@@ -214,6 +214,7 @@ func TestGetAllRoute_200(t *testing.T) {
 
 	result := parseBody(t, resp)
 	assert.Equal(t, float64(1), result["total"])
+	assert.Equal(t, float64(1), result["total_pages"])
 	assert.Len(t, result["data"], 1)
 }
 
@@ -540,4 +541,27 @@ func TestGetAvgExecutionTime_WithFilters(t *testing.T) {
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestGetAvgExecutionTime_WithCanonicalTechnicianID(t *testing.T) {
+	svcMock := new(mockWorkshopServiceService)
+	app := setupTestApp(svcMock)
+	techID := uuid.New()
+	svcMock.On("GetAvgExecutionTime", mock.Anything, mock.MatchedBy(func(filters domain.AvgExecutionTimeFilters) bool {
+		return filters.TechnicianID != nil && *filters.TechnicianID == techID
+	})).Return([]domain.AvgExecutionTimeResult{}, nil)
+
+	req, _ := http.NewRequest("GET", "/services/avg-execution-time?technician_id="+techID.String(), nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestGetAvgExecutionTime_RejectsConflictingTechnicianAliases(t *testing.T) {
+	svcMock := new(mockWorkshopServiceService)
+	app := setupTestApp(svcMock)
+	req, _ := http.NewRequest("GET", "/services/avg-execution-time?technician_id="+uuid.NewString()+"&technicianId="+uuid.NewString(), nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }

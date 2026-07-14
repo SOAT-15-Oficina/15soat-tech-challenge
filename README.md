@@ -2,6 +2,11 @@
 
 Sistema de gerenciamento de oficina mecânica com controle de ordens de serviço, estoque e clientes.
 
+## Documentação da API
+
+- Swagger UI: https://techchallenge.douglasdgoulart.xyz/swagger
+- OpenAPI YAML: https://techchallenge.douglasdgoulart.xyz/docs/swagger.yaml
+
 ## Banco escolhido
 
 O projeto utiliza **PostgreSQL** como banco de dados relacional. A escolha se justifica pela natureza do domínio: uma oficina mecânica possui entidades com relacionamentos bem definidos entre clientes, veículos, ordens de serviço, serviços, peças e movimentações de estoque. O modelo relacional garante integridade referencial entre essas entidades — por exemplo, uma ordem de serviço sempre estará vinculada a um cliente e veículo válidos.
@@ -14,7 +19,7 @@ A aplicação segue uma organização inspirada em **Arquitetura Hexagonal / Cle
 
 Regra de dependência: código de domínio e casos de uso de OS não dependem de handlers HTTP, Fiber, `pgx`, SQL, providers de e-mail, Kubernetes, Docker ou detalhes de infraestrutura. As dependências apontam para dentro: `handlers -> services/use cases -> application ports/domain`. Os adaptadores externos implementam as portas internas: `internal/repository` implementa persistência com PostgreSQL/`pgx`, e `packages/email` implementa notificações de orçamento e alertas.
 
-Visão consolidada da solução real: API Go/Fiber, painel web estático, PostgreSQL, e-mail via MailHog no ambiente local/Kubernetes, Terraform criando um cluster Kind local, Metrics Server para HPA e GitHub Actions com runner hospedado para lint/testes e runner self-hosted para build/deploy local.
+Visão consolidada da solução real: API Go/Fiber, painel web estático, PostgreSQL, e-mail via MailHog no ambiente local/Kubernetes, Terraform (em `infra/`) provisionando o cluster Kind local e a camada de dados PostgreSQL, Metrics Server para HPA e GitHub Actions com runner hospedado para lint/testes e runner self-hosted para build/deploy local.
 
 ### Componentes da aplicação
 
@@ -122,12 +127,12 @@ flowchart LR
     API -->|"SMTP"| MH
 ```
 
-#### Ambiente Kubernetes local (Terraform + Kind + manifests em `k8s/`)
+#### Ambiente Kubernetes local (Terraform em `infra/` + manifestos de app em `k8s/`)
 
 ```mermaid
 flowchart TB
     subgraph IaC["Infraestrutura como Codigo"]
-        TF["Terraform<br/>terraform/local-kind"]
+        TF["Terraform<br/>infra/ (Kind + Postgres)"]
         KIND["Cluster Kind<br/>techchallenge-local"]
         KCFG["kubeconfig local"]
     end
@@ -211,7 +216,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    EVT["Pull request ou push em main"] --> LINT["lint<br/>ubuntu-latest<br/>actionlint"]
+    EVT["Pull request ou push em main"] --> LINT["lint<br/>ubuntu-latest<br/>actionlint + Redocly"]
     EVT --> TEST["test<br/>ubuntu-latest<br/>go test ./..."]
     TEST --> PG17["PostgreSQL 17<br/>service container"]
     LINT --> GATE["gate"]
@@ -226,7 +231,7 @@ flowchart TD
     LOAD --> APPLY["kubectl apply -f k8s/"]
     APPLY --> METRICS["instala Metrics Server<br/>aguarda metrics.k8s.io"]
     METRICS --> SETIMG["kubectl set image<br/>api=techchallenge/api:&lt;sha&gt;"]
-    SETIMG --> ROLLOUT["rollout api/postgres<br/>valida GET /ping"]
+    SETIMG --> ROLLOUT["rollout api/postgres<br/>smoke /ping /ready /swagger /docs/swagger.yaml"]
 ```
 
 #### Deploy em Kubernetes local
@@ -293,7 +298,7 @@ O banco de dados PostgreSQL é inicializado automaticamente com o schema (via `i
 
 ### Cluster Kubernetes local com Terraform + Kind
 
-Além do Docker Compose, o projeto possui um setup local em `terraform/local-kind` para subir um mini cluster Kubernetes com Kind.
+Além do Docker Compose, o projeto possui um setup de infraestrutura como código em `infra/` que provisiona, num único `terraform apply`, o cluster Kubernetes local com Kind **e** a camada de dados (PostgreSQL) de forma declarativa.
 
 Pré-requisitos:
 
@@ -302,14 +307,28 @@ Pré-requisitos:
 - Kind
 - kubectl
 
-O provider Terraform `tehcyx/kind` gerencia o cluster Kind, mas nao instala esses binarios. Eles precisam estar disponiveis no ambiente local, com o Docker em execucao. O projeto usa Kind com deploy local por maior simplicidade no fluxo de desenvolvimento e validacao.
+Os providers `tehcyx/kind` e `hashicorp/kubernetes` gerenciam, respectivamente, o cluster Kind e os objetos Kubernetes. Eles nao instalam os binarios do Kind/Docker/kubectl, que precisam estar no `PATH`, com o Docker em execucao.
+
+#### Recursos gerenciados pelo Terraform
+
+| Arquivo | Recursos |
+|---------|----------|
+| `infra/cluster.tf` | `kind_cluster` — cluster Kind local + kubeconfig |
+| `infra/postgres.tf` | `kubernetes_namespace` (`workshop`), `kubernetes_config_map` (`api-config`), `kubernetes_secret` (`api-secrets`), `kubernetes_persistent_volume_claim` (`postgres-pvc`, 5Gi), `kubernetes_deployment` (`postgres`), `kubernetes_service` (`postgres-service`, ClusterIP :5432) |
+| `infra/outputs.tf` | `kubeconfig_path`, `cluster_name`, `cluster_endpoint`, `namespace`, `postgres_service_host`, `postgres_service_port`, `database_name`, `kubectl_env` |
+
+> A **camada de dados** (namespace, ConfigMap, Secret, PVC, Deployment e Service do PostgreSQL) é dona do Terraform. A **camada de aplicação** (API, MailHog, Metrics Server/HPA) permanece nos manifestos em `k8s/`, aplicados pelo pipeline. O `ConfigMap`/`Secret` são compartilhados: são a fonte única de configuração do banco, criada pelo Terraform e consumida pela API.
+
+Variáveis úteis (em `infra/variables.tf`): `cluster_name`, `namespace`, `postgres_image`, `postgres_storage`, `database_name`, `database_user`, `database_password` (sensível), `jwt_secret_key` (sensível).
+
+#### Apply
 
 Com `mise`, instale as ferramentas declaradas no projeto e execute o Terraform dentro do ambiente gerenciado:
 
 ```bash
 mise install
-mise exec -- terraform -chdir=terraform/local-kind init
-mise exec -- terraform -chdir=terraform/local-kind apply
+mise exec -- terraform -chdir=infra init
+mise exec -- terraform -chdir=infra apply
 ```
 
 Sem `mise`, instale as ferramentas manualmente, confirme que estao no `PATH` e rode os comandos diretamente:
@@ -320,44 +339,52 @@ kind version
 kubectl version --client
 terraform version
 
-terraform -chdir=terraform/local-kind init
-terraform -chdir=terraform/local-kind apply
+terraform -chdir=infra init
+terraform -chdir=infra apply
 ```
 
-O Terraform usa o provider `tehcyx/kind` para criar somente o cluster Kind e gerar um kubeconfig local. Os manifestos em `k8s/` nao sao aplicados pelo Terraform.
-
-Para usar `kubectl` apontando para o cluster criado:
+O `apply` é idempotente: execuções repetidas convergem para o mesmo estado (`No changes` quando nada muda). Para validar a formatação e a configuração antes de aplicar:
 
 ```bash
-export KUBECONFIG="$(pwd)/terraform/local-kind/kubeconfig"
+terraform -chdir=infra fmt -check
+terraform -chdir=infra validate
+```
+
+Para usar `kubectl` apontando para o cluster criado (o Terraform imprime o comando no output `kubectl_env`):
+
+```bash
+export KUBECONFIG="$(pwd)/infra/kubeconfig"
 kubectl get nodes
+kubectl get all -n workshop
 ```
 
-Para alterar o nome do cluster:
+Para alterar o nome do cluster (ou qualquer outra variável):
 
 ```bash
 # com mise
-mise exec -- terraform -chdir=terraform/local-kind apply -var='cluster_name=techchallenge-dev'
+mise exec -- terraform -chdir=infra apply -var='cluster_name=techchallenge-dev'
 
 # sem mise
-terraform -chdir=terraform/local-kind apply -var='cluster_name=techchallenge-dev'
+terraform -chdir=infra apply -var='cluster_name=techchallenge-dev'
 ```
 
-Para remover tudo:
+#### Destroy
+
+Remove todos os recursos administrados (Postgres, Service, PVC, ConfigMap, Secret, namespace e o cluster Kind):
 
 ```bash
 # com mise
-mise exec -- terraform -chdir=terraform/local-kind destroy
+mise exec -- terraform -chdir=infra destroy
 
 # sem mise
-terraform -chdir=terraform/local-kind destroy
+terraform -chdir=infra destroy
 ```
 
 ### GitHub Actions com runner local
 
 O workflow em `.github/workflows/ci.yml` usa dois ambientes:
 
-- `ubuntu-latest` do GitHub para executar `actionlint` nos workflows.
+- `ubuntu-latest` do GitHub para executar `actionlint` nos workflows e Redocly no contrato OpenAPI.
 - `ubuntu-latest` do GitHub para executar `go test ./...` com PostgreSQL de servico.
 - Runner local com os labels `self-hosted` e `local-kind` para executar `go build ./...`, buildar a imagem Docker, carregar a imagem no Kind e aplicar os manifestos Kubernetes.
 
@@ -382,9 +409,9 @@ mise install
 Crie ou atualize o cluster local antes de rodar o deploy:
 
 ```bash
-mise exec -- terraform -chdir=terraform/local-kind init
-mise exec -- terraform -chdir=terraform/local-kind apply
-export KUBECONFIG="$(pwd)/terraform/local-kind/kubeconfig"
+mise exec -- terraform -chdir=infra init
+mise exec -- terraform -chdir=infra apply
+export KUBECONFIG="$(pwd)/infra/kubeconfig"
 kubectl get nodes
 ```
 
@@ -441,13 +468,13 @@ Valide os comandos que o workflow precisa executar com o mesmo usuario do runner
 ```bash
 docker version
 kind version
-kubectl --kubeconfig "$(pwd)/terraform/local-kind/kubeconfig" get nodes
+kubectl --kubeconfig "$(pwd)/infra/kubeconfig" get nodes
 go version
 ```
 
 Fluxo do workflow em `push` para `main`:
 
-1. Executa `actionlint` no runner hospedado do GitHub.
+1. Executa `actionlint` e Redocly (versão fixada) no runner hospedado do GitHub.
 2. Executa os testes no runner hospedado do GitHub.
 3. Se lint e testes passarem, executa o build no runner local.
 4. Cria as tags Docker locais `techchallenge/api:<sha-do-commit>` e `techchallenge/api:latest`.
@@ -456,7 +483,7 @@ Fluxo do workflow em `push` para `main`:
 7. Instala o Metrics Server e aguarda a API `metrics.k8s.io`, usada pelo HPA.
 8. Atualiza o Deployment da API para a tag imutavel do commit.
 9. Garante idempotentemente os dados de demonstracao usados na consulta publica.
-10. Aguarda os rollouts e valida `GET /ping` via `kubectl port-forward`.
+10. Aguarda os rollouts e valida `/ping`, `/ready`, `/swagger` e `/docs/swagger.yaml` via `kubectl port-forward`, comparando o YAML servido com o artefato versionado.
 
 Como a imagem e carregada diretamente no Kind, o Deployment da API usa `imagePullPolicy: IfNotPresent`. Usar `Always` faria o cluster tentar buscar a tag em um registry externo, o que nao existe neste fluxo local.
 
@@ -565,8 +592,32 @@ Com o projeto rodando, acesse o Swagger UI para visualizar e testar todos os end
 
 - **Swagger UI**: [http://localhost:8080/swagger](http://localhost:8080/swagger)
 - **OpenAPI spec**: [http://localhost:8080/docs/swagger.yaml](http://localhost:8080/docs/swagger.yaml)
+- **Ambiente público**: [https://techchallenge.douglasdgoulart.xyz/swagger](https://techchallenge.douglasdgoulart.xyz/swagger)
 
 Para endpoints autenticados, clique em **Authorize** no Swagger UI e insira o token JWT de desenvolvimento (seção abaixo).
+
+### Notificações de status da OS
+
+Toda transição relevante da ordem de serviço dispara um e-mail ao cliente com **código da OS**, **status anterior** e **novo status**.
+
+| Transição | E-mail |
+|-----------|--------|
+| `RECEBIDA` → `EM_DIAGNOSTICO` | Atualização de status |
+| `EM_DIAGNOSTICO` → `AGUARDANDO_APROVACAO` | Orçamento com links de aprovação/recusa |
+| `AGUARDANDO_APROVACAO` → `APROVADO` | Atualização de status |
+| `AGUARDANDO_APROVACAO` → `CANCELADA` | Atualização de status (recusa total ou cancelamento) |
+| `RECEBIDA` / `EM_DIAGNOSTICO` → `CANCELADA` | Atualização de status |
+| `APROVADO` → `EM_EXECUCAO` | Atualização de status |
+| `EM_EXECUCAO` → `FINALIZADA` | Atualização de status |
+| `FINALIZADA` → `ENTREGUE` | Atualização de status |
+
+**Política de falha (best effort):**
+- A transição de status é persistida de forma atômica e idempotente.
+- Falhas no provedor de e-mail são apenas registradas em log; a API não retorna erro e não reverte o status.
+- `quote_sent_at` e total do orçamento só são gravados após envio bem-sucedido do e-mail de orçamento.
+- Transições repetidas para o mesmo status não geram e-mail duplicado.
+
+O envio é feito pelo `email.Provider` de `packages/email` (MailHog em desenvolvimento), exposto à aplicação pela porta `internal/application/port.EmailSender` (alias do mesmo contrato).
 
 ### Endpoints
 
@@ -635,13 +686,14 @@ work_orders ────────┘
 
 ### JSON (request e response)
 
-- Campos usam **camelCase**: `estimatedTimeMinutes`, `createdAt`, `serviceId`
-- Campos internos do domínio (domain structs) usam **snake_case** nas tags JSON (`price_cents`, `estimated_time_minutes`) — esses não são expostos diretamente na API
-- O handler é responsável por converter entre o formato interno e o formato da API (ex: `price_cents` → `price` em reais)
+- Campos usam **snake_case**: `estimated_time_minutes`, `created_at`, `service_id`
+- Valores monetários são inteiros em centavos e usam o sufixo `_cents`; datas e horários usam RFC 3339.
+- Coleções não paginadas usam `{ "data": [...] }`; coleções paginadas também retornam `page`, `limit`, `total` e `total_pages`.
 
 ### Query parameters
 
-- Query params usam **camelCase**: `?active=true&title=oil&technicianId=uuid`
+- Query params usam **snake_case**: `?active=true&title=oil&technician_id=uuid`
+- Os aliases legados `customerId`, `vehicleId` e `technicianId` são aceitos temporariamente. Enviar valores diferentes no alias e no nome canônico retorna `400`.
 - Paginação: `page` e `limit` (padrão: page=1, limit=10)
 - Filtros booleanos aceitam `true` ou `false`
 - Datas usam formato `YYYY-MM-DD`: `?from=2026-01-01&to=2026-12-31`
@@ -649,7 +701,7 @@ work_orders ────────┘
 ### Mensagens de erro
 
 - Erros são retornados em **inglês** no formato `{"error": "mensagem"}`
-- Exemplos: `"service not found"`, `"invalid id"`, `"title, price and estimatedTimeMinutes are required"`
+- Exemplos: `"service not found"`, `"invalid id"`, `"title, price_cents and estimated_time_minutes are required"`
 - Erros de domínio são propagados como texto: `"title is required"`, `"price must be greater than zero"`
 
 ### Códigos HTTP
@@ -660,9 +712,12 @@ work_orders ────────┘
 | 201    | Recurso criado com sucesso |
 | 204    | Recurso deletado com sucesso (sem body) |
 | 400    | Dados inválidos ou campos obrigatórios faltando |
+| 401    | Autenticação ausente ou inválida |
+| 403    | Papel autenticado sem permissão |
 | 404    | Recurso não encontrado |
 | 409    | Conflito (ex: título duplicado) |
-| 500    | Erro interno |
+| 422    | Transição de estado ou regra de negócio inválida |
+| 500    | Erro interno com mensagem genérica |
 
 ## JWT para desenvolvimento
 

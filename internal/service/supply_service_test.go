@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +26,7 @@ func sampleSupply() *domain.Supply {
 
 func TestSupplyCreate_Success(t *testing.T) {
 	repo := new(mockSupplyRepo)
-	svc := NewSupplyService(repo)
+	svc := NewSupplyService(repo, new(mockWorkOrderServiceRepo))
 	ctx := context.Background()
 	s := sampleSupply()
 
@@ -39,7 +40,7 @@ func TestSupplyCreate_Success(t *testing.T) {
 
 func TestSupplyCreate_RepoError(t *testing.T) {
 	repo := new(mockSupplyRepo)
-	svc := NewSupplyService(repo)
+	svc := NewSupplyService(repo, new(mockWorkOrderServiceRepo))
 	ctx := context.Background()
 	s := sampleSupply()
 
@@ -52,7 +53,7 @@ func TestSupplyCreate_RepoError(t *testing.T) {
 
 func TestSupplyGetByID_Success(t *testing.T) {
 	repo := new(mockSupplyRepo)
-	svc := NewSupplyService(repo)
+	svc := NewSupplyService(repo, new(mockWorkOrderServiceRepo))
 	ctx := context.Background()
 	s := sampleSupply()
 
@@ -65,7 +66,7 @@ func TestSupplyGetByID_Success(t *testing.T) {
 
 func TestSupplyGetByID_NotFound(t *testing.T) {
 	repo := new(mockSupplyRepo)
-	svc := NewSupplyService(repo)
+	svc := NewSupplyService(repo, new(mockWorkOrderServiceRepo))
 	ctx := context.Background()
 	id := uuid.New()
 
@@ -78,7 +79,7 @@ func TestSupplyGetByID_NotFound(t *testing.T) {
 
 func TestSupplyGetAll_Success(t *testing.T) {
 	repo := new(mockSupplyRepo)
-	svc := NewSupplyService(repo)
+	svc := NewSupplyService(repo, new(mockWorkOrderServiceRepo))
 	ctx := context.Background()
 
 	repo.On("FindAll", ctx).Return([]domain.Supply{*sampleSupply()}, nil)
@@ -90,7 +91,7 @@ func TestSupplyGetAll_Success(t *testing.T) {
 
 func TestSupplyGetAll_Empty(t *testing.T) {
 	repo := new(mockSupplyRepo)
-	svc := NewSupplyService(repo)
+	svc := NewSupplyService(repo, new(mockWorkOrderServiceRepo))
 	ctx := context.Background()
 
 	repo.On("FindAll", ctx).Return(nil, errors.New("db error"))
@@ -102,7 +103,7 @@ func TestSupplyGetAll_Empty(t *testing.T) {
 
 func TestSupplyUpdate_Success(t *testing.T) {
 	repo := new(mockSupplyRepo)
-	svc := NewSupplyService(repo)
+	svc := NewSupplyService(repo, new(mockWorkOrderServiceRepo))
 	ctx := context.Background()
 	s := sampleSupply()
 
@@ -115,7 +116,7 @@ func TestSupplyUpdate_Success(t *testing.T) {
 
 func TestSupplyDelete_Success(t *testing.T) {
 	repo := new(mockSupplyRepo)
-	svc := NewSupplyService(repo)
+	svc := NewSupplyService(repo, new(mockWorkOrderServiceRepo))
 	ctx := context.Background()
 	id := uuid.New()
 
@@ -127,7 +128,7 @@ func TestSupplyDelete_Success(t *testing.T) {
 
 func TestSupplyDelete_RepoError(t *testing.T) {
 	repo := new(mockSupplyRepo)
-	svc := NewSupplyService(repo)
+	svc := NewSupplyService(repo, new(mockWorkOrderServiceRepo))
 	ctx := context.Background()
 	id := uuid.New()
 
@@ -135,4 +136,47 @@ func TestSupplyDelete_RepoError(t *testing.T) {
 
 	err := svc.Delete(ctx, id)
 	assert.Error(t, err)
+}
+
+func TestSupplyPendingPurchases_Success(t *testing.T) {
+	repo := new(mockSupplyRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	svc := NewSupplyService(repo, wosRepo)
+	ctx := context.Background()
+
+	expected := []application.SupplyShortageAlert{
+		{WorkOrderCode: "WO-001", SupplyTitle: "Óleo Motor", Required: 10, InStock: 3},
+	}
+	wosRepo.On("FindApprovedServicesWithShortages", ctx).Return(expected, nil)
+
+	result, err := svc.PendingPurchases(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, expected, result)
+}
+
+func TestSupplyPendingPurchases_NilNormalizedToEmpty(t *testing.T) {
+	repo := new(mockSupplyRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	svc := NewSupplyService(repo, wosRepo)
+	ctx := context.Background()
+
+	wosRepo.On("FindApprovedServicesWithShortages", ctx).Return(nil, nil)
+
+	result, err := svc.PendingPurchases(ctx)
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Empty(t, result)
+}
+
+func TestSupplyPendingPurchases_RepoError(t *testing.T) {
+	repo := new(mockSupplyRepo)
+	wosRepo := new(mockWorkOrderServiceRepo)
+	svc := NewSupplyService(repo, wosRepo)
+	ctx := context.Background()
+
+	wosRepo.On("FindApprovedServicesWithShortages", ctx).Return(nil, errors.New("db error"))
+
+	result, err := svc.PendingPurchases(ctx)
+	assert.Error(t, err)
+	assert.Nil(t, result)
 }

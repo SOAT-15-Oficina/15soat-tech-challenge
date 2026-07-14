@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 )
 
@@ -18,10 +18,10 @@ type VehicleService interface {
 }
 
 type vehicleService struct {
-	repo repository.VehicleRepository
+	repo application.VehicleRepository
 }
 
-func NewVehicleService(repo repository.VehicleRepository) VehicleService {
+func NewVehicleService(repo application.VehicleRepository) VehicleService {
 	return &vehicleService{repo: repo}
 }
 

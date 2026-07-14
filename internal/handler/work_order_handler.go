@@ -62,7 +62,7 @@ func (h *WorkOrderHandler) Create(c fiber.Ctx) error {
 
 	user, err := h.userSvc.GetByUsername(c.Context(), claims.User)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to resolve user"})
+		return internalServerError(c)
 	}
 
 	workOrder := domain.WorkOrder{
@@ -79,7 +79,7 @@ func (h *WorkOrderHandler) Create(c fiber.Ctx) error {
 		if handled, resp := mapErrorResponse(c, err, "work order not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(result)
@@ -92,48 +92,74 @@ func (h *WorkOrderHandler) GetAll(c fiber.Ctx) error {
 	}
 
 	if page := c.Query("page"); page != "" {
-		if p, err := strconv.Atoi(page); err == nil && p > 0 {
-			filters.Page = p
+		p, err := strconv.Atoi(page)
+		if err != nil || p <= 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "page must be a positive integer"})
 		}
+		filters.Page = p
 	}
 	if limit := c.Query("limit"); limit != "" {
-		if l, err := strconv.Atoi(limit); err == nil && l > 0 && l <= 100 {
-			filters.Limit = l
+		l, err := strconv.Atoi(limit)
+		if err != nil || l <= 0 || l > 100 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "limit must be an integer between 1 and 100"})
 		}
+		filters.Limit = l
 	}
 
 	if status := c.Query("status"); status != "" {
+		if !domain.IsValidWorkOrderStatus(domain.WorkOrderStatus(status)) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid status"})
+		}
 		filters.Status = status
 	}
 
-	if customerID := c.Query("customerId"); customerID != "" {
-		if id, err := uuid.Parse(customerID); err == nil {
-			filters.CustomerID = id
+	customerID, err := queryWithAlias(c, "customer_id", "customerId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if customerID != "" {
+		id, err := uuid.Parse(customerID)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "customer_id must be a valid UUID"})
 		}
+		filters.CustomerID = id
 	}
 
-	if vehicleID := c.Query("vehicleId"); vehicleID != "" {
-		if id, err := uuid.Parse(vehicleID); err == nil {
-			filters.VehicleID = id
+	vehicleID, err := queryWithAlias(c, "vehicle_id", "vehicleId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if vehicleID != "" {
+		id, err := uuid.Parse(vehicleID)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "vehicle_id must be a valid UUID"})
 		}
+		filters.VehicleID = id
 	}
 
 	if from := c.Query("from"); from != "" {
-		if t, err := time.Parse("2006-01-02", from); err == nil {
-			filters.FromDate = &t
+		t, err := time.Parse("2006-01-02", from)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "from must be in format YYYY-MM-DD"})
 		}
+		filters.FromDate = &t
 	}
 
 	if to := c.Query("to"); to != "" {
-		if t, err := time.Parse("2006-01-02", to); err == nil {
-			t = t.Add(24*time.Hour - 1*time.Nanosecond)
-			filters.ToDate = &t
+		t, err := time.Parse("2006-01-02", to)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "to must be in format YYYY-MM-DD"})
 		}
+		t = t.Add(24*time.Hour - 1*time.Nanosecond)
+		filters.ToDate = &t
+	}
+	if filters.FromDate != nil && filters.ToDate != nil && filters.FromDate.After(*filters.ToDate) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "from must be before or equal to to"})
 	}
 
 	result, err := h.svc.GetAllWithFilters(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	if result == nil || result.Data == nil {
@@ -146,6 +172,9 @@ func (h *WorkOrderHandler) GetAll(c fiber.Ctx) error {
 		}
 	}
 
+	if result.Data == nil {
+		result.Data = []domain.WorkOrder{}
+	}
 	return c.JSON(result)
 }
 
@@ -160,7 +189,7 @@ func (h *WorkOrderHandler) GetByID(c fiber.Ctx) error {
 		if handled, resp := mapErrorResponse(c, err, "work order not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.JSON(workOrder)
@@ -178,12 +207,15 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 	}
 
 	if req.Status != "" {
+		if !domain.IsValidWorkOrderStatus(req.Status) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid status"})
+		}
 		_, err := h.statusSvc.TransitionTo(c.Context(), id, req.Status)
 		if err != nil {
 			if handled, resp := mapErrorResponse(c, err, "work order not found"); handled {
 				return resp
 			}
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+			return internalServerError(c)
 		}
 	}
 
@@ -201,7 +233,7 @@ func (h *WorkOrderHandler) Update(c fiber.Ctx) error {
 		if handled, resp := mapErrorResponse(c, err, "work order not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.JSON(result)
@@ -217,9 +249,18 @@ func (h *WorkOrderHandler) AddServices(c fiber.Ctx) error {
 	if err := c.Bind().JSON(&reqs); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	if len(reqs) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "at least one service is required"})
+	}
 
 	items := make([]service.AddWorkOrderServiceInput, len(reqs))
 	for i, r := range reqs {
+		if r.ServiceID == uuid.Nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "service_id is required"})
+		}
+		if r.EstimatedTimeMinutes != nil && *r.EstimatedTimeMinutes <= 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "estimated_time_minutes must be greater than zero"})
+		}
 		items[i] = service.AddWorkOrderServiceInput{
 			ServiceID:            r.ServiceID,
 			EstimatedTimeMinutes: r.EstimatedTimeMinutes,
@@ -231,7 +272,7 @@ func (h *WorkOrderHandler) AddServices(c fiber.Ctx) error {
 		if handled, resp := mapErrorResponse(c, err, "resource not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(result)
@@ -252,7 +293,7 @@ func (h *WorkOrderHandler) RemoveService(c fiber.Ctx) error {
 		if handled, resp := mapErrorResponse(c, err, "resource not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
@@ -273,9 +314,18 @@ func (h *WorkOrderHandler) AddSupplies(c fiber.Ctx) error {
 	if err := c.Bind().JSON(&reqs); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
+	if len(reqs) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "at least one supply is required"})
+	}
 
 	items := make([]service.AddWorkOrderSupplyInput, len(reqs))
 	for i, r := range reqs {
+		if r.SupplyID == uuid.Nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "supply_id is required"})
+		}
+		if r.Quantity <= 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "quantity must be greater than zero"})
+		}
 		items[i] = service.AddWorkOrderSupplyInput{
 			SupplyID: r.SupplyID,
 			Quantity: r.Quantity,
@@ -293,7 +343,7 @@ func (h *WorkOrderHandler) AddSupplies(c fiber.Ctx) error {
 		if handled, resp := mapErrorResponse(c, err, "resource not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(result)
@@ -319,7 +369,7 @@ func (h *WorkOrderHandler) StartService(c fiber.Ctx) error {
 		if handled, resp := mapErrorResponse(c, err, "resource not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 	return c.JSON(fiber.Map{"message": "Servico iniciado com sucesso"})
 }
@@ -342,7 +392,7 @@ func (h *WorkOrderHandler) FinalizeService(c fiber.Ctx) error {
 		if handled, resp := mapErrorResponse(c, err, "resource not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 	return c.JSON(fiber.Map{"message": "Servico finalizado com sucesso"})
 }
@@ -367,7 +417,7 @@ func (h *WorkOrderHandler) RemoveSupplyFromService(c fiber.Ctx) error {
 		if handled, resp := mapErrorResponse(c, err, "resource not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)

@@ -6,25 +6,45 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIsExcludedFromListing(t *testing.T) {
+func TestIsAlwaysExcludedFromListing(t *testing.T) {
 	tests := []struct {
 		name   string
 		status WorkOrderStatus
 		want   bool
 	}{
-		{"RECEBIDA is not excluded", WorkOrderStatusReceived, false},
-		{"EM_DIAGNOSTICO is not excluded", WorkOrderStatusInDiagnosis, false},
-		{"AGUARDANDO_APROVACAO is not excluded", WorkOrderStatusWaitingApproval, false},
-		{"APROVADO is not excluded", WorkOrderStatusApproved, false},
-		{"EM_EXECUCAO is not excluded", WorkOrderStatusInProgress, false},
-		{"FINALIZADA is excluded", WorkOrderStatusFinished, true},
-		{"ENTREGUE is excluded", WorkOrderStatusDelivered, true},
-		{"CANCELADA is excluded", WorkOrderStatusCanceled, true},
+		{"RECEBIDA is not always excluded", WorkOrderStatusReceived, false},
+		{"EM_DIAGNOSTICO is not always excluded", WorkOrderStatusInDiagnosis, false},
+		{"AGUARDANDO_APROVACAO is not always excluded", WorkOrderStatusWaitingApproval, false},
+		{"APROVADO is not always excluded", WorkOrderStatusApproved, false},
+		{"EM_EXECUCAO is not always excluded", WorkOrderStatusInProgress, false},
+		{"CANCELADA is not always excluded (only hidden by default)", WorkOrderStatusCanceled, false},
+		{"FINALIZADA is always excluded", WorkOrderStatusFinished, true},
+		{"ENTREGUE is always excluded", WorkOrderStatusDelivered, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, IsExcludedFromListing(tt.status))
+			assert.Equal(t, tt.want, IsAlwaysExcludedFromListing(tt.status))
+		})
+	}
+}
+
+func TestIsHiddenFromDefaultListing(t *testing.T) {
+	tests := []struct {
+		name   string
+		status WorkOrderStatus
+		want   bool
+	}{
+		{"CANCELADA is hidden from default listing", WorkOrderStatusCanceled, true},
+		{"FINALIZADA is not in the default-hidden set (it is always excluded)", WorkOrderStatusFinished, false},
+		{"ENTREGUE is not in the default-hidden set (it is always excluded)", WorkOrderStatusDelivered, false},
+		{"RECEBIDA is shown by default", WorkOrderStatusReceived, false},
+		{"APROVADO is shown by default", WorkOrderStatusApproved, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsHiddenFromDefaultListing(tt.status))
 		})
 	}
 }
@@ -36,13 +56,13 @@ func TestWorkOrderStatusSortPriorityOf(t *testing.T) {
 		want   int
 	}{
 		{"EM_EXECUCAO has highest priority (1)", WorkOrderStatusInProgress, 1},
-		{"APROVADO is priority 2", WorkOrderStatusApproved, 2},
-		{"AGUARDANDO_APROVACAO is priority 3", WorkOrderStatusWaitingApproval, 3},
-		{"EM_DIAGNOSTICO is priority 4", WorkOrderStatusInDiagnosis, 4},
-		{"RECEBIDA is priority 5", WorkOrderStatusReceived, 5},
-		{"CANCELADA is priority 6", WorkOrderStatusCanceled, 6},
-		{"FINALIZADA falls to default 99", WorkOrderStatusFinished, 99},
-		{"ENTREGUE falls to default 99", WorkOrderStatusDelivered, 99},
+		{"AGUARDANDO_APROVACAO is priority 2", WorkOrderStatusWaitingApproval, 2},
+		{"EM_DIAGNOSTICO is priority 3", WorkOrderStatusInDiagnosis, 3},
+		{"RECEBIDA is priority 4", WorkOrderStatusReceived, 4},
+		{"APROVADO falls to default (not a prioritized status)", WorkOrderStatusApproved, WorkOrderStatusDefaultSortPriority},
+		{"CANCELADA falls to default", WorkOrderStatusCanceled, WorkOrderStatusDefaultSortPriority},
+		{"FINALIZADA falls to default", WorkOrderStatusFinished, WorkOrderStatusDefaultSortPriority},
+		{"ENTREGUE falls to default", WorkOrderStatusDelivered, WorkOrderStatusDefaultSortPriority},
 	}
 
 	for _, tt := range tests {
@@ -52,9 +72,23 @@ func TestWorkOrderStatusSortPriorityOf(t *testing.T) {
 	}
 }
 
-func TestWorkOrderListingExcludedStatuses_ContainsExpected(t *testing.T) {
-	assert.Len(t, WorkOrderListingExcludedStatuses, 3)
-	assert.Contains(t, WorkOrderListingExcludedStatuses, WorkOrderStatusFinished)
-	assert.Contains(t, WorkOrderListingExcludedStatuses, WorkOrderStatusDelivered)
-	assert.Contains(t, WorkOrderListingExcludedStatuses, WorkOrderStatusCanceled)
+func TestWorkOrderListingExclusionSets(t *testing.T) {
+	assert.ElementsMatch(t,
+		[]WorkOrderStatus{WorkOrderStatusFinished, WorkOrderStatusDelivered},
+		WorkOrderListingAlwaysExcludedStatuses,
+	)
+	assert.ElementsMatch(t,
+		[]WorkOrderStatus{WorkOrderStatusCanceled},
+		WorkOrderListingDefaultHiddenStatuses,
+	)
+
+	assert.Equal(t,
+		[]WorkOrderStatus{
+			WorkOrderStatusInProgress,
+			WorkOrderStatusWaitingApproval,
+			WorkOrderStatusInDiagnosis,
+			WorkOrderStatusReceived,
+		},
+		WorkOrderListingStatusPriorityOrder,
+	)
 }

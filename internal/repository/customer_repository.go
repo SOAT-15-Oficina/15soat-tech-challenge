@@ -11,20 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type CustomerRepository interface {
-	Create(ctx context.Context, customer *domain.Customer) (*domain.Customer, error)
-	FindByID(ctx context.Context, id uuid.UUID) (*domain.Customer, error)
-	FindAll(ctx context.Context) ([]domain.Customer, error)
-	FindAllWithFilters(ctx context.Context, filters domain.CustomerListFilters) ([]domain.Customer, error)
-	Update(ctx context.Context, customer *domain.Customer) (*domain.Customer, error)
-	Delete(ctx context.Context, id uuid.UUID) error
-}
-
 type customerRepository struct {
 	db *pgxpool.Pool
 }
 
-func NewCustomerRepository(db *pgxpool.Pool) CustomerRepository {
+func NewCustomerRepository(db *pgxpool.Pool) application.CustomerRepository {
 	return &customerRepository{db: db}
 }
 
@@ -126,6 +117,12 @@ func (r *customerRepository) Update(ctx context.Context, customer *domain.Custom
 
 func (r *customerRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM customers WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
-	return err
+	tag, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return application.ErrNotFound
+	}
+	return nil
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
-	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
 	"github.com/google/uuid"
 )
 
@@ -35,10 +35,10 @@ type WorkshopServiceManager interface {
 }
 
 type workshopServiceManager struct {
-	repo repository.WorkshopServiceRepository
+	repo application.WorkshopServiceRepository
 }
 
-func NewWorkshopServiceManager(repo repository.WorkshopServiceRepository) WorkshopServiceManager {
+func NewWorkshopServiceManager(repo application.WorkshopServiceRepository) WorkshopServiceManager {
 	return &workshopServiceManager{repo: repo}
 }
 

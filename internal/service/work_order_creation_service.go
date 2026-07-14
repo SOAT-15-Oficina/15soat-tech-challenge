@@ -108,7 +108,7 @@ func (s *workOrderCreationService) refreshBudgetIfWaitingApproval(ctx context.Co
 	if wo.Status != domain.WorkOrderStatusWaitingApproval {
 		return nil
 	}
-	if err := s.budget.GenerateAndSendBudget(ctx, workOrderID); err != nil {
+	if err := s.budget.GenerateAndSendBudget(ctx, workOrderID, nil); err != nil {
 		return fmt.Errorf("%s: refresh budget: %w", operation, err)
 	}
 	return nil

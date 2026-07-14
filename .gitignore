@@ -44,9 +44,9 @@ k8s/secret.yaml
 # Terraform local state
 **/.terraform/
 **/.terraform.lock.hcl
-!terraform/local-kind/.terraform.lock.hcl
+!infra/.terraform.lock.hcl
 **/terraform.tfstate
 **/terraform.tfstate.backup
 **/.terraform.tfstate.lock.info
-terraform/local-kind/.generated/
-terraform/local-kind/kubeconfig
+infra/.generated/
+infra/kubeconfig

@@ -32,6 +32,7 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"strings"
 	"sync"
@@ -42,6 +43,7 @@ import (
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/service"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/packages/email"
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -49,25 +51,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockEmailProvider captures all sent emails for assertion in tests.
-type mockEmailProvider struct {
+// flowMockEmail captures all sent emails for assertion in tests.
+type flowMockEmail struct {
 	mu       sync.Mutex
 	messages []email.Message
+	failNext bool
 }
 
-func (m *mockEmailProvider) Send(_ context.Context, msg email.Message) error {
+func (m *flowMockEmail) Send(_ context.Context, msg email.Message) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.failNext {
+		m.failNext = false
+		return fmt.Errorf("smtp unavailable")
+	}
 	m.messages = append(m.messages, msg)
 	return nil
 }
 
-func (m *mockEmailProvider) Messages() []email.Message {
+func (m *flowMockEmail) Messages() []email.Message {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	cp := make([]email.Message, len(m.messages))
 	copy(cp, m.messages)
 	return cp
+}
+
+func findLatestEmailBySubjectContains(msgs []email.Message, fragment string) (email.Message, bool) {
+	var latest email.Message
+	found := false
+	for _, msg := range msgs {
+		if strings.Contains(msg.Subject, fragment) {
+			latest = msg
+			found = true
+		}
+	}
+	return latest, found
 }
 
 const testUsername = "mechanic_test"
@@ -93,11 +112,12 @@ func setupFlowApp(t *testing.T) (*fiber.App, *pgxpool.Pool) {
 	// Services
 	customerSvc := service.NewCustomerService(customerRepo)
 	vehicleSvc := service.NewVehicleService(vehicleRepo)
-	supplySvc := service.NewSupplyService(supplyRepo)
+	supplySvc := service.NewSupplyService(supplyRepo, wosRepo)
 	wsSvc := service.NewWorkshopServiceManager(wsRepo)
+	statusSvc := service.NewWorkOrderStatusServiceWithNotifications(woRepo, wosRepo, customerRepo, nil, "http://localhost:8080")
 	woSvc := service.NewWorkOrderService(woRepo, vehicleRepo)
-	statusSvc := service.NewWorkOrderStatusService(woRepo, wosRepo)
-	creationSvc := service.NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc)
+	budgetSvc := service.NewBudgetService(woRepo, wosRepo, customerRepo, nil, "http://localhost:8080")
+	creationSvc := service.NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc, service.WithBudgetRefresh(budgetSvc))
 	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
 	userSvc := service.NewUserService(userRepo, "test-secret")
 	publicSvc := service.NewPublicWorkOrderService(woRepo, customerRepo, wosRepo)
@@ -105,7 +125,7 @@ func setupFlowApp(t *testing.T) (*fiber.App, *pgxpool.Pool) {
 	// Handlers
 	customerHandler := NewCustomerHandler(customerSvc)
 	vehicleHandler := NewVehicleHandler(vehicleSvc)
-	supplyHandler := NewSupplyHandler(supplySvc, wosRepo)
+	supplyHandler := NewSupplyHandler(supplySvc)
 	wsHandler := NewWorkshopServiceHandler(wsSvc)
 	woHandler := NewWorkOrderHandler(woSvc, creationSvc, statusSvc, userSvc)
 	wosHandler := NewWorkOrderServiceHandler(itemSvc)
@@ -188,13 +208,13 @@ func setupFlowApp(t *testing.T) (*fiber.App, *pgxpool.Pool) {
 
 // setupFlowAppWithBudget is like setupFlowApp but wires up the BudgetService
 // with a mock email provider, so budget generation and notification tests work.
-func setupFlowAppWithBudget(t *testing.T) (*fiber.App, *pgxpool.Pool, *mockEmailProvider) {
+func setupFlowAppWithBudget(t *testing.T) (*fiber.App, *pgxpool.Pool, *flowMockEmail) {
 	t.Helper()
 
 	pool := connectTestDB(t)
 	setupFlowSchema(t, pool)
 
-	mockEmail := &mockEmailProvider{}
+	mockEmail := &flowMockEmail{}
 
 	// Repositories
 	customerRepo := repository.NewCustomerRepository(pool)
@@ -208,20 +228,21 @@ func setupFlowAppWithBudget(t *testing.T) (*fiber.App, *pgxpool.Pool, *mockEmail
 	// Services
 	customerSvc := service.NewCustomerService(customerRepo)
 	vehicleSvc := service.NewVehicleService(vehicleRepo)
-	supplySvc := service.NewSupplyService(supplyRepo)
+	supplySvc := service.NewSupplyService(supplyRepo, wosRepo)
 	wsSvc := service.NewWorkshopServiceManager(wsRepo)
+	notificationSender := email.NewWorkOrderNotificationSender(mockEmail)
+	budgetSvc := service.NewBudgetService(woRepo, wosRepo, customerRepo, notificationSender, "http://localhost:8080")
+	statusSvc := service.NewWorkOrderStatusServiceWithNotifications(woRepo, wosRepo, customerRepo, mockEmail, "http://localhost:8080")
 	woSvc := service.NewWorkOrderService(woRepo, vehicleRepo)
-	userSvc := service.NewUserService(userRepo, "test-secret")
-	publicSvc := service.NewPublicWorkOrderService(woRepo, customerRepo, wosRepo)
-	budgetSvc := service.NewBudgetService(woRepo, wosRepo, customerRepo, email.NewWorkOrderNotificationSender(mockEmail), "http://localhost:8080")
-	statusSvc := service.NewWorkOrderStatusService(woRepo, wosRepo, service.WithBudgetGeneration(budgetSvc))
 	creationSvc := service.NewWorkOrderCreationService(woRepo, wosRepo, wsRepo, supplyRepo, statusSvc, service.WithBudgetRefresh(budgetSvc))
 	itemSvc := service.NewWorkOrderItemService(wosRepo, woRepo, statusSvc)
+	userSvc := service.NewUserService(userRepo, "test-secret")
+	publicSvc := service.NewPublicWorkOrderService(woRepo, customerRepo, wosRepo)
 
 	// Handlers
 	customerHandler := NewCustomerHandler(customerSvc)
 	vehicleHandler := NewVehicleHandler(vehicleSvc)
-	supplyHandler := NewSupplyHandler(supplySvc, wosRepo)
+	supplyHandler := NewSupplyHandler(supplySvc)
 	wsHandler := NewWorkshopServiceHandler(wsSvc)
 	woHandler := NewWorkOrderHandler(woSvc, creationSvc, statusSvc, userSvc)
 	wosHandler := NewWorkOrderServiceHandler(itemSvc)
@@ -1610,9 +1631,10 @@ func TestIntegration_Flow_BudgetGenerationAndNotification(t *testing.T) {
 	// Verify email was sent to customer
 	t.Run("EmailEnviadoParaCliente", func(t *testing.T) {
 		msgs := mockEmail.Messages()
-		require.Len(t, msgs, 1, "should have sent exactly one email")
+		require.GreaterOrEqual(t, len(msgs), 2, "should send diagnosis and budget emails")
 
-		msg := msgs[0]
+		msg, ok := findLatestEmailBySubjectContains(msgs, "Orçamento")
+		require.True(t, ok)
 		assert.Contains(t, msg.To, "orcamento@example.com", "email should be sent to customer")
 		assert.Contains(t, msg.Subject, "Orçamento", "subject should mention orçamento")
 		assert.True(t, msg.HTML, "email should be HTML")
@@ -1621,9 +1643,10 @@ func TestIntegration_Flow_BudgetGenerationAndNotification(t *testing.T) {
 	// Verify email body contains approval links
 	t.Run("EmailContemLinksDeAprovacao", func(t *testing.T) {
 		msgs := mockEmail.Messages()
-		require.Len(t, msgs, 1)
+		msg, ok := findLatestEmailBySubjectContains(msgs, "Orçamento")
+		require.True(t, ok)
 
-		body := msgs[0].Body
+		body := msg.Body
 		assert.Contains(t, body, "Cliente Orçamento", "email should contain customer name")
 		assert.Contains(t, body, "approve-all", "email should contain approve-all link")
 		assert.Contains(t, body, "reject-all", "email should contain reject-all link")
@@ -1650,7 +1673,8 @@ func TestIntegration_Flow_AdjustmentWhileWaitingApprovalResendsBudget(t *testing
 	addServicesToWorkOrder(t, app, workOrderID, []string{svc1ID})
 
 	transitionWorkOrder(t, app, workOrderID, "AGUARDANDO_APROVACAO")
-	require.Len(t, mockEmail.Messages(), 1)
+	_, ok := findLatestEmailBySubjectContains(mockEmail.Messages(), "Orçamento")
+	require.True(t, ok)
 
 	svc2ID := createTestWorkshopService(t, app, "Serviço Ajuste B", 7000, 45)
 	resp, err := flowPostJSON(app,
@@ -1661,8 +1685,16 @@ func TestIntegration_Flow_AdjustmentWhileWaitingApprovalResendsBudget(t *testing
 	require.Equal(t, fiber.StatusCreated, resp.StatusCode)
 
 	msgs := mockEmail.Messages()
-	require.Len(t, msgs, 2, "adjusting services while waiting approval should send a new budget")
-	assert.Contains(t, msgs[1].Body, "Serviço Ajuste B")
+	budgetEmails := 0
+	for _, msg := range msgs {
+		if strings.Contains(msg.Subject, "Orçamento") {
+			budgetEmails++
+		}
+	}
+	require.Equal(t, 2, budgetEmails, "adjusting services while waiting approval should send a new budget")
+	latest, ok := findLatestEmailBySubjectContains(msgs, "Orçamento")
+	require.True(t, ok)
+	assert.Contains(t, latest.Body, "Serviço Ajuste B")
 }
 
 // =============================================================================
@@ -1703,8 +1735,9 @@ func TestIntegration_Flow_SupplyShortageDelay(t *testing.T) {
 	// Verify the email body contains extended time (30min + 2 days = "2 dias")
 	t.Run("EmailContemAtrasoDeEstoque", func(t *testing.T) {
 		msgs := mockEmail.Messages()
-		require.Len(t, msgs, 1)
-		body := msgs[0].Body
+		msg, ok := findLatestEmailBySubjectContains(msgs, "Orçamento")
+		require.True(t, ok)
+		body := msg.Body
 		assert.Contains(t, body, "2 dias",
 			"email should show extended estimated time when supply has shortage (+2 days)")
 	})
@@ -1745,8 +1778,9 @@ func TestIntegration_Flow_NoShortageNormalTime(t *testing.T) {
 
 	t.Run("EmailSemAtraso", func(t *testing.T) {
 		msgs := mockEmail.Messages()
-		require.Len(t, msgs, 1)
-		body := msgs[0].Body
+		msg, ok := findLatestEmailBySubjectContains(msgs, "Orçamento")
+		require.True(t, ok)
+		body := msg.Body
 		// 90 min = "1 hora e 30 min", should NOT contain "dias"
 		assert.Contains(t, body, "1 hora",
 			"email should show normal estimated time without delay")
@@ -1778,8 +1812,9 @@ func TestIntegration_Flow_HappyPathWithBudgetAndEmail(t *testing.T) {
 	// Extract the approve-all link from the email body
 	t.Run("ClienteAprovaViaLinkDoEmail", func(t *testing.T) {
 		msgs := mockEmail.Messages()
-		require.Len(t, msgs, 1)
-		body := msgs[0].Body
+		msg, ok := findLatestEmailBySubjectContains(msgs, "Orçamento")
+		require.True(t, ok)
+		body := msg.Body
 
 		// Find the approve-all URL in the email
 		approveAllSuffix := fmt.Sprintf("/public/approvals/work-orders/%s/approve-all", workOrderID)
@@ -1814,6 +1849,90 @@ func TestIntegration_Flow_HappyPathWithBudgetAndEmail(t *testing.T) {
 
 		transitionWorkOrder(t, app, workOrderID, "ENTREGUE")
 	})
+}
+
+func TestIntegration_Flow_StatusNotificationsForAllTransitions(t *testing.T) {
+	app, _, mockEmail := setupFlowAppWithBudget(t)
+	seedTestUser(t, app)
+
+	customerID := createTestCustomer(t, app, "Cliente Status", "status@example.com", "12345678909", "CPF")
+	vehicleID := createTestVehicle(t, app, customerID, "STS1A23", "Ford", "Ka", 2021)
+	workOrderID := createTestWorkOrder(t, app, "Notificações de status", customerID, vehicleID)
+
+	svcID := createTestWorkshopService(t, app, "Serviço Status", 9000, 45)
+	wosIDs := addServicesToWorkOrder(t, app, workOrderID, []string{svcID})
+
+	assertStatusEmail(t, mockEmail, "Em diagnóstico")
+
+	transitionWorkOrder(t, app, workOrderID, "AGUARDANDO_APROVACAO")
+	budgetMsg, ok := findLatestEmailBySubjectContains(mockEmail.Messages(), "Orçamento")
+	require.True(t, ok)
+	assert.Contains(t, budgetMsg.Body, "Em diagnóstico")
+	assert.Contains(t, budgetMsg.Body, "Aguardando aprovação")
+
+	approveAllSuffix := fmt.Sprintf("/public/approvals/work-orders/%s/approve-all", workOrderID)
+	resp, err := flowGet(app, approveAllSuffix)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+	assertStatusEmail(t, mockEmail, "Aprovada")
+
+	transitionWorkOrder(t, app, workOrderID, "EM_EXECUCAO")
+	assertStatusEmail(t, mockEmail, "Em execução")
+
+	startAndFinalizeService(t, app, workOrderID, wosIDs[0])
+	assertStatusEmail(t, mockEmail, "Finalizada")
+
+	transitionWorkOrder(t, app, workOrderID, "ENTREGUE")
+	assertStatusEmail(t, mockEmail, "Entregue")
+}
+
+func TestIntegration_Flow_IdempotentTransitionDoesNotDuplicateEmail(t *testing.T) {
+	app, _, mockEmail := setupFlowAppWithBudget(t)
+	seedTestUser(t, app)
+
+	customerID := createTestCustomer(t, app, "Cliente Idempotente", "idempotente@example.com", "12345678909", "CPF")
+	vehicleID := createTestVehicle(t, app, customerID, "IDP1A23", "Chevrolet", "Onix", 2020)
+	workOrderID := createTestWorkOrder(t, app, "Idempotência", customerID, vehicleID)
+
+	svcID := createTestWorkshopService(t, app, "Serviço Idempotente", 5000, 20)
+	addServicesToWorkOrder(t, app, workOrderID, []string{svcID})
+
+	before := len(mockEmail.Messages())
+	transitionWorkOrder(t, app, workOrderID, "EM_DIAGNOSTICO")
+	transitionWorkOrder(t, app, workOrderID, "EM_DIAGNOSTICO")
+	after := len(mockEmail.Messages())
+
+	assert.Equal(t, before, after, "idempotent transition should not send duplicate email")
+}
+
+func TestIntegration_Flow_EmailFailureDoesNotRollbackTransition(t *testing.T) {
+	app, _, mockEmail := setupFlowAppWithBudget(t)
+	seedTestUser(t, app)
+
+	customerID := createTestCustomer(t, app, "Cliente Falha Email", "falha@example.com", "12345678909", "CPF")
+	vehicleID := createTestVehicle(t, app, customerID, "FAL1A23", "Renault", "Kwid", 2019)
+	workOrderID := createTestWorkOrder(t, app, "Falha email", customerID, vehicleID)
+	svcID := createTestWorkshopService(t, app, "Serviço Falha", 4000, 15)
+	addServicesToWorkOrder(t, app, workOrderID, []string{svcID})
+
+	mockEmail.failNext = true
+	resp, err := flowPutJSON(app, "/work-orders/"+workOrderID, map[string]any{"status": "AGUARDANDO_APROVACAO"})
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	woResp, err := flowGet(app, "/work-orders/"+workOrderID)
+	require.NoError(t, err)
+	body := flowReadBody(t, woResp)
+	assert.Equal(t, "AGUARDANDO_APROVACAO", body["status"])
+	assert.Nil(t, body["quote_sent_at"], "quote_sent_at should not be set when email fails")
+}
+
+func assertStatusEmail(t *testing.T, mockEmail *flowMockEmail, statusLabel string) {
+	t.Helper()
+	msg, ok := findLatestEmailBySubjectContains(mockEmail.Messages(), statusLabel)
+	require.True(t, ok, "expected status email for %s", statusLabel)
+	assert.Contains(t, msg.Body, "Status anterior:")
+	assert.Contains(t, msg.Body, "Novo status:")
 }
 
 // =============================================================================
@@ -1928,4 +2047,134 @@ func transitionWorkOrder(t *testing.T, app *fiber.App, workOrderID, status strin
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusOK, resp.StatusCode,
 		"failed to transition work order %s to %s", workOrderID, status)
+}
+
+func insertWorkOrderRow(t *testing.T, pool *pgxpool.Pool, code, status string, receivedAt time.Time, customerID, vehicleID, openedBy string) string {
+	t.Helper()
+	id := uuid.New()
+	now := time.Now()
+	_, err := pool.Exec(context.Background(), `
+		INSERT INTO work_orders (
+			id, code, title, description, customer_id, vehicle_id, opened_by_user_id,
+			assigned_technician_id, status, total_estimated_price_cents, received_at,
+			created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+		id, code, "OS "+code, nil,
+		uuid.MustParse(customerID), uuid.MustParse(vehicleID), uuid.MustParse(openedBy),
+		nil, status, 0, receivedAt, now, now,
+	)
+	require.NoError(t, err)
+	return id.String()
+}
+
+func listWorkOrderIDs(t *testing.T, app *fiber.App, query string) (ids []string, statuses []string, total int, totalPages int) {
+	t.Helper()
+	resp, err := flowGet(app, "/work-orders"+query)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	body := flowReadBody(t, resp)
+	total = int(body["total"].(float64))
+	totalPages = int(body["total_pages"].(float64))
+
+	data, _ := body["data"].([]any)
+	for _, item := range data {
+		wo := item.(map[string]any)
+		ids = append(ids, wo["id"].(string))
+		statuses = append(statuses, wo["status"].(string))
+	}
+	return ids, statuses, total, totalPages
+}
+
+func TestIntegration_Flow_OperationalListingRules(t *testing.T) {
+	app, pool := setupFlowApp(t)
+	openedBy := seedTestUser(t, app)
+
+	customerA := createTestCustomer(t, app, "Listagem A", "listagem.a@example.com", "12345678909", "CPF")
+	vehicleA := createTestVehicle(t, app, customerA, "LST1A23", "Fiat", "Uno", 2020)
+
+	customerB := createTestCustomer(t, app, "Listagem B", "listagem.b@example.com", "52998224725", "CPF")
+	vehicleB := createTestVehicle(t, app, customerB, "LST1B23", "Honda", "Fit", 2021)
+
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	h := func(n int) time.Time { return base.Add(time.Duration(n) * time.Hour) }
+
+	e2 := insertWorkOrderRow(t, pool, "OS-LST-E2", "EM_EXECUCAO", h(2), customerA, vehicleA, openedBy)
+	e1 := insertWorkOrderRow(t, pool, "OS-LST-E1", "EM_EXECUCAO", h(4), customerA, vehicleA, openedBy)
+	a1 := insertWorkOrderRow(t, pool, "OS-LST-A1", "AGUARDANDO_APROVACAO", h(1), customerA, vehicleA, openedBy)
+	d1 := insertWorkOrderRow(t, pool, "OS-LST-D1", "EM_DIAGNOSTICO", h(5), customerA, vehicleA, openedBy)
+	r2 := insertWorkOrderRow(t, pool, "OS-LST-R2", "RECEBIDA", h(1), customerA, vehicleA, openedBy)
+	r1 := insertWorkOrderRow(t, pool, "OS-LST-R1", "RECEBIDA", h(3), customerA, vehicleA, openedBy)
+	ap1 := insertWorkOrderRow(t, pool, "OS-LST-AP1", "APROVADO", h(0), customerA, vehicleA, openedBy)
+	cancA := insertWorkOrderRow(t, pool, "OS-LST-C1", "CANCELADA", h(1), customerA, vehicleA, openedBy)
+	insertWorkOrderRow(t, pool, "OS-LST-F1", "FINALIZADA", h(1), customerA, vehicleA, openedBy)
+	insertWorkOrderRow(t, pool, "OS-LST-EN1", "ENTREGUE", h(1), customerA, vehicleA, openedBy)
+
+	t.Run("DefaultListing_ExcludesTerminalAndCancelled_OrdersByPriorityThenReceivedAt", func(t *testing.T) {
+		ids, statuses, total, _ := listWorkOrderIDs(t, app, "?customerId="+customerA+"&limit=50")
+
+		assert.Equal(t, 7, total, "total deve considerar as exclusões")
+		assert.NotContains(t, statuses, "FINALIZADA")
+		assert.NotContains(t, statuses, "ENTREGUE")
+		assert.NotContains(t, statuses, "CANCELADA")
+
+		assert.Equal(t, []string{e2, e1, a1, d1, r2, r1, ap1}, ids,
+			"ordem esperada: EM_EXECUCAO(received asc) > AGUARDANDO_APROVACAO > EM_DIAGNOSTICO > RECEBIDA(received asc) > APROVADO")
+	})
+
+	t.Run("StatusFilterCannotBypassExclusion_Finished", func(t *testing.T) {
+		ids, _, total, totalPages := listWorkOrderIDs(t, app, "?customerId="+customerA+"&status=FINALIZADA")
+		assert.Equal(t, 0, total, "FINALIZADA nunca aparece, mesmo com filtro explícito")
+		assert.Equal(t, 0, totalPages)
+		assert.Empty(t, ids)
+	})
+
+	t.Run("StatusFilterCannotBypassExclusion_Delivered", func(t *testing.T) {
+		ids, _, total, _ := listWorkOrderIDs(t, app, "?customerId="+customerA+"&status=ENTREGUE")
+		assert.Equal(t, 0, total, "ENTREGUE nunca aparece, mesmo com filtro explícito")
+		assert.Empty(t, ids)
+	})
+
+	t.Run("CancelledIsHiddenByDefaultButReachableViaExplicitFilter", func(t *testing.T) {
+		ids, statuses, total, _ := listWorkOrderIDs(t, app, "?customerId="+customerA+"&status=CANCELADA")
+		assert.Equal(t, 1, total)
+		assert.Equal(t, []string{cancA}, ids)
+		assert.Equal(t, []string{"CANCELADA"}, statuses)
+	})
+
+	t.Run("ExplicitStatusFilter_ReturnsOnlyThatStatus_OrderedByReceivedAt", func(t *testing.T) {
+		ids, statuses, total, _ := listWorkOrderIDs(t, app, "?customerId="+customerA+"&status=EM_EXECUCAO")
+		assert.Equal(t, 2, total)
+		assert.Equal(t, []string{e2, e1}, ids, "received_at ASC dentro do status filtrado")
+		assert.Equal(t, []string{"EM_EXECUCAO", "EM_EXECUCAO"}, statuses)
+	})
+
+	t.Run("ApprovedRemainsListable", func(t *testing.T) {
+		ids, _, total, _ := listWorkOrderIDs(t, app, "?customerId="+customerA+"&status=APROVADO")
+		assert.Equal(t, 1, total)
+		assert.Equal(t, []string{ap1}, ids)
+	})
+
+	t.Run("PaginationConsidersExclusions", func(t *testing.T) {
+		idsP1, _, total, totalPages := listWorkOrderIDs(t, app, "?customerId="+customerA+"&limit=3&page=1")
+		assert.Equal(t, 7, total)
+		assert.Equal(t, 3, totalPages)
+		assert.Equal(t, []string{e2, e1, a1}, idsP1)
+
+		idsP3, _, _, _ := listWorkOrderIDs(t, app, "?customerId="+customerA+"&limit=3&page=3")
+		assert.Equal(t, []string{ap1}, idsP3, "última página traz apenas a OS de menor prioridade")
+	})
+
+	t.Run("DateFilterOnReceivedAt_ComposesWithExclusion", func(t *testing.T) {
+		bMid := insertWorkOrderRow(t, pool, "OS-LST-BMID", "RECEBIDA", time.Date(2026, 1, 15, 9, 0, 0, 0, time.UTC), customerB, vehicleB, openedBy)
+		insertWorkOrderRow(t, pool, "OS-LST-BOLD", "RECEBIDA", time.Date(2025, 12, 1, 9, 0, 0, 0, time.UTC), customerB, vehicleB, openedBy)
+		insertWorkOrderRow(t, pool, "OS-LST-BNEW", "RECEBIDA", time.Date(2026, 2, 1, 9, 0, 0, 0, time.UTC), customerB, vehicleB, openedBy)
+		insertWorkOrderRow(t, pool, "OS-LST-BCAN", "CANCELADA", time.Date(2026, 1, 16, 9, 0, 0, 0, time.UTC), customerB, vehicleB, openedBy)
+		insertWorkOrderRow(t, pool, "OS-LST-BFIN", "FINALIZADA", time.Date(2026, 1, 17, 9, 0, 0, 0, time.UTC), customerB, vehicleB, openedBy)
+
+		ids, statuses, total, _ := listWorkOrderIDs(t, app, "?customerId="+customerB+"&from=2026-01-01&to=2026-01-31&limit=50")
+		assert.Equal(t, 1, total, "apenas a OS dentro do intervalo e não excluída")
+		assert.Equal(t, []string{bMid}, ids)
+		assert.Equal(t, []string{"RECEBIDA"}, statuses)
+	})
 }

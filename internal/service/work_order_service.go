@@ -39,16 +39,16 @@ func generateWorkOrderCode() string {
 
 func (s *workOrderService) Create(ctx context.Context, wo *domain.WorkOrder) (*domain.WorkOrder, error) {
 	if wo.Title == "" {
-		return nil, errors.New("title is required")
+		return nil, application.NewValidationError("title is required")
 	}
 	if wo.CustomerID == uuid.Nil {
-		return nil, errors.New("customer_id is required")
+		return nil, application.NewValidationError("customer_id is required")
 	}
 	if wo.VehicleID == uuid.Nil {
-		return nil, errors.New("vehicle_id is required")
+		return nil, application.NewValidationError("vehicle_id is required")
 	}
 	if wo.OpenedByUserID == uuid.Nil {
-		return nil, errors.New("opened_by_user_id is required")
+		return nil, application.NewValidationError("opened_by_user_id is required")
 	}
 
 	vehicle, err := s.vehicleRepo.FindByID(ctx, wo.VehicleID)
@@ -76,7 +76,11 @@ func (s *workOrderService) Create(ctx context.Context, wo *domain.WorkOrder) (*d
 		wo.ReceivedAt = now
 	}
 
-	return s.repo.Create(ctx, wo)
+	created, err := s.repo.Create(ctx, wo)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.FindByID(ctx, created.ID)
 }
 
 func (s *workOrderService) GetByID(ctx context.Context, id uuid.UUID) (*domain.WorkOrder, error) {
@@ -135,7 +139,11 @@ func (s *workOrderService) Update(ctx context.Context, wo *domain.WorkOrder) (*d
 		existing.DeliveredAt = wo.DeliveredAt
 	}
 
-	return s.repo.Update(ctx, existing)
+	updated, err := s.repo.Update(ctx, existing)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.FindByID(ctx, updated.ID)
 }
 
 func (s *workOrderService) GetAllWithFilters(ctx context.Context, filters application.WorkOrderListFilters) (*application.WorkOrderListResponse, error) {

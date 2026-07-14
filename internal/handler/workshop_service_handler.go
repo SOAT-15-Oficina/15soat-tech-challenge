@@ -17,11 +17,11 @@ type WorkshopServiceHandler struct {
 }
 
 type workshopServiceRequest struct {
-	Title                *string  `json:"title"`
-	Description          *string  `json:"description"`
-	PriceCents           *int     `json:"price_cents"`
-	EstimatedTimeMinutes *int     `json:"estimated_time_minutes"`
-	Active               *bool    `json:"active"`
+	Title                *string `json:"title"`
+	Description          *string `json:"description"`
+	PriceCents           *int    `json:"price_cents"`
+	EstimatedTimeMinutes *int    `json:"estimated_time_minutes"`
+	Active               *bool   `json:"active"`
 }
 
 type workshopServiceResponse struct {
@@ -36,10 +36,11 @@ type workshopServiceResponse struct {
 }
 
 type workshopServiceListResponse struct {
-	Data  []workshopServiceResponse `json:"data"`
-	Page  int                       `json:"page"`
-	Limit int                       `json:"limit"`
-	Total int                       `json:"total"`
+	Data       []workshopServiceResponse `json:"data"`
+	Page       int                       `json:"page"`
+	Limit      int                       `json:"limit"`
+	Total      int                       `json:"total"`
+	TotalPages int                       `json:"total_pages"`
 }
 
 type avgExecutionTimeResponse struct {
@@ -92,7 +93,7 @@ func (h *WorkshopServiceHandler) GetAll(c fiber.Ctx) error {
 
 	items, total, err := h.svc.List(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	responseItems := make([]workshopServiceResponse, 0, len(items))
@@ -101,10 +102,11 @@ func (h *WorkshopServiceHandler) GetAll(c fiber.Ctx) error {
 	}
 
 	return c.JSON(workshopServiceListResponse{
-		Data:  responseItems,
-		Page:  filters.Page,
-		Limit: filters.Limit,
-		Total: total,
+		Data:       responseItems,
+		Page:       filters.Page,
+		Limit:      filters.Limit,
+		Total:      total,
+		TotalPages: (total + filters.Limit - 1) / filters.Limit,
 	})
 }
 
@@ -175,7 +177,7 @@ func (h *WorkshopServiceHandler) GetAvgExecutionTime(c fiber.Ctx) error {
 
 	results, err := h.svc.GetAvgExecutionTime(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	items := make([]avgExecutionTimeResponse, 0, len(results))
@@ -213,12 +215,19 @@ func parseAvgExecutionTimeFilters(c fiber.Ctx) (domain.AvgExecutionTimeFilters, 
 		filters.To = &endOfDay
 	}
 
-	if v := c.Query("technicianId"); v != "" {
+	v, err := queryWithAlias(c, "technician_id", "technicianId")
+	if err != nil {
+		return filters, err
+	}
+	if v != "" {
 		id, err := uuid.Parse(v)
 		if err != nil {
-			return filters, errors.New("technicianId must be a valid UUID")
+			return filters, errors.New("technician_id must be a valid UUID")
 		}
 		filters.TechnicianID = &id
+	}
+	if filters.From != nil && filters.To != nil && filters.From.After(*filters.To) {
+		return filters, errors.New("from must be before or equal to to")
 	}
 
 	return filters, nil
@@ -238,7 +247,7 @@ func (h *WorkshopServiceHandler) handleServiceError(c fiber.Ctx, err error) erro
 		errors.Is(err, domain.ErrWorkshopServiceDurationMustBePositive):
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	default:
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 }
 
@@ -256,8 +265,8 @@ func parseListFilters(c fiber.Ctx) (domain.WorkshopServiceListFilters, error) {
 
 	if v := c.Query("limit"); v != "" {
 		val, err := strconv.Atoi(v)
-		if err != nil || val <= 0 {
-			return domain.WorkshopServiceListFilters{}, errors.New("limit must be a positive integer")
+		if err != nil || val <= 0 || val > 100 {
+			return domain.WorkshopServiceListFilters{}, errors.New("limit must be an integer between 1 and 100")
 		}
 		limit = val
 	}
@@ -283,7 +292,7 @@ func parseListFilters(c fiber.Ctx) (domain.WorkshopServiceListFilters, error) {
 
 func (r workshopServiceRequest) toCreateDomain() (*domain.WorkshopService, error) {
 	if r.Title == nil || r.PriceCents == nil || r.EstimatedTimeMinutes == nil {
-		return nil, errors.New("title, price_cents and estimatedTimeMinutes are required")
+		return nil, errors.New("title, price_cents and estimated_time_minutes are required")
 	}
 
 	return &domain.WorkshopService{
