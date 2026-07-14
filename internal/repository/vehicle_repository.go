@@ -127,6 +127,12 @@ func (r *vehicleRepository) Update(ctx context.Context, vehicle *domain.Vehicle)
 
 func (r *vehicleRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM vehicles WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
-	return err
+	tag, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return application.ErrNotFound
+	}
+	return nil
 }

@@ -2,11 +2,15 @@ openapi: 3.0.3
 info:
   title: Tech Challenge - Oficina Mecanica API
   description: API para gerenciamento de oficina mecanica com controle de ordens de servico, estoque e clientes.
-  version: 2.0.0
+  version: 2.1.0
+  license:
+    name: Uso academico
 
 servers:
-  - url: http://localhost:8080
-    description: Local development
+  - url: https://techchallenge.douglasdgoulart.xyz
+    description: Ambiente publico
+  - url: /
+    description: Servidor atual (desenvolvimento local ou proxy)
 
 tags:
   - name: Health
@@ -33,9 +37,18 @@ tags:
 security:
   - BearerAuth: []
 
+x-protected-responses: &protectedResponses
+  "401":
+    $ref: "#/components/responses/Unauthorized"
+  "403":
+    $ref: "#/components/responses/Forbidden"
+  "500":
+    $ref: "#/components/responses/InternalServerError"
+
 paths:
   /ping:
     get:
+      operationId: getPing
       tags: [Health]
       summary: Health check
       security: []
@@ -48,9 +61,22 @@ paths:
                 type: string
                 example: Pong
 
+  /ready:
+    get:
+      operationId: getReady
+      tags: [Health]
+      summary: Verificar prontidao da API e do banco
+      security: []
+      responses:
+        "200":
+          description: API pronta para receber trafego
+        "503":
+          description: Banco de dados indisponivel
+
   # ── Auth ──────────────────────────────────────────────
   /auth/register:
     post:
+      operationId: postAuthRegister
       tags: [Auth]
       summary: Registrar novo usuario
       security: []
@@ -69,9 +95,12 @@ paths:
                 $ref: "#/components/schemas/User"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   /auth/login:
     post:
+      operationId: postAuthLogin
       tags: [Auth]
       summary: Login e obtencao de token JWT
       security: []
@@ -94,14 +123,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   # ── Users ─────────────────────────────────────────────
   /users:
     get:
+      operationId: getUsers
       tags: [Users]
       summary: Listar todos os usuarios
       description: Requer role admin.
       responses:
+        <<: *protectedResponses
         "200":
           description: Lista de usuarios
           content:
@@ -118,9 +151,11 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
     get:
+      operationId: getUsersId
       tags: [Users]
       summary: Buscar usuario por ID
       responses:
+        <<: *protectedResponses
         "200":
           description: Usuario encontrado
           content:
@@ -132,6 +167,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
     put:
+      operationId: putUsersId
       tags: [Users]
       summary: Atualizar usuario
       requestBody:
@@ -141,6 +177,7 @@ paths:
             schema:
               $ref: "#/components/schemas/UpdateUserRequest"
       responses:
+        <<: *protectedResponses
         "200":
           description: Usuario atualizado
           content:
@@ -151,20 +188,27 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
     delete:
+      operationId: deleteUsersId
       tags: [Users]
       summary: Deletar usuario
       responses:
+        <<: *protectedResponses
         "204":
           description: Usuario deletado
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   # ── Customers ─────────────────────────────────────────
   /customers:
     post:
+      operationId: postCustomers
       tags: [Customers]
       summary: Criar cliente
       requestBody:
@@ -174,6 +218,7 @@ paths:
             schema:
               $ref: "#/components/schemas/CustomerRequest"
       responses:
+        <<: *protectedResponses
         "201":
           description: Cliente criado
           content:
@@ -182,10 +227,20 @@ paths:
                 $ref: "#/components/schemas/Customer"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
     get:
+      operationId: getCustomers
       tags: [Customers]
       summary: Listar todos os clientes
+      parameters:
+        - name: document
+          in: query
+          description: Filtrar pelo CPF ou CNPJ; pontuacao e ignorada.
+          schema:
+            type: string
       responses:
+        <<: *protectedResponses
         "200":
           description: Lista de clientes
           content:
@@ -202,9 +257,11 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
     get:
+      operationId: getCustomersId
       tags: [Customers]
       summary: Buscar cliente por ID
       responses:
+        <<: *protectedResponses
         "200":
           description: Cliente encontrado
           content:
@@ -216,6 +273,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
     put:
+      operationId: putCustomersId
       tags: [Customers]
       summary: Atualizar cliente
       requestBody:
@@ -225,6 +283,7 @@ paths:
             schema:
               $ref: "#/components/schemas/CustomerRequest"
       responses:
+        <<: *protectedResponses
         "200":
           description: Cliente atualizado
           content:
@@ -235,18 +294,27 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
     delete:
+      operationId: deleteCustomersId
       tags: [Customers]
       summary: Deletar cliente
       responses:
+        <<: *protectedResponses
         "204":
           description: Cliente deletado
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   # ── Vehicles ──────────────────────────────────────────
   /vehicles:
     post:
+      operationId: postVehicles
       tags: [Vehicles]
       summary: Criar veiculo
       requestBody:
@@ -256,6 +324,7 @@ paths:
             schema:
               $ref: "#/components/schemas/VehicleRequest"
       responses:
+        <<: *protectedResponses
         "201":
           description: Veiculo criado
           content:
@@ -264,10 +333,21 @@ paths:
                 $ref: "#/components/schemas/Vehicle"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
     get:
+      operationId: getVehicles
       tags: [Vehicles]
       summary: Listar todos os veiculos
+      parameters:
+        - name: customer_id
+          in: query
+          description: Filtrar por cliente (UUID). O alias legado `customerId` tambem e aceito temporariamente.
+          schema:
+            type: string
+            format: uuid
       responses:
+        <<: *protectedResponses
         "200":
           description: Lista de veiculos
           content:
@@ -284,9 +364,11 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
     get:
+      operationId: getVehiclesId
       tags: [Vehicles]
       summary: Buscar veiculo por ID
       responses:
+        <<: *protectedResponses
         "200":
           description: Veiculo encontrado
           content:
@@ -298,6 +380,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
     put:
+      operationId: putVehiclesId
       tags: [Vehicles]
       summary: Atualizar veiculo
       requestBody:
@@ -307,6 +390,7 @@ paths:
             schema:
               $ref: "#/components/schemas/VehicleRequest"
       responses:
+        <<: *protectedResponses
         "200":
           description: Veiculo atualizado
           content:
@@ -317,22 +401,32 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
     delete:
+      operationId: deleteVehiclesId
       tags: [Vehicles]
       summary: Deletar veiculo
       responses:
+        <<: *protectedResponses
         "204":
           description: Veiculo deletado
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   # ── Supplies ──────────────────────────────────────────
   /supplies/pending-purchases:
     get:
+      operationId: getSuppliesPendingPurchases
       tags: [Supplies]
       summary: Listar compras pendentes (insumos em falta para servicos aprovados)
       description: Retorna todos os servicos aprovados que possuem insumos com quantidade necessaria maior que o estoque disponivel.
       responses:
+        <<: *protectedResponses
         "200":
           description: Lista de alertas de compra
           content:
@@ -343,32 +437,11 @@ paths:
                   data:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        WorkOrderCode:
-                          type: string
-                          example: "OS-20260507-0001"
-                        WorkOrderTitle:
-                          type: string
-                          example: "Revisao Corolla"
-                        ServiceTitle:
-                          type: string
-                          example: "Troca de Oleo"
-                        SupplyTitle:
-                          type: string
-                          example: "Oleo Motor 5W30"
-                        SupplyID:
-                          type: string
-                          format: uuid
-                        Required:
-                          type: integer
-                          example: 1000
-                        InStock:
-                          type: integer
-                          example: 10
+                      $ref: "#/components/schemas/SupplyShortageAlert"
 
   /supplies:
     post:
+      operationId: postSupplies
       tags: [Supplies]
       summary: Criar insumo/peca
       requestBody:
@@ -378,6 +451,7 @@ paths:
             schema:
               $ref: "#/components/schemas/SupplyRequest"
       responses:
+        <<: *protectedResponses
         "201":
           description: Insumo criado
           content:
@@ -386,10 +460,14 @@ paths:
                 $ref: "#/components/schemas/Supply"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
     get:
+      operationId: getSupplies
       tags: [Supplies]
       summary: Listar todos os insumos
       responses:
+        <<: *protectedResponses
         "200":
           description: Lista de insumos
           content:
@@ -406,9 +484,11 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
     get:
+      operationId: getSuppliesId
       tags: [Supplies]
       summary: Buscar insumo por ID
       responses:
+        <<: *protectedResponses
         "200":
           description: Insumo encontrado
           content:
@@ -420,6 +500,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
     put:
+      operationId: putSuppliesId
       tags: [Supplies]
       summary: Atualizar insumo
       requestBody:
@@ -429,6 +510,7 @@ paths:
             schema:
               $ref: "#/components/schemas/SupplyRequest"
       responses:
+        <<: *protectedResponses
         "200":
           description: Insumo atualizado
           content:
@@ -439,18 +521,27 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
     delete:
+      operationId: deleteSuppliesId
       tags: [Supplies]
       summary: Deletar insumo
       responses:
+        <<: *protectedResponses
         "204":
           description: Insumo deletado
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   # ── Services ──────────────────────────────────────────
   /services:
     post:
+      operationId: postServices
       tags: [Services]
       summary: Criar servico da oficina
       requestBody:
@@ -460,6 +551,7 @@ paths:
             schema:
               $ref: "#/components/schemas/WorkshopServiceCreateRequest"
       responses:
+        <<: *protectedResponses
         "201":
           description: Servico criado
           content:
@@ -471,6 +563,7 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
     get:
+      operationId: getServices
       tags: [Services]
       summary: Listar servicos da oficina
       parameters:
@@ -487,6 +580,7 @@ paths:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/Limit"
       responses:
+        <<: *protectedResponses
         "200":
           description: Lista paginada de servicos
           content:
@@ -500,9 +594,11 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
     get:
+      operationId: getServicesId
       tags: [Services]
       summary: Buscar servico por ID
       responses:
+        <<: *protectedResponses
         "200":
           description: Servico encontrado
           content:
@@ -514,6 +610,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
     put:
+      operationId: putServicesId
       tags: [Services]
       summary: Atualizar servico (parcial)
       description: Apenas os campos fornecidos sao alterados.
@@ -524,6 +621,7 @@ paths:
             schema:
               $ref: "#/components/schemas/WorkshopServiceUpdateRequest"
       responses:
+        <<: *protectedResponses
         "200":
           description: Servico atualizado
           content:
@@ -537,12 +635,14 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
     delete:
+      operationId: deleteServicesId
       tags: [Services]
       summary: Deletar ou desativar servico
       description: |
         Hard delete se nao ha vinculos com OS.
         Se ha vinculos, desativa (soft delete) e retorna 200.
       responses:
+        <<: *protectedResponses
         "204":
           description: Servico deletado (hard delete)
         "200":
@@ -564,6 +664,7 @@ paths:
 
   /services/avg-execution-time:
     get:
+      operationId: getServicesAvgExecutionTime
       tags: [Reports]
       summary: Tempo medio de execucao por servico
       description: |
@@ -584,7 +685,14 @@ paths:
             type: string
             format: date
             example: "2026-12-31"
+        - name: technician_id
+          in: query
+          description: Filtrar pelo tecnico atribuido (UUID). O alias legado `technicianId` tambem e aceito temporariamente.
+          schema:
+            type: string
+            format: uuid
       responses:
+        <<: *protectedResponses
         "200":
           description: Lista com tempos medios
           content:
@@ -602,6 +710,7 @@ paths:
   # ── Work Orders ───────────────────────────────────────
   /work-orders:
     post:
+      operationId: postWorkOrders
       tags: [Work Orders]
       summary: Criar ordem de servico
       requestBody:
@@ -611,6 +720,7 @@ paths:
             schema:
               $ref: "#/components/schemas/WorkOrderCreateRequest"
       responses:
+        <<: *protectedResponses
         "201":
           description: OS criada
           content:
@@ -619,7 +729,10 @@ paths:
                 $ref: "#/components/schemas/WorkOrder"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
     get:
+      operationId: getWorkOrders
       tags: [Work Orders]
       summary: Listar ordens de servico
       description: |
@@ -634,15 +747,15 @@ paths:
           description: "Filtrar por status. Quando informado, a exclusao logica de FINALIZADA/ENTREGUE/CANCELADA nao se aplica."
           schema:
             $ref: "#/components/schemas/WorkOrderStatus"
-        - name: customerId
+        - name: customer_id
           in: query
-          description: Filtrar por cliente (UUID)
+          description: Filtrar por cliente (UUID). O alias legado `customerId` tambem e aceito temporariamente.
           schema:
             type: string
             format: uuid
-        - name: vehicleId
+        - name: vehicle_id
           in: query
-          description: Filtrar por veiculo (UUID)
+          description: Filtrar por veiculo (UUID). O alias legado `vehicleId` tambem e aceito temporariamente.
           schema:
             type: string
             format: uuid
@@ -661,6 +774,7 @@ paths:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/Limit"
       responses:
+        <<: *protectedResponses
         "200":
           description: Lista paginada de OS
           content:
@@ -684,9 +798,11 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
     get:
+      operationId: getWorkOrdersId
       tags: [Work Orders]
       summary: Buscar OS por ID
       responses:
+        <<: *protectedResponses
         "200":
           description: OS encontrada
           content:
@@ -698,6 +814,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
     put:
+      operationId: putWorkOrdersId
       tags: [Work Orders]
       summary: Atualizar OS (campos e/ou status)
       description: |
@@ -712,6 +829,7 @@ paths:
             schema:
               $ref: "#/components/schemas/WorkOrderUpdateRequest"
       responses:
+        <<: *protectedResponses
         "200":
           description: OS atualizada
           content:
@@ -722,6 +840,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "422":
           description: Transicao de status invalida
           content:
@@ -733,6 +853,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
     post:
+      operationId: postWorkOrdersIdServices
       tags: [Work Orders]
       summary: Adicionar servicos a uma OS
       requestBody:
@@ -744,16 +865,21 @@ paths:
               items:
                 $ref: "#/components/schemas/AddServiceRequest"
       responses:
+        <<: *protectedResponses
         "201":
           description: Servicos adicionados
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WorkOrder"
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkOrderService"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "422":
           description: Status da OS nao permite adicionar servicos
           content:
@@ -772,9 +898,11 @@ paths:
           format: uuid
         description: ID do servico na OS (work_order_service)
     delete:
+      operationId: deleteWorkOrdersIdServicesWosId
       tags: [Work Orders]
       summary: Remover servico de uma OS
       responses:
+        <<: *protectedResponses
         "204":
           description: Servico removido
         "400":
@@ -798,6 +926,7 @@ paths:
           type: string
           format: uuid
     put:
+      operationId: putWorkOrdersIdServicesWosIdStart
       tags: [Work Orders]
       summary: Iniciar execucao de um servico individual
       description: |
@@ -805,6 +934,7 @@ paths:
         Requer que a OS esteja em EM_EXECUCAO e que o servico esteja aprovado.
         Bloqueia se os insumos vinculados excedem o estoque disponivel.
       responses:
+        <<: *protectedResponses
         "200":
           description: Servico iniciado
           content:
@@ -815,6 +945,10 @@ paths:
                   message:
                     type: string
                     example: "Servico iniciado com sucesso"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "422":
           description: Estoque insuficiente, status invalido ou servico nao pertence a OS
           content:
@@ -838,6 +972,7 @@ paths:
           type: string
           format: uuid
     put:
+      operationId: putWorkOrdersIdServicesWosIdFinalize
       tags: [Work Orders]
       summary: Finalizar um servico individual
       description: |
@@ -845,6 +980,7 @@ paths:
         Da baixa no estoque dos insumos vinculados.
         Se todos os servicos aprovados estiverem finalizados, a OS auto-transiciona para FINALIZADA.
       responses:
+        <<: *protectedResponses
         "200":
           description: Servico finalizado
           content:
@@ -855,6 +991,10 @@ paths:
                   message:
                     type: string
                     example: "Servico finalizado com sucesso"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "422":
           description: Status invalido ou servico nao pertence a OS
           content:
@@ -879,6 +1019,7 @@ paths:
           format: uuid
         description: ID do servico na OS
     post:
+      operationId: postWorkOrdersIdServicesWosIdSupplies
       tags: [Work Orders]
       summary: Adicionar insumos a um servico da OS
       requestBody:
@@ -890,16 +1031,21 @@ paths:
               items:
                 $ref: "#/components/schemas/AddSupplyRequest"
       responses:
+        <<: *protectedResponses
         "201":
           description: Insumos adicionados
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WorkOrderService"
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkOrderServiceSupply"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "422":
           description: Servico nao pertence a esta OS
           content:
@@ -923,9 +1069,11 @@ paths:
           type: string
           format: uuid
     delete:
+      operationId: deleteWorkOrdersIdServicesWosIdSuppliesSupplyId
       tags: [Work Orders]
       summary: Remover insumo de um servico da OS
       responses:
+        <<: *protectedResponses
         "204":
           description: Insumo removido
         "400":
@@ -949,6 +1097,7 @@ paths:
           type: string
         description: Codigo da OS
     get:
+      operationId: getPublicWorkOrdersCode
       tags: [Public]
       summary: Consultar status da OS (publico)
       security: []
@@ -975,11 +1124,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
-          description: Erro interno
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+          $ref: "#/components/responses/InternalServerError"
 
   /public/approvals/services/{workOrderServiceId}/approve:
     parameters:
@@ -990,6 +1135,7 @@ paths:
           type: string
           format: uuid
     get:
+      operationId: getPublicApprovalsServicesWorkOrderServiceIdApprove
       tags: [Public]
       summary: Aprovar um servico da OS
       security: []
@@ -1003,10 +1149,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Servico aprovado com sucesso
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /public/approvals/services/{workOrderServiceId}/reject:
     parameters:
@@ -1017,6 +1169,7 @@ paths:
           type: string
           format: uuid
     get:
+      operationId: getPublicApprovalsServicesWorkOrderServiceIdReject
       tags: [Public]
       summary: Reprovar um servico da OS
       security: []
@@ -1030,10 +1183,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Servico reprovado com sucesso
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /public/approvals/work-orders/{workOrderId}/approve-all:
     parameters:
@@ -1044,6 +1203,7 @@ paths:
           type: string
           format: uuid
     get:
+      operationId: getPublicApprovalsWorkOrdersWorkOrderIdApproveAll
       tags: [Public]
       summary: Aprovar todos os servicos de uma OS
       security: []
@@ -1057,8 +1217,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Todos os servicos foram aprovados com sucesso
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /public/approvals/work-orders/{workOrderId}/reject-all:
     parameters:
@@ -1069,6 +1237,7 @@ paths:
           type: string
           format: uuid
     get:
+      operationId: getPublicApprovalsWorkOrdersWorkOrderIdRejectAll
       tags: [Public]
       summary: Reprovar todos os servicos de uma OS
       security: []
@@ -1082,8 +1251,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Todos os servicos foram reprovados com sucesso
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
 components:
   securitySchemes:
@@ -1115,6 +1292,7 @@ components:
       schema:
         type: integer
         minimum: 1
+        maximum: 100
         default: 10
 
   responses:
@@ -1142,6 +1320,36 @@ components:
             $ref: "#/components/schemas/Error"
           example:
             error: "service title already exists"
+    Unauthorized:
+      description: Autenticacao ausente ou invalida
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "invalid token"
+    Forbidden:
+      description: Papel autenticado sem permissao para a operacao
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "insufficient permissions"
+    UnprocessableEntity:
+      description: Transicao de estado ou regra de negocio invalida
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalServerError:
+      description: Erro interno sem exposicao de detalhes
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "internal server error"
 
   schemas:
     Error:
@@ -1364,6 +1572,32 @@ components:
           type: string
           format: date-time
 
+    SupplyShortageAlert:
+      type: object
+      required: [work_order_code, work_order_title, service_title, supply_title, supply_id, required, in_stock]
+      properties:
+        work_order_code:
+          type: string
+          example: OS-20260713-00AF
+        work_order_title:
+          type: string
+          example: Revisao Corolla
+        service_title:
+          type: string
+          example: Troca de Oleo
+        supply_title:
+          type: string
+          example: Oleo Motor 5W30
+        supply_id:
+          type: string
+          format: uuid
+        required:
+          type: integer
+          example: 4
+        in_stock:
+          type: integer
+          example: 2
+
     # ── Workshop Service ──────────────────────────────
     WorkshopServiceCreateRequest:
       type: object
@@ -1444,6 +1678,8 @@ components:
           type: integer
         total:
           type: integer
+        total_pages:
+          type: integer
 
     AvgExecutionTimeResponse:
       type: object
@@ -1489,6 +1725,16 @@ components:
         vehicle_id:
           type: string
           format: uuid
+        assigned_technician_id:
+          type: string
+          format: uuid
+          nullable: true
+      example:
+        title: Revisao preventiva de 60.000 km
+        description: Verificar freios, fluidos e correias
+        customer_id: 8c447e1e-4a7c-49eb-b194-3fbfa5076ab7
+        vehicle_id: 577bcd3a-d0ee-4af2-a8af-6e70ad54f44f
+        assigned_technician_id: 6dc4bd40-20c7-4cc5-92c7-d57386ad96a2
 
     WorkOrderUpdateRequest:
       type: object
@@ -1500,6 +1746,10 @@ components:
         status:
           $ref: "#/components/schemas/WorkOrderStatus"
           description: Transiciona o status via maquina de estados
+        assigned_technician_id:
+          type: string
+          format: uuid
+          nullable: true
 
     WorkOrder:
       type: object
@@ -1516,6 +1766,9 @@ components:
           type: string
           nullable: true
         opened_by_user_id:
+          type: string
+          format: uuid
+        assigned_technician_id:
           type: string
           format: uuid
         status:
@@ -1550,10 +1803,15 @@ components:
           $ref: "#/components/schemas/WorkOrderCustomer"
         vehicle:
           $ref: "#/components/schemas/WorkOrderVehicle"
+        assigned_technician:
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/WorkOrderTechnician"
+          nullable: true
         services:
           type: array
           items:
-            $ref: "#/components/schemas/WorkOrderServiceWithSupplies"
+            $ref: "#/components/schemas/WorkOrderService"
 
     WorkOrderCustomer:
       type: object
@@ -1581,42 +1839,22 @@ components:
         year:
           type: integer
 
-    WorkOrderServiceWithSupplies:
+    WorkOrderTechnician:
       type: object
+      required: [id, username, role]
       properties:
         id:
           type: string
           format: uuid
-        description:
+        username:
           type: string
-        service_price_cents_snapshot:
-          type: integer
-        status:
+        role:
           type: string
-        approval_status:
-          type: string
-        quantity:
-          type: integer
-        supplies:
-          type: array
-          items:
-            $ref: "#/components/schemas/WorkOrderServiceSupplyItem"
-
-    WorkOrderServiceSupplyItem:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        description:
-          type: string
-        supply_price_cents_snapshot:
-          type: integer
-        supply_quantity:
-          type: integer
+          enum: [admin, employee]
 
     WorkOrderService:
       type: object
+      required: [id, work_order_id, service_id, service_title_snapshot, service_price_cents_snapshot, service_estimated_time_minutes_snapshot, approval_status, status, supplies, created_at, updated_at]
       properties:
         id:
           type: string
@@ -1631,6 +1869,7 @@ components:
           type: string
         service_description_snapshot:
           type: string
+          nullable: true
         service_price_cents_snapshot:
           type: integer
         service_estimated_time_minutes_snapshot:
@@ -1642,6 +1881,10 @@ components:
         status:
           type: string
           enum: [PENDENTE, AGUARDANDO_APROVACAO, EM_EXECUCAO, FINALIZADO]
+        supplies:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkOrderServiceSupply"
         started_at:
           type: string
           format: date-time
@@ -1655,8 +1898,36 @@ components:
           type: string
           format: date-time
 
+    WorkOrderServiceSupply:
+      type: object
+      required: [id, work_order_service_id, supply_id, supply_title_snapshot, supply_price_cents_snapshot, supply_quantity, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        work_order_service_id:
+          type: string
+          format: uuid
+        supply_id:
+          type: string
+          format: uuid
+        supply_title_snapshot:
+          type: string
+        supply_price_cents_snapshot:
+          type: integer
+        supply_quantity:
+          type: integer
+          minimum: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
     WorkOrderListResponse:
       type: object
+      required: [data, page, limit, total, total_pages]
       properties:
         data:
           type: array
@@ -1670,6 +1941,38 @@ components:
           type: integer
         total_pages:
           type: integer
+      example:
+        data:
+          - id: 6d663cf4-a3e4-4474-8f44-5b5c05f164dd
+            code: OS-20260713-00AF
+            title: Revisao preventiva de 60.000 km
+            description: Verificar freios, fluidos e correias
+            opened_by_user_id: 8adf9821-860b-4dca-805e-4f0781b9b4f2
+            assigned_technician_id: 6dc4bd40-20c7-4cc5-92c7-d57386ad96a2
+            status: EM_DIAGNOSTICO
+            total_estimated_price_cents: 18500
+            received_at: "2026-07-13T13:15:00Z"
+            created_at: "2026-07-13T13:15:00Z"
+            updated_at: "2026-07-13T14:20:00Z"
+            customer:
+              id: 8c447e1e-4a7c-49eb-b194-3fbfa5076ab7
+              name: Maria Oliveira
+              document: "52998224725"
+            vehicle:
+              id: 577bcd3a-d0ee-4af2-a8af-6e70ad54f44f
+              license_plate: BRA2E19
+              brand: Toyota
+              model: Corolla
+              year: 2022
+            assigned_technician:
+              id: 6dc4bd40-20c7-4cc5-92c7-d57386ad96a2
+              username: tecnico01
+              role: employee
+            services: []
+        page: 1
+        limit: 10
+        total: 1
+        total_pages: 1
 
     AddServiceRequest:
       type: object
@@ -1696,6 +1999,7 @@ components:
     # ── Public Views ──────────────────────────────────
     PublicWorkOrderView:
       type: object
+      required: [code, status, total_estimated_price_cents, received_at, services]
       properties:
         code:
           type: string
@@ -1725,13 +2029,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PublicServiceView"
+      example:
+        code: OS-20260713-00AF
+        status: AGUARDANDO_APROVACAO
+        total_estimated_price_cents: 18500
+        received_at: "2026-07-13T13:15:00Z"
+        quote_sent_at: "2026-07-13T15:00:00Z"
+        services:
+          - title: Troca de Oleo
+            status: AGUARDANDO_APROVACAO
+            approval_status: PENDENTE
 
     PublicServiceView:
       type: object
+      required: [title, status, approval_status]
       properties:
         title:
           type: string
         status:
           type: string
+          enum: [PENDENTE, AGUARDANDO_APROVACAO, EM_EXECUCAO, FINALIZADO]
         approval_status:
           type: string
+          enum: [PENDENTE, APROVADO, REPROVADO]

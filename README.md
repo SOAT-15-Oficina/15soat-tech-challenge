@@ -2,6 +2,11 @@
 
 Sistema de gerenciamento de oficina mecânica com controle de ordens de serviço, estoque e clientes.
 
+## Documentação da API
+
+- Swagger UI: https://techchallenge.douglasdgoulart.xyz/swagger
+- OpenAPI YAML: https://techchallenge.douglasdgoulart.xyz/docs/swagger.yaml
+
 ## Banco escolhido
 
 O projeto utiliza **PostgreSQL** como banco de dados relacional. A escolha se justifica pela natureza do domínio: uma oficina mecânica possui entidades com relacionamentos bem definidos entre clientes, veículos, ordens de serviço, serviços, peças e movimentações de estoque. O modelo relacional garante integridade referencial entre essas entidades — por exemplo, uma ordem de serviço sempre estará vinculada a um cliente e veículo válidos.
@@ -211,7 +216,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    EVT["Pull request ou push em main"] --> LINT["lint<br/>ubuntu-latest<br/>actionlint"]
+    EVT["Pull request ou push em main"] --> LINT["lint<br/>ubuntu-latest<br/>actionlint + Redocly"]
     EVT --> TEST["test<br/>ubuntu-latest<br/>go test ./..."]
     TEST --> PG17["PostgreSQL 17<br/>service container"]
     LINT --> GATE["gate"]
@@ -226,7 +231,7 @@ flowchart TD
     LOAD --> APPLY["kubectl apply -f k8s/"]
     APPLY --> METRICS["instala Metrics Server<br/>aguarda metrics.k8s.io"]
     METRICS --> SETIMG["kubectl set image<br/>api=techchallenge/api:&lt;sha&gt;"]
-    SETIMG --> ROLLOUT["rollout api/postgres<br/>valida GET /ping"]
+    SETIMG --> ROLLOUT["rollout api/postgres<br/>smoke /ping /ready /swagger /docs/swagger.yaml"]
 ```
 
 #### Deploy em Kubernetes local
@@ -357,7 +362,7 @@ terraform -chdir=terraform/local-kind destroy
 
 O workflow em `.github/workflows/ci.yml` usa dois ambientes:
 
-- `ubuntu-latest` do GitHub para executar `actionlint` nos workflows.
+- `ubuntu-latest` do GitHub para executar `actionlint` nos workflows e Redocly no contrato OpenAPI.
 - `ubuntu-latest` do GitHub para executar `go test ./...` com PostgreSQL de servico.
 - Runner local com os labels `self-hosted` e `local-kind` para executar `go build ./...`, buildar a imagem Docker, carregar a imagem no Kind e aplicar os manifestos Kubernetes.
 
@@ -447,7 +452,7 @@ go version
 
 Fluxo do workflow em `push` para `main`:
 
-1. Executa `actionlint` no runner hospedado do GitHub.
+1. Executa `actionlint` e Redocly (versão fixada) no runner hospedado do GitHub.
 2. Executa os testes no runner hospedado do GitHub.
 3. Se lint e testes passarem, executa o build no runner local.
 4. Cria as tags Docker locais `techchallenge/api:<sha-do-commit>` e `techchallenge/api:latest`.
@@ -456,7 +461,7 @@ Fluxo do workflow em `push` para `main`:
 7. Instala o Metrics Server e aguarda a API `metrics.k8s.io`, usada pelo HPA.
 8. Atualiza o Deployment da API para a tag imutavel do commit.
 9. Garante idempotentemente os dados de demonstracao usados na consulta publica.
-10. Aguarda os rollouts e valida `GET /ping` via `kubectl port-forward`.
+10. Aguarda os rollouts e valida `/ping`, `/ready`, `/swagger` e `/docs/swagger.yaml` via `kubectl port-forward`, comparando o YAML servido com o artefato versionado.
 
 Como a imagem e carregada diretamente no Kind, o Deployment da API usa `imagePullPolicy: IfNotPresent`. Usar `Always` faria o cluster tentar buscar a tag em um registry externo, o que nao existe neste fluxo local.
 
@@ -565,6 +570,7 @@ Com o projeto rodando, acesse o Swagger UI para visualizar e testar todos os end
 
 - **Swagger UI**: [http://localhost:8080/swagger](http://localhost:8080/swagger)
 - **OpenAPI spec**: [http://localhost:8080/docs/swagger.yaml](http://localhost:8080/docs/swagger.yaml)
+- **Ambiente público**: [https://techchallenge.douglasdgoulart.xyz/swagger](https://techchallenge.douglasdgoulart.xyz/swagger)
 
 Para endpoints autenticados, clique em **Authorize** no Swagger UI e insira o token JWT de desenvolvimento (seção abaixo).
 
@@ -658,13 +664,14 @@ work_orders ────────┘
 
 ### JSON (request e response)
 
-- Campos usam **camelCase**: `estimatedTimeMinutes`, `createdAt`, `serviceId`
-- Campos internos do domínio (domain structs) usam **snake_case** nas tags JSON (`price_cents`, `estimated_time_minutes`) — esses não são expostos diretamente na API
-- O handler é responsável por converter entre o formato interno e o formato da API (ex: `price_cents` → `price` em reais)
+- Campos usam **snake_case**: `estimated_time_minutes`, `created_at`, `service_id`
+- Valores monetários são inteiros em centavos e usam o sufixo `_cents`; datas e horários usam RFC 3339.
+- Coleções não paginadas usam `{ "data": [...] }`; coleções paginadas também retornam `page`, `limit`, `total` e `total_pages`.
 
 ### Query parameters
 
-- Query params usam **camelCase**: `?active=true&title=oil&technicianId=uuid`
+- Query params usam **snake_case**: `?active=true&title=oil&technician_id=uuid`
+- Os aliases legados `customerId`, `vehicleId` e `technicianId` são aceitos temporariamente. Enviar valores diferentes no alias e no nome canônico retorna `400`.
 - Paginação: `page` e `limit` (padrão: page=1, limit=10)
 - Filtros booleanos aceitam `true` ou `false`
 - Datas usam formato `YYYY-MM-DD`: `?from=2026-01-01&to=2026-12-31`
@@ -672,7 +679,7 @@ work_orders ────────┘
 ### Mensagens de erro
 
 - Erros são retornados em **inglês** no formato `{"error": "mensagem"}`
-- Exemplos: `"service not found"`, `"invalid id"`, `"title, price and estimatedTimeMinutes are required"`
+- Exemplos: `"service not found"`, `"invalid id"`, `"title, price_cents and estimated_time_minutes are required"`
 - Erros de domínio são propagados como texto: `"title is required"`, `"price must be greater than zero"`
 
 ### Códigos HTTP
@@ -683,9 +690,12 @@ work_orders ────────┘
 | 201    | Recurso criado com sucesso |
 | 204    | Recurso deletado com sucesso (sem body) |
 | 400    | Dados inválidos ou campos obrigatórios faltando |
+| 401    | Autenticação ausente ou inválida |
+| 403    | Papel autenticado sem permissão |
 | 404    | Recurso não encontrado |
 | 409    | Conflito (ex: título duplicado) |
-| 500    | Erro interno |
+| 422    | Transição de estado ou regra de negócio inválida |
+| 500    | Erro interno com mensagem genérica |
 
 ## JWT para desenvolvimento
 

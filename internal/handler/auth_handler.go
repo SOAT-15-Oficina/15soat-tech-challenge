@@ -35,10 +35,10 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 
 	user, err := h.svc.Register(c.Context(), body.Username, body.Password, body.Role)
 	if err != nil {
-		if handled, resp := dbErrResponse(c, err, "user not found"); handled {
+		if handled, resp := mapErrorResponse(c, err, "user not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(user)
@@ -55,7 +55,7 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid credentials"})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.JSON(fiber.Map{"token": token})

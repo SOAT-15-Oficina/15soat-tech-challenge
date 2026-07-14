@@ -44,7 +44,7 @@ func (h *CustomerHandler) GetAll(c fiber.Ctx) error {
 
 	customers, err := h.svc.GetAllWithFilters(c.Context(), filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	if customers == nil {
@@ -65,7 +65,7 @@ func (h *CustomerHandler) GetByID(c fiber.Ctx) error {
 		if handled, resp := dbErrResponse(c, err, "customer not found"); handled {
 			return resp
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 
 	return c.JSON(customer)
@@ -106,7 +106,7 @@ func (h *CustomerHandler) handleServiceError(c fiber.Ctx, err error) error {
 		errors.Is(err, domain.ErrCustomerInvalidCNPJChecksum):
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	default:
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return internalServerError(c)
 	}
 }
 
@@ -117,7 +117,10 @@ func (h *CustomerHandler) Delete(c fiber.Ctx) error {
 	}
 
 	if err := h.svc.Delete(c.Context(), id); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		if handled, resp := mapErrorResponse(c, err, "customer not found"); handled {
+			return resp
+		}
+		return internalServerError(c)
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)

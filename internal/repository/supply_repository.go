@@ -156,8 +156,14 @@ func (r *supplyRepository) Update(ctx context.Context, supply *domain.Supply) (*
 
 func (r *supplyRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM supplies WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
-	return err
+	tag, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return application.ErrNotFound
+	}
+	return nil
 }
 
 func (r *supplyRepository) DecrementStockForService(ctx context.Context, workOrderServiceID uuid.UUID) error {

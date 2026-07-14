@@ -375,6 +375,17 @@ func TestSupplyPendingPurchases_Success(t *testing.T) {
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	var payload map[string][]map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&payload))
+	item := payload["data"][0]
+	assert.Equal(t, "WO-001", item["work_order_code"])
+	assert.Equal(t, "Test WO", item["work_order_title"])
+	assert.Equal(t, "Service A", item["service_title"])
+	assert.Equal(t, "Supply X", item["supply_title"])
+	assert.NotEmpty(t, item["supply_id"])
+	assert.Equal(t, float64(10), item["required"])
+	assert.Equal(t, float64(3), item["in_stock"])
 }
 
 func TestSupplyPendingPurchases_Error(t *testing.T) {

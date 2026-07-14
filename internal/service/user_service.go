@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/application"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/auth"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/domain"
 	"github.com/ESSantana/15soat-tech-challenge-step-1/internal/repository"
@@ -104,13 +105,13 @@ func NewUserService(repo repository.UserRepository, jwtSecretKey string) UserSer
 
 func (s *userService) Register(ctx context.Context, username, password string, role domain.UserRole) (*domain.User, error) {
 	if username == "" {
-		return nil, fmt.Errorf("username is required")
+		return nil, application.NewValidationError("username is required")
 	}
 	if password == "" {
-		return nil, fmt.Errorf("password is required")
+		return nil, application.NewValidationError("password is required")
 	}
 	if role != domain.UserRoleAdmin && role != domain.UserRoleEmployee {
-		return nil, fmt.Errorf("invalid role: must be 'admin' or 'employee'")
+		return nil, application.NewValidationError("invalid role: must be 'admin' or 'employee'")
 	}
 
 	hash, err := hashPassword(password)
@@ -165,7 +166,7 @@ func (s *userService) Update(ctx context.Context, id uuid.UUID, username string,
 	}
 	if role != "" {
 		if role != domain.UserRoleAdmin && role != domain.UserRoleEmployee {
-			return nil, fmt.Errorf("invalid role: must be 'admin' or 'employee'")
+			return nil, application.NewValidationError("invalid role: must be 'admin' or 'employee'")
 		}
 		existing.Role = role
 	}
