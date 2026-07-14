@@ -519,9 +519,9 @@ O SonarQube roda em um compose separado para não alterar o fluxo padrão da apl
 docker compose -f docker-compose.sonar.yml up -d sonarqube
 ```
 
-Acesse `http://localhost:9000`, entre com `admin` / `admin` e troque a senha para `password`. Em seguida, crie um projeto local com a chave `15soat-tech-challenge-step-1` e gere um token com o valor `15soat-tech-challenge-step-1`.
+Acesse `http://localhost:9000`, faça login com as credenciais padrão e altere a senha. Em seguida, crie um projeto local com a chave `15soat-tech-challenge-step-1` e gere um token de análise.
 
-> As credenciais já estão configuradas em `sonar-project.properties` (`sonar.login`, `sonar.password` e `sonar.token`), então nenhuma variável de ambiente adicional é necessária.
+> O token do SonarQube deve ser fornecido via variável de ambiente `SONAR_TOKEN`. As credenciais não são mais versionadas em `sonar-project.properties`.
 
 Antes da análise, gere o relatório de cobertura Go:
 
@@ -666,17 +666,22 @@ work_orders ────────┘
 
 ## JWT para desenvolvimento
 
-Token sem expiração, gerado com o `JWT_SECRET_KEY` padrão do `.env.example` (`jwt-token`), role `admin`:
-
-```
-eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFkbWluIiwgInVzZXIiOiAiZGV2In0.sxWQewGk1XDLzwM4TYXRok7MhtgTy79qEs_nMk5FOr4
-```
-
-Uso:
+O token JWT é gerado a partir do `JWT_SECRET_KEY` definido no seu `.env`. Para gerar um token de desenvolvimento, registre um usuário via `/auth/register` e faça login via `/auth/login`:
 
 ```bash
-curl -H "Authorization: Bearer eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFkbWluIiwgInVzZXIiOiAiZGV2In0.sxWQewGk1XDLzwM4TYXRok7MhtgTy79qEs_nMk5FOr4" \
-  http://localhost:8080/work-orders
+curl -X POST http://localhost:8080/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"dev","password":"dev123","role":"admin"}'
+
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"dev","password":"dev123"}'
+```
+
+A resposta do login contém o token JWT. Use-o nas requisições autenticadas:
+
+```bash
+curl -H "Authorization: Bearer <seu-token>" http://localhost:8080/work-orders
 ```
 
 ## Variáveis de ambiente
@@ -686,8 +691,51 @@ curl -H "Authorization: Bearer eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xl
 | `SERVER_PORT`        | Porta da API           | `8080`             |
 | `SERVER_ENVIRONMENT` | Ambiente de execução   | `development`      |
 | `DATABASE_USER`      | Usuário do PostgreSQL  | `techchallenge`    |
-| `DATABASE_PASSWORD`  | Senha do PostgreSQL    | `password`         |
+| `DATABASE_PASSWORD`  | Senha do PostgreSQL    | `<definir no .env>` |
 | `DATABASE_HOST`      | Host do PostgreSQL     | `db`               |
 | `DATABASE_PORT`      | Porta do PostgreSQL    | `5432`             |
 | `DATABASE_NAME`      | Nome do banco          | `techchallenge-db` |
-| `JWT_SECRET_KEY`     | Chave secreta para JWT | `jwt-token`        |
+| `JWT_SECRET_KEY`     | Chave secreta para JWT | `<definir no .env>` |
+
+## Gerenciamento de Segredos
+
+Nenhuma credencial utilizável é versionada no Git. Os segredos são gerenciados por ambiente:
+
+### Desenvolvimento local
+
+1. Copie `.env.example` para `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+2. Preencha os campos `CHANGE_ME` com valores locais:
+   ```env
+   DATABASE_PASSWORD="sua-senha-local"
+   JWT_SECRET_KEY="sua-chave-jwt-local"
+   CACHE_PASSWORD="sua-senha-cache-local"
+   ```
+3. O `.env` está no `.gitignore` e nunca é versionado.
+
+### CI/CD (GitHub Actions)
+
+Os segredos do pipeline são armazenados como **GitHub Secrets** (Settings → Secrets and variables → Actions):
+
+| GitHub Secret           | Uso                                            |
+| ----------------------- | --------------------------------------------- |
+| `CI_DATABASE_PASSWORD`  | Senha do Postgres no job de testes do CI       |
+| `K8S_DATABASE_PASSWORD` | Senha do Postgres no cluster Kubernetes        |
+| `K8S_JWT_SECRET_KEY`    | Chave JWT no cluster Kubernetes                |
+| `SONAR_TOKEN`           | Token do SonarQube (variável de ambiente)      |
+
+O pipeline cria/atualiza o Secret do Kubernetes dinamicamente durante o deploy — não há manifestos de Secret versionados. O `k8s/secret.yaml` está no `.gitignore`; use `k8s/secret.example.yaml` como referência.
+
+### Rotação de segredos
+
+1. Atualize o valor no GitHub Secrets (Settings → Secrets → Actions).
+2. Execute o pipeline (push para `main` ou abra um PR).
+3. O deploy recria o Secret do Kubernetes com os novos valores.
+4. Reinicie os pods para que consumam o novo Secret:
+   ```bash
+   kubectl rollout restart deployment/api -n workshop
+   kubectl rollout restart deployment/postgres -n workshop
+   ```
+5. A rotação **não exige rebuild da imagem** — apenas o Secret é atualizado.

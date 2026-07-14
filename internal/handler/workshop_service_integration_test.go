@@ -37,7 +37,7 @@ func setupIntegrationApp(t *testing.T) (*fiber.App, *pgxpool.Pool) {
 	}
 	password := os.Getenv("DATABASE_PASSWORD")
 	if password == "" {
-		password = "password"
+		t.Skip("skipping integration test: DATABASE_PASSWORD not set")
 	}
 	dbName := os.Getenv("DATABASE_NAME")
 	if dbName == "" {

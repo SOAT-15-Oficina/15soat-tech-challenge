@@ -62,7 +62,7 @@ spec:
             failureThreshold: 6
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", "techchallenge", "-d", "techchallenge-db"]
+              command: ["/bin/sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
             initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 3

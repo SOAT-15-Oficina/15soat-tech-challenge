@@ -33,6 +33,9 @@ go.work
 .env
 *.local.yaml
 
+# Kubernetes secrets (created by CI from GitHub Secrets)
+k8s/secret.yaml
+
 # End of https://www.toptal.com/developers/gitignore/api/go
 
 .env

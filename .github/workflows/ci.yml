@@ -33,7 +33,7 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_USER: techchallenge
-          POSTGRES_PASSWORD: password
+          POSTGRES_PASSWORD: ${{ secrets.CI_DATABASE_PASSWORD }}
           POSTGRES_DB: techchallenge-db
         ports:
           - 5432:5432
@@ -56,7 +56,7 @@ jobs:
           DATABASE_HOST: localhost
           DATABASE_PORT: 5432
           DATABASE_USER: techchallenge
-          DATABASE_PASSWORD: password
+          DATABASE_PASSWORD: ${{ secrets.CI_DATABASE_PASSWORD }}
           DATABASE_NAME: techchallenge-db
 
   build-and-deploy:
@@ -94,6 +94,9 @@ jobs:
         run: kind load docker-image "${IMAGE_NAME}:${GITHUB_SHA}" --name "$KIND_CLUSTER_NAME"
 
       - name: Deploy to Kubernetes
+        env:
+          K8S_DATABASE_PASSWORD: ${{ secrets.K8S_DATABASE_PASSWORD }}
+          K8S_JWT_SECRET_KEY: ${{ secrets.K8S_JWT_SECRET_KEY }}
         run: |
           kubectl apply -f k8s/metrics-server.yaml
           kubectl rollout status deployment/metrics-server -n kube-system --timeout=180s
@@ -108,7 +111,11 @@ jobs:
 
           kubectl apply -f k8s/namespace.yaml
           kubectl apply -f k8s/configmap.yaml
-          kubectl apply -f k8s/secret.yaml
+          kubectl create secret generic api-secrets \
+            --namespace="$KUBE_NAMESPACE" \
+            --from-literal=DATABASE_PASSWORD="${K8S_DATABASE_PASSWORD}" \
+            --from-literal=JWT_SECRET_KEY="${K8S_JWT_SECRET_KEY}" \
+            --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -f k8s/postgres-pvc.yaml
           kubectl apply -f k8s/postgres-service.yaml
           kubectl apply -f k8s/postgres-deployment.yaml
