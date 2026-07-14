@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -80,35 +81,49 @@ func IsValidWorkOrderStatus(status WorkOrderStatus) bool {
 	}
 }
 
-var WorkOrderListingExcludedStatuses = []WorkOrderStatus{
+var WorkOrderListingAlwaysExcludedStatuses = []WorkOrderStatus{
 	WorkOrderStatusFinished,
 	WorkOrderStatusDelivered,
+}
+
+var WorkOrderListingDefaultHiddenStatuses = []WorkOrderStatus{
 	WorkOrderStatusCanceled,
 }
 
-var workOrderStatusSortPriority = map[WorkOrderStatus]int{
-	WorkOrderStatusInProgress:      1,
-	WorkOrderStatusApproved:        2,
-	WorkOrderStatusWaitingApproval: 3,
-	WorkOrderStatusInDiagnosis:     4,
-	WorkOrderStatusReceived:        5,
-	WorkOrderStatusCanceled:        6,
+var WorkOrderListingStatusPriorityOrder = []WorkOrderStatus{
+	WorkOrderStatusInProgress,
+	WorkOrderStatusWaitingApproval,
+	WorkOrderStatusInDiagnosis,
+	WorkOrderStatusReceived,
 }
+
+const WorkOrderStatusDefaultSortPriority = 99
+
+var workOrderStatusSortPriority = func() map[WorkOrderStatus]int {
+	m := make(map[WorkOrderStatus]int, len(WorkOrderListingStatusPriorityOrder))
+	for i, s := range WorkOrderListingStatusPriorityOrder {
+		m[s] = i + 1
+	}
+	return m
+}()
 
 func WorkOrderStatusSortPriorityOf(status WorkOrderStatus) int {
 	if p, ok := workOrderStatusSortPriority[status]; ok {
 		return p
 	}
-	return 99
+	return WorkOrderStatusDefaultSortPriority
 }
 
-func IsExcludedFromListing(status WorkOrderStatus) bool {
-	for _, s := range WorkOrderListingExcludedStatuses {
-		if s == status {
-			return true
-		}
-	}
-	return false
+func IsAlwaysExcludedFromListing(status WorkOrderStatus) bool {
+	return containsStatus(WorkOrderListingAlwaysExcludedStatuses, status)
+}
+
+func IsHiddenFromDefaultListing(status WorkOrderStatus) bool {
+	return containsStatus(WorkOrderListingDefaultHiddenStatuses, status)
+}
+
+func containsStatus(list []WorkOrderStatus, status WorkOrderStatus) bool {
+	return slices.Contains(list, status)
 }
 
 func WorkOrderStatusLabel(status WorkOrderStatus) string {

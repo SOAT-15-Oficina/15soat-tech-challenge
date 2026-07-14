@@ -736,15 +736,25 @@ paths:
       tags: [Work Orders]
       summary: Listar ordens de servico
       description: |
-        Lista paginada de OS. Regras de exclusao e ordenacao (Fase 2):
-        - OS com status FINALIZADA, ENTREGUE ou CANCELADA sao excluidas da listagem padrao (exclusao logica).
-        - Ordenacao por prioridade de status: EM_EXECUCAO > APROVADO > AGUARDANDO_APROVACAO > EM_DIAGNOSTICO > RECEBIDA.
+        Lista paginada de OS operacionais. Regras de exclusao e ordenacao:
+        - FINALIZADA e ENTREGUE sao SEMPRE excluidas, inclusive quando o filtro `status`
+          e informado (o filtro explicito NAO contorna a exclusao). Filtrar por um desses
+          status retorna lista vazia (total = 0).
+        - CANCELADA fica oculta na listagem padrao, mas e retornada quando o filtro
+          explicito `status=CANCELADA` e informado (consulta/auditoria).
+        - APROVADO permanece na listagem (OS ativa aguardando execucao); como nao esta
+          entre os status priorizados, ordena depois deles.
+        - Ordenacao por prioridade de status: EM_EXECUCAO > AGUARDANDO_APROVACAO >
+          EM_DIAGNOSTICO > RECEBIDA (demais status ordenam por ultimo).
         - Dentro do mesmo status, mais antigas primeiro (received_at ASC).
-        - Quando o filtro `status` e informado, a exclusao logica nao se aplica (o filtro explicito prevalece).
+        - Paginacao (`total`, `total_pages`) considera as exclusoes acima.
       parameters:
         - name: status
           in: query
-          description: "Filtrar por status. Quando informado, a exclusao logica de FINALIZADA/ENTREGUE/CANCELADA nao se aplica."
+          description: >-
+            Filtrar por status. FINALIZADA e ENTREGUE permanecem sempre excluidas
+            (filtrar por elas retorna vazio). CANCELADA so aparece quando filtrada
+            explicitamente.
           schema:
             $ref: "#/components/schemas/WorkOrderStatus"
         - name: customer_id
