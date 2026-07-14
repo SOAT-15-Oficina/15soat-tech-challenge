@@ -78,12 +78,12 @@ func setupSchema(t *testing.T, pool *pgxpool.Pool) {
 			"id" uuid PRIMARY KEY,
 			"title" varchar(120) NOT NULL,
 			"description" text,
-			"priceCents" int NOT NULL,
-			"estimatedTimeMinutes" int NOT NULL,
+			"price_cents" int NOT NULL,
+			"estimated_time_minutes" int NOT NULL,
 			"status" varchar(30) NOT NULL DEFAULT 'ATIVO',
 			"active" boolean NOT NULL DEFAULT true,
-			"createdAt" timestamp NOT NULL,
-			"updatedAt" timestamp NOT NULL
+			"created_at" timestamp NOT NULL,
+			"updated_at" timestamp NOT NULL
 		)`)
 	require.NoError(t, err)
 
@@ -96,20 +96,20 @@ func setupSchema(t *testing.T, pool *pgxpool.Pool) {
 			"code" varchar(30) NOT NULL,
 			"title" varchar(150) NOT NULL,
 			"description" text,
-			"customerId" uuid NOT NULL,
-			"vehicleId" uuid NOT NULL,
-			"openedByUserId" uuid NOT NULL,
-			"assignedTechnicianId" uuid,
+			"customer_id" uuid NOT NULL,
+			"vehicle_id" uuid NOT NULL,
+			"opened_by_user_id" uuid NOT NULL,
+			"assigned_technician_id" uuid,
 			"status" varchar(30) NOT NULL,
-			"totalEstimatedPriceCents" int NOT NULL DEFAULT 0,
-			"receivedAt" timestamp NOT NULL,
-			"quoteSentAt" timestamp,
-			"approvedAt" timestamp,
-			"startedAt" timestamp,
-			"finishedAt" timestamp,
-			"deliveredAt" timestamp,
-			"createdAt" timestamp NOT NULL,
-			"updatedAt" timestamp NOT NULL
+			"total_estimated_price_cents" int NOT NULL DEFAULT 0,
+			"received_at" timestamp NOT NULL,
+			"quote_sent_at" timestamp,
+			"approved_at" timestamp,
+			"started_at" timestamp,
+			"finished_at" timestamp,
+			"delivered_at" timestamp,
+			"created_at" timestamp NOT NULL,
+			"updated_at" timestamp NOT NULL
 		)`)
 	require.NoError(t, err)
 
@@ -117,17 +117,17 @@ func setupSchema(t *testing.T, pool *pgxpool.Pool) {
 		CREATE TABLE IF NOT EXISTS "work_order_services" (
 			"id" uuid PRIMARY KEY,
 			"work_order_id" uuid NOT NULL REFERENCES "work_orders" ("id"),
-			"serviceId" uuid NOT NULL,
+			"service_id" uuid NOT NULL,
 			"service_title_snapshot" varchar(120) NOT NULL,
 			"service_description_snapshot" text,
 			"service_price_cents_snapshot" int NOT NULL,
 			"service_estimated_time_minutes_snapshot" int NOT NULL,
-			"approvalStatus" varchar(20) NOT NULL DEFAULT 'PENDENTE',
+			"approval_status" varchar(20) NOT NULL DEFAULT 'PENDENTE',
 			"status" varchar(30) NOT NULL DEFAULT 'PENDENTE',
-			"startedAt" timestamp,
-			"finishedAt" timestamp,
-			"createdAt" timestamp NOT NULL,
-			"updatedAt" timestamp NOT NULL
+			"started_at" timestamp,
+			"finished_at" timestamp,
+			"created_at" timestamp NOT NULL,
+			"updated_at" timestamp NOT NULL
 		)`)
 	require.NoError(t, err)
 
