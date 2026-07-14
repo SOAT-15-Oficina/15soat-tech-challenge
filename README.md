@@ -19,7 +19,7 @@ A aplicação segue uma organização inspirada em **Arquitetura Hexagonal / Cle
 
 Regra de dependência: código de domínio e casos de uso de OS não dependem de handlers HTTP, Fiber, `pgx`, SQL, providers de e-mail, Kubernetes, Docker ou detalhes de infraestrutura. As dependências apontam para dentro: `handlers -> services/use cases -> application ports/domain`. Os adaptadores externos implementam as portas internas: `internal/repository` implementa persistência com PostgreSQL/`pgx`, e `packages/email` implementa notificações de orçamento e alertas.
 
-Visão consolidada da solução real: API Go/Fiber, painel web estático, PostgreSQL, e-mail via MailHog no ambiente local/Kubernetes, Terraform criando um cluster Kind local, Metrics Server para HPA e GitHub Actions com runner hospedado para lint/testes e runner self-hosted para build/deploy local.
+Visão consolidada da solução real: API Go/Fiber, painel web estático, PostgreSQL, e-mail via MailHog no ambiente local/Kubernetes, Terraform (em `infra/`) provisionando o cluster Kind local e a camada de dados PostgreSQL, Metrics Server para HPA e GitHub Actions com runner hospedado para lint/testes e runner self-hosted para build/deploy local.
 
 ### Componentes da aplicação
 
@@ -127,12 +127,12 @@ flowchart LR
     API -->|"SMTP"| MH
 ```
 
-#### Ambiente Kubernetes local (Terraform + Kind + manifests em `k8s/`)
+#### Ambiente Kubernetes local (Terraform em `infra/` + manifestos de app em `k8s/`)
 
 ```mermaid
 flowchart TB
     subgraph IaC["Infraestrutura como Codigo"]
-        TF["Terraform<br/>terraform/local-kind"]
+        TF["Terraform<br/>infra/ (Kind + Postgres)"]
         KIND["Cluster Kind<br/>techchallenge-local"]
         KCFG["kubeconfig local"]
     end
@@ -298,7 +298,7 @@ O banco de dados PostgreSQL é inicializado automaticamente com o schema (via `i
 
 ### Cluster Kubernetes local com Terraform + Kind
 
-Além do Docker Compose, o projeto possui um setup local em `terraform/local-kind` para subir um mini cluster Kubernetes com Kind.
+Além do Docker Compose, o projeto possui um setup de infraestrutura como código em `infra/` que provisiona, num único `terraform apply`, o cluster Kubernetes local com Kind **e** a camada de dados (PostgreSQL) de forma declarativa.
 
 Pré-requisitos:
 
@@ -307,14 +307,28 @@ Pré-requisitos:
 - Kind
 - kubectl
 
-O provider Terraform `tehcyx/kind` gerencia o cluster Kind, mas nao instala esses binarios. Eles precisam estar disponiveis no ambiente local, com o Docker em execucao. O projeto usa Kind com deploy local por maior simplicidade no fluxo de desenvolvimento e validacao.
+Os providers `tehcyx/kind` e `hashicorp/kubernetes` gerenciam, respectivamente, o cluster Kind e os objetos Kubernetes. Eles nao instalam os binarios do Kind/Docker/kubectl, que precisam estar no `PATH`, com o Docker em execucao.
+
+#### Recursos gerenciados pelo Terraform
+
+| Arquivo | Recursos |
+|---------|----------|
+| `infra/cluster.tf` | `kind_cluster` — cluster Kind local + kubeconfig |
+| `infra/postgres.tf` | `kubernetes_namespace` (`workshop`), `kubernetes_config_map` (`api-config`), `kubernetes_secret` (`api-secrets`), `kubernetes_persistent_volume_claim` (`postgres-pvc`, 5Gi), `kubernetes_deployment` (`postgres`), `kubernetes_service` (`postgres-service`, ClusterIP :5432) |
+| `infra/outputs.tf` | `kubeconfig_path`, `cluster_name`, `cluster_endpoint`, `namespace`, `postgres_service_host`, `postgres_service_port`, `database_name`, `kubectl_env` |
+
+> A **camada de dados** (namespace, ConfigMap, Secret, PVC, Deployment e Service do PostgreSQL) é dona do Terraform. A **camada de aplicação** (API, MailHog, Metrics Server/HPA) permanece nos manifestos em `k8s/`, aplicados pelo pipeline. O `ConfigMap`/`Secret` são compartilhados: são a fonte única de configuração do banco, criada pelo Terraform e consumida pela API.
+
+Variáveis úteis (em `infra/variables.tf`): `cluster_name`, `namespace`, `postgres_image`, `postgres_storage`, `database_name`, `database_user`, `database_password` (sensível), `jwt_secret_key` (sensível).
+
+#### Apply
 
 Com `mise`, instale as ferramentas declaradas no projeto e execute o Terraform dentro do ambiente gerenciado:
 
 ```bash
 mise install
-mise exec -- terraform -chdir=terraform/local-kind init
-mise exec -- terraform -chdir=terraform/local-kind apply
+mise exec -- terraform -chdir=infra init
+mise exec -- terraform -chdir=infra apply
 ```
 
 Sem `mise`, instale as ferramentas manualmente, confirme que estao no `PATH` e rode os comandos diretamente:
@@ -325,37 +339,45 @@ kind version
 kubectl version --client
 terraform version
 
-terraform -chdir=terraform/local-kind init
-terraform -chdir=terraform/local-kind apply
+terraform -chdir=infra init
+terraform -chdir=infra apply
 ```
 
-O Terraform usa o provider `tehcyx/kind` para criar somente o cluster Kind e gerar um kubeconfig local. Os manifestos em `k8s/` nao sao aplicados pelo Terraform.
-
-Para usar `kubectl` apontando para o cluster criado:
+O `apply` é idempotente: execuções repetidas convergem para o mesmo estado (`No changes` quando nada muda). Para validar a formatação e a configuração antes de aplicar:
 
 ```bash
-export KUBECONFIG="$(pwd)/terraform/local-kind/kubeconfig"
+terraform -chdir=infra fmt -check
+terraform -chdir=infra validate
+```
+
+Para usar `kubectl` apontando para o cluster criado (o Terraform imprime o comando no output `kubectl_env`):
+
+```bash
+export KUBECONFIG="$(pwd)/infra/kubeconfig"
 kubectl get nodes
+kubectl get all -n workshop
 ```
 
-Para alterar o nome do cluster:
+Para alterar o nome do cluster (ou qualquer outra variável):
 
 ```bash
 # com mise
-mise exec -- terraform -chdir=terraform/local-kind apply -var='cluster_name=techchallenge-dev'
+mise exec -- terraform -chdir=infra apply -var='cluster_name=techchallenge-dev'
 
 # sem mise
-terraform -chdir=terraform/local-kind apply -var='cluster_name=techchallenge-dev'
+terraform -chdir=infra apply -var='cluster_name=techchallenge-dev'
 ```
 
-Para remover tudo:
+#### Destroy
+
+Remove todos os recursos administrados (Postgres, Service, PVC, ConfigMap, Secret, namespace e o cluster Kind):
 
 ```bash
 # com mise
-mise exec -- terraform -chdir=terraform/local-kind destroy
+mise exec -- terraform -chdir=infra destroy
 
 # sem mise
-terraform -chdir=terraform/local-kind destroy
+terraform -chdir=infra destroy
 ```
 
 ### GitHub Actions com runner local
@@ -387,9 +409,9 @@ mise install
 Crie ou atualize o cluster local antes de rodar o deploy:
 
 ```bash
-mise exec -- terraform -chdir=terraform/local-kind init
-mise exec -- terraform -chdir=terraform/local-kind apply
-export KUBECONFIG="$(pwd)/terraform/local-kind/kubeconfig"
+mise exec -- terraform -chdir=infra init
+mise exec -- terraform -chdir=infra apply
+export KUBECONFIG="$(pwd)/infra/kubeconfig"
 kubectl get nodes
 ```
 
@@ -446,7 +468,7 @@ Valide os comandos que o workflow precisa executar com o mesmo usuario do runner
 ```bash
 docker version
 kind version
-kubectl --kubeconfig "$(pwd)/terraform/local-kind/kubeconfig" get nodes
+kubectl --kubeconfig "$(pwd)/infra/kubeconfig" get nodes
 go version
 ```
 
