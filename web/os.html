@@ -75,25 +75,25 @@
             <div>
               <span class="text-gray-500">Veículo</span>
               <p class="font-medium">${wo.vehicle ? wo.vehicle.brand + ' ' + wo.vehicle.model : '—'}</p>
-              <p class="text-xs text-gray-400">${wo.vehicle?.license_plate || ''}</p>
+              <p class="text-xs text-gray-400">${wo.vehicle?.licensePlate || ''}</p>
             </div>
             <div>
               <span class="text-gray-500">Total estimado</span>
-              <p class="font-medium">${formatCents(wo.total_estimated_price_cents)}</p>
+              <p class="font-medium">${formatCents(wo.total_estimated_priceCents)}</p>
             </div>
             <div>
               <span class="text-gray-500">Recebida em</span>
-              <p class="font-medium">${formatDate(wo.received_at)}</p>
+              <p class="font-medium">${formatDate(wo.receivedAt)}</p>
             </div>
           </div>
 
           <!-- Timestamps -->
           <div class="flex flex-wrap gap-4 mt-4 text-xs text-gray-500">
-            ${wo.quote_sent_at ? `<span>Orçamento: ${formatDate(wo.quote_sent_at)}</span>` : ''}
-            ${wo.approved_at ? `<span>Aprovada: ${formatDate(wo.approved_at)}</span>` : ''}
-            ${wo.started_at ? `<span>Iniciada: ${formatDate(wo.started_at)}</span>` : ''}
-            ${wo.finished_at ? `<span>Finalizada: ${formatDate(wo.finished_at)}</span>` : ''}
-            ${wo.delivered_at ? `<span>Entregue: ${formatDate(wo.delivered_at)}</span>` : ''}
+            ${wo.quoteSentAt ? `<span>Orçamento: ${formatDate(wo.quoteSentAt)}</span>` : ''}
+            ${wo.approvedAt ? `<span>Aprovada: ${formatDate(wo.approvedAt)}</span>` : ''}
+            ${wo.startedAt ? `<span>Iniciada: ${formatDate(wo.startedAt)}</span>` : ''}
+            ${wo.finishedAt ? `<span>Finalizada: ${formatDate(wo.finishedAt)}</span>` : ''}
+            ${wo.deliveredAt ? `<span>Entregue: ${formatDate(wo.deliveredAt)}</span>` : ''}
           </div>
 
           ${wo.status === 'AGUARDANDO_APROVACAO' ? `
@@ -131,15 +131,15 @@
       return services.map(s => {
         const canAddSupply = currentWO.status === 'RECEBIDA' || currentWO.status === 'EM_DIAGNOSTICO';
         const canRemove = currentWO.status !== 'FINALIZADA' && currentWO.status !== 'ENTREGUE' && currentWO.status !== 'CANCELADA';
-        const canStart = currentWO.status === 'EM_EXECUCAO' && s.status === 'PENDENTE' && s.approval_status === 'APROVADO';
-        const canFinalize = currentWO.status === 'EM_EXECUCAO' && s.status === 'EM_EXECUCAO' && s.approval_status === 'APROVADO';
-        const approvalLabel = { APROVADO: 'Aprovado', REPROVADO: 'Reprovado', PENDENTE: 'Pendente' }[s.approval_status] || s.approval_status;
+        const canStart = currentWO.status === 'EM_EXECUCAO' && s.status === 'PENDENTE' && s.approvalStatus === 'APROVADO';
+        const canFinalize = currentWO.status === 'EM_EXECUCAO' && s.status === 'EM_EXECUCAO' && s.approvalStatus === 'APROVADO';
+        const approvalLabel = { APROVADO: 'Aprovado', REPROVADO: 'Reprovado', PENDENTE: 'Pendente' }[s.approvalStatus] || s.approvalStatus;
         return `
           <div class="border border-gray-200 rounded-lg p-4">
             <div class="flex items-center justify-between">
               <div>
-                <span class="font-medium">${s.description || s.service_title_snapshot || '—'}</span>
-                <span class="ml-2 text-gray-500 text-sm">${formatCents(s.service_price_cents_snapshot)}</span>
+                <span class="font-medium">${s.description || s.serviceTitleSnapshot || '—'}</span>
+                <span class="ml-2 text-gray-500 text-sm">${formatCents(s.service_priceCents_snapshot)}</span>
                 <span class="ml-2 inline-block px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">${approvalLabel}</span>
                 ${svcStatusBadge(s.status)}
               </div>
@@ -154,9 +154,9 @@
               <div class="mt-2 ml-4 space-y-1">
                 ${s.supplies.map(sup => `
                   <div class="flex items-center justify-between text-sm text-gray-600">
-                    <span>${sup.description || sup.supply_title_snapshot || '—'} x${sup.supply_quantity}</span>
+                    <span>${sup.description || sup.supplyTitleSnapshot || '—'} x${sup.supplyQuantity}</span>
                     <div class="flex items-center gap-2">
-                      <span>${formatCents(sup.supply_price_cents_snapshot * sup.supply_quantity)}</span>
+                      <span>${formatCents(sup.supply_priceCents_snapshot * sup.supplyQuantity)}</span>
                       ${canRemove ? `<button onclick="removeSupply('${s.id}','${sup.id}')" class="text-red-400 hover:text-red-600 text-xs">x</button>` : ''}
                     </div>
                   </div>`).join('')}
@@ -198,7 +198,7 @@
         const data = await api.json(resp);
         const list = data.data || [];
         const opts = list.map(s =>
-          `<option value="${s.id}">${s.title} — ${formatCents(s.price_cents)} (${s.estimated_time_minutes} min)</option>`
+          `<option value="${s.id}">${s.title} — ${formatCents(s.priceCents)} (${s.estimatedTimeMinutes} min)</option>`
         ).join('');
         openModal('Adicionar serviço', `
           <div class="space-y-4">
@@ -217,7 +217,7 @@
       const serviceId = document.getElementById('m-service').value;
       if (!serviceId) { showError('Selecione um serviço'); return; }
       try {
-        const resp = await api.post(`/work-orders/${woId}/services`, [{ service_id: serviceId }]);
+        const resp = await api.post(`/work-orders/${woId}/services`, [{ serviceId: serviceId }]);
         await api.json(resp);
         closeModal(); showToast('Serviço adicionado'); loadWO();
       } catch (e) { showError(e.message); }
@@ -238,7 +238,7 @@
         const data = await api.json(resp);
         const list = data.data || [];
         const opts = list.map(s =>
-          `<option value="${s.id}">${s.title} — ${formatCents(s.price_cents)} (estoque: ${s.stock_quantity})</option>`
+          `<option value="${s.id}">${s.title} — ${formatCents(s.priceCents)} (estoque: ${s.stockQuantity})</option>`
         ).join('');
         openModal('Adicionar Insumo', `
           <div class="space-y-4">
@@ -262,7 +262,7 @@
       const qty = parseInt(document.getElementById('m-qty').value);
       if (!supplyId || !qty) { showError('Selecione o insumo e a quantidade'); return; }
       try {
-        const resp = await api.post(`/work-orders/${woId}/services/${wosId}/supplies`, [{ supply_id: supplyId, quantity: qty }]);
+        const resp = await api.post(`/work-orders/${woId}/services/${wosId}/supplies`, [{ supplyId: supplyId, quantity: qty }]);
         await api.json(resp);
         closeModal(); showToast('Insumo adicionado'); loadWO();
       } catch (e) { showError(e.message); }

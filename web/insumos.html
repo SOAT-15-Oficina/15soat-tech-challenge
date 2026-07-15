@@ -55,14 +55,14 @@
         if (list.length === 0) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
         empty.classList.add('hidden');
         tbody.innerHTML = list.map(s => {
-          const low = s.stock_quantity <= s.minimum_stock;
+          const low = s.stockQuantity <= s.minimumStock;
           return `
             <tr class="hover:bg-gray-50">
               <td class="px-4 py-3 align-middle font-medium">${s.title}</td>
               <td class="px-4 py-3 align-middle">${s.type}</td>
-              <td class="px-4 py-3 align-middle text-right">${formatCents(s.price_cents)}</td>
-              <td class="px-4 py-3 align-middle text-right ${low ? 'text-red-600 font-semibold' : ''}">${s.stock_quantity}</td>
-              <td class="px-4 py-3 align-middle text-right text-gray-500">${s.minimum_stock}</td>
+              <td class="px-4 py-3 align-middle text-right">${formatCents(s.priceCents)}</td>
+              <td class="px-4 py-3 align-middle text-right ${low ? 'text-red-600 font-semibold' : ''}">${s.stockQuantity}</td>
+              <td class="px-4 py-3 align-middle text-right text-gray-500">${s.minimumStock}</td>
               <td class="px-4 py-3 align-middle text-right">
                 <div class="flex justify-end gap-2">
                   <button onclick='openEditModal(${JSON.stringify(s)})' class="bg-gray-200 hover:bg-gray-300 px-3 py-1.5 rounded-lg text-xs font-medium">Editar</button>
@@ -111,9 +111,9 @@
         const resp = await api.post('/supplies', {
           title: document.getElementById('m-title').value,
           type: document.getElementById('m-type').value,
-          price_cents: parseInt(document.getElementById('m-price').value),
-          stock_quantity: parseInt(document.getElementById('m-stock').value),
-          minimum_stock: parseInt(document.getElementById('m-min').value),
+          priceCents: parseInt(document.getElementById('m-price').value),
+          stockQuantity: parseInt(document.getElementById('m-stock').value),
+          minimumStock: parseInt(document.getElementById('m-min').value),
         });
         await api.json(resp);
         closeModal(); showToast('Insumo cadastrado'); loadSupplies();
@@ -137,15 +137,15 @@
           <div class="grid grid-cols-3 gap-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Preço (centavos)</label>
-              <input id="m-e-price" type="number" value="${s.price_cents}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <input id="m-e-price" type="number" value="${s.priceCents}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Estoque</label>
-              <input id="m-e-stock" type="number" value="${s.stock_quantity}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <input id="m-e-stock" type="number" value="${s.stockQuantity}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Estoque mín.</label>
-              <input id="m-e-min" type="number" value="${s.minimum_stock}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <input id="m-e-min" type="number" value="${s.minimumStock}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
             </div>
           </div>
           <button onclick="updateSupply('${s.id}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg text-sm">Salvar</button>
@@ -157,9 +157,9 @@
         const resp = await api.put('/supplies/' + id, {
           title: document.getElementById('m-e-title').value,
           type: document.getElementById('m-e-type').value,
-          price_cents: parseInt(document.getElementById('m-e-price').value),
-          stock_quantity: parseInt(document.getElementById('m-e-stock').value),
-          minimum_stock: parseInt(document.getElementById('m-e-min').value),
+          priceCents: parseInt(document.getElementById('m-e-price').value),
+          stockQuantity: parseInt(document.getElementById('m-e-stock').value),
+          minimumStock: parseInt(document.getElementById('m-e-min').value),
         });
         await api.json(resp);
         closeModal(); showToast('Insumo atualizado'); loadSupplies();
