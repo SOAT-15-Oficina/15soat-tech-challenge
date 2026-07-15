@@ -69,9 +69,9 @@
           <tr class="hover:bg-gray-50">
             <td class="px-4 py-3 align-middle font-medium">${escapeHtml(c.name)}</td>
             <td class="px-4 py-3 align-middle font-mono text-xs">${escapeHtml(c.document)}</td>
-            <td class="px-4 py-3 align-middle">${escapeHtml(c.document_type)}</td>
+            <td class="px-4 py-3 align-middle">${escapeHtml(c.documentType)}</td>
             <td class="px-4 py-3 align-middle">${escapeHtml(c.email || '')}</td>
-            <td class="px-4 py-3 align-middle text-gray-500">${formatDate(c.created_at)}</td>
+            <td class="px-4 py-3 align-middle text-gray-500">${formatDate(c.createdAt)}</td>
             <td class="px-4 py-3 align-middle text-right">
               <div class="flex justify-end gap-2">
                 <button onclick="openEditModal('${c.id}')" class="bg-gray-200 hover:bg-gray-300 px-3 py-1.5 rounded-lg text-xs font-medium">Editar</button>
@@ -132,8 +132,8 @@
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
               <select id="m-doctype" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                <option value="CPF" ${customer.document_type === 'CPF' ? 'selected' : ''}>CPF</option>
-                <option value="CNPJ" ${customer.document_type === 'CNPJ' ? 'selected' : ''}>CNPJ</option>
+                <option value="CPF" ${customer.documentType === 'CPF' ? 'selected' : ''}>CPF</option>
+                <option value="CNPJ" ${customer.documentType === 'CNPJ' ? 'selected' : ''}>CNPJ</option>
               </select>
             </div>
           </div>
@@ -147,7 +147,7 @@
           name: document.getElementById('m-name').value,
           email: document.getElementById('m-email').value,
           document: document.getElementById('m-doc').value,
-          document_type: document.getElementById('m-doctype').value,
+          documentType: document.getElementById('m-doctype').value,
         });
         await api.json(resp);
         closeModal();
@@ -162,7 +162,7 @@
           name: document.getElementById('m-name').value,
           email: document.getElementById('m-email').value,
           document: document.getElementById('m-doc').value,
-          document_type: document.getElementById('m-doctype').value,
+          documentType: document.getElementById('m-doctype').value,
         });
         await api.json(resp);
         closeModal();

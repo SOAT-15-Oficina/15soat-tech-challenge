@@ -363,7 +363,7 @@ func TestWorkOrder_Create_Success(t *testing.T) {
 	wo := &domain.WorkOrder{ID: uuid.New(), Title: "test", Code: "OS-123"}
 	deps.woSvc.On("Create", mock.Anything, mock.AnythingOfType("*domain.WorkOrder")).Return(wo, nil)
 
-	body, _ := json.Marshal(map[string]any{"title": "test", "customer_id": uuid.New(), "vehicle_id": uuid.New()})
+	body, _ := json.Marshal(map[string]any{"title": "test", "customerId": uuid.New(), "vehicleId": uuid.New()})
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r, err := app.Test(req)
@@ -392,7 +392,7 @@ func TestWorkOrder_Create_UserRepoError(t *testing.T) {
 	app, deps := setupFullWorkOrderApp()
 	deps.userRepo.On("GetByUsername", mock.Anything, "testuser").Return(nil, errors.New("db error"))
 
-	body, _ := json.Marshal(map[string]any{"title": "test", "customer_id": uuid.New(), "vehicle_id": uuid.New()})
+	body, _ := json.Marshal(map[string]any{"title": "test", "customerId": uuid.New(), "vehicleId": uuid.New()})
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r, err := app.Test(req)
@@ -406,7 +406,7 @@ func TestWorkOrder_Create_ServiceError(t *testing.T) {
 	deps.userRepo.On("GetByUsername", mock.Anything, "testuser").Return(user, nil)
 	deps.woSvc.On("Create", mock.Anything, mock.AnythingOfType("*domain.WorkOrder")).Return(nil, application.NewValidationError("validation error"))
 
-	body, _ := json.Marshal(map[string]any{"title": "test", "customer_id": uuid.New(), "vehicle_id": uuid.New()})
+	body, _ := json.Marshal(map[string]any{"title": "test", "customerId": uuid.New(), "vehicleId": uuid.New()})
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r, err := app.Test(req)
@@ -518,7 +518,7 @@ func TestWorkOrder_AddServices_Success(t *testing.T) {
 	result := []domain.WorkOrderService{{ID: uuid.New(), WorkOrderID: woID}}
 	deps.creationSvc.On("AddServices", mock.Anything, woID, mock.Anything).Return(result, nil)
 
-	body, _ := json.Marshal([]map[string]any{{"service_id": uuid.New()}})
+	body, _ := json.Marshal([]map[string]any{{"serviceId": uuid.New()}})
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/"+woID.String()+"/services", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r, err := app.Test(req)
@@ -540,7 +540,7 @@ func TestWorkOrder_AddServices_InvalidStatus(t *testing.T) {
 	woID := uuid.New()
 	deps.creationSvc.On("AddServices", mock.Anything, woID, mock.Anything).Return(nil, service.ErrWorkOrderInvalidStatusForItems)
 
-	body, _ := json.Marshal([]map[string]any{{"service_id": uuid.New()}})
+	body, _ := json.Marshal([]map[string]any{{"serviceId": uuid.New()}})
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/"+woID.String()+"/services", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r, err := app.Test(req)
@@ -553,7 +553,7 @@ func TestWorkOrder_AddServices_InactiveService(t *testing.T) {
 	woID := uuid.New()
 	deps.creationSvc.On("AddServices", mock.Anything, woID, mock.Anything).Return(nil, service.ErrWorkshopServiceInactive)
 
-	body, _ := json.Marshal([]map[string]any{{"service_id": uuid.New()}})
+	body, _ := json.Marshal([]map[string]any{{"serviceId": uuid.New()}})
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/"+woID.String()+"/services", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r, err := app.Test(req)
@@ -626,7 +626,7 @@ func TestWorkOrder_AddSupplies_Success(t *testing.T) {
 	deps.creationSvc.On("AddSupplies", mock.Anything, woID, wosID, mock.Anything).Return(result, nil)
 	deps.woSvc.On("GetByID", mock.Anything, woID).Return(&domain.WorkOrder{ID: woID, Status: domain.WorkOrderStatusInDiagnosis}, nil)
 
-	body, _ := json.Marshal([]map[string]any{{"supply_id": uuid.New(), "quantity": 2}})
+	body, _ := json.Marshal([]map[string]any{{"supplyId": uuid.New(), "quantity": 2}})
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/"+woID.String()+"/services/"+wosID.String()+"/supplies", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r, err := app.Test(req)
@@ -658,7 +658,7 @@ func TestWorkOrder_AddSupplies_Ownership(t *testing.T) {
 	wosID := uuid.New()
 	deps.creationSvc.On("AddSupplies", mock.Anything, woID, wosID, mock.Anything).Return(nil, service.ErrWorkOrderServiceOwnership)
 
-	body, _ := json.Marshal([]map[string]any{{"supply_id": uuid.New(), "quantity": 1}})
+	body, _ := json.Marshal([]map[string]any{{"supplyId": uuid.New(), "quantity": 1}})
 	req := httptest.NewRequest(http.MethodPost, "/work-orders/"+woID.String()+"/services/"+wosID.String()+"/supplies", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	r, err := app.Test(req)

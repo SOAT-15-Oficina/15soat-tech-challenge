@@ -125,24 +125,24 @@
       document.getElementById('wo-code').textContent = d.code;
       document.getElementById('wo-status').innerHTML =
         `<span class="inline-block px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">${STATUS_LABELS[d.status] || d.status}</span>`;
-      document.getElementById('wo-total').textContent = formatCents(d.total_estimated_price_cents);
+      document.getElementById('wo-total').textContent = formatCents(d.total_estimated_priceCents);
 
       const dates = [];
-      if (d.received_at) dates.push('Recebida: ' + formatDate(d.received_at));
-      if (d.quote_sent_at) dates.push('Orçamento: ' + formatDate(d.quote_sent_at));
-      if (d.approved_at) dates.push('Aprovada: ' + formatDate(d.approved_at));
-      if (d.started_at) dates.push('Iniciada: ' + formatDate(d.started_at));
-      if (d.finished_at) dates.push('Finalizada: ' + formatDate(d.finished_at));
-      if (d.delivered_at) dates.push('Entregue: ' + formatDate(d.delivered_at));
+      if (d.receivedAt) dates.push('Recebida: ' + formatDate(d.receivedAt));
+      if (d.quoteSentAt) dates.push('Orçamento: ' + formatDate(d.quoteSentAt));
+      if (d.approvedAt) dates.push('Aprovada: ' + formatDate(d.approvedAt));
+      if (d.startedAt) dates.push('Iniciada: ' + formatDate(d.startedAt));
+      if (d.finishedAt) dates.push('Finalizada: ' + formatDate(d.finishedAt));
+      if (d.deliveredAt) dates.push('Entregue: ' + formatDate(d.deliveredAt));
       document.getElementById('wo-dates').innerHTML = dates.map(t => `<span>${t}</span>`).join('');
 
       const svcList = document.getElementById('services-list');
-      const hasPending = (d.services || []).some(s => s.approval_status === 'PENDENTE');
+      const hasPending = (d.services || []).some(s => s.approvalStatus === 'PENDENTE');
 
       svcList.innerHTML = (d.services || []).map(s => {
-        const isPending = s.approval_status === 'PENDENTE';
-        const statusColor = s.approval_status === 'APROVADO' ? 'text-green-600' : s.approval_status === 'REPROVADO' ? 'text-red-600' : 'text-gray-600';
-        const statusLabel = s.approval_status === 'APROVADO' ? 'Aprovado' : s.approval_status === 'REPROVADO' ? 'Reprovado' : 'Pendente';
+        const isPending = s.approvalStatus === 'PENDENTE';
+        const statusColor = s.approvalStatus === 'APROVADO' ? 'text-green-600' : s.approvalStatus === 'REPROVADO' ? 'text-red-600' : 'text-gray-600';
+        const statusLabel = s.approvalStatus === 'APROVADO' ? 'Aprovado' : s.approvalStatus === 'REPROVADO' ? 'Reprovado' : 'Pendente';
 
         return `
           <div class="border border-gray-200 rounded-lg p-4">

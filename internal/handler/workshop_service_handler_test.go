@@ -116,8 +116,8 @@ func TestCreateRoute_201(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"title":                  "Oil Change",
 		"description":            "Full oil change",
-		"price_cents":            5000,
-		"estimated_time_minutes": 30,
+		"priceCents":            5000,
+		"estimatedTimeMinutes": 30,
 	})
 
 	req, _ := http.NewRequest("POST", "/services", bytes.NewReader(body))
@@ -129,7 +129,7 @@ func TestCreateRoute_201(t *testing.T) {
 
 	result := parseBody(t, resp)
 	assert.Equal(t, "Oil Change", result["title"])
-	assert.Equal(t, float64(5000), result["price_cents"])
+	assert.Equal(t, float64(5000), result["priceCents"])
 }
 
 func TestCreateRoute_400_MissingFields(t *testing.T) {
@@ -168,8 +168,8 @@ func TestCreateRoute_409_DuplicateTitle(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]any{
 		"title":                  "Duplicate",
-		"price_cents":            1000,
-		"estimated_time_minutes": 15,
+		"priceCents":            1000,
+		"estimatedTimeMinutes": 15,
 	})
 	req, _ := http.NewRequest("POST", "/services", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -188,8 +188,8 @@ func TestCreateRoute_400_ValidationError(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]any{
 		"title":                  "Test",
-		"price_cents":            -100,
-		"estimated_time_minutes": 30,
+		"priceCents":            -100,
+		"estimatedTimeMinutes": 30,
 	})
 	req, _ := http.NewRequest("POST", "/services", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -214,7 +214,7 @@ func TestGetAllRoute_200(t *testing.T) {
 
 	result := parseBody(t, resp)
 	assert.Equal(t, float64(1), result["total"])
-	assert.Equal(t, float64(1), result["total_pages"])
+	assert.Equal(t, float64(1), result["totalPages"])
 	assert.Len(t, result["data"], 1)
 }
 
@@ -474,9 +474,9 @@ func TestGetAvgExecutionTime_200(t *testing.T) {
 	assert.Len(t, items, 1)
 	first := items[0].(map[string]any)
 	assert.Equal(t, "Oil Change", first["title"])
-	assert.Equal(t, float64(25.5), first["avg_real_time_minutes"])
-	assert.Equal(t, float64(3), first["execution_count"])
-	assert.Equal(t, float64(-4.5), first["difference_minutes"])
+	assert.Equal(t, float64(25.5), first["avgRealTimeMinutes"])
+	assert.Equal(t, float64(3), first["executionCount"])
+	assert.Equal(t, float64(-4.5), first["differenceMinutes"])
 }
 
 func TestGetAvgExecutionTime_200_Empty(t *testing.T) {

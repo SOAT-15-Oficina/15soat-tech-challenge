@@ -28,7 +28,11 @@ func (h *UserHandler) GetAll(c fiber.Ctx) error {
 	if users == nil {
 		users = []domain.User{}
 	}
-	return c.JSON(fiber.Map{"data": users})
+	respItems := make([]userResponse, 0, len(users))
+	for i := range users {
+		respItems = append(respItems, toUserResponse(&users[i]))
+	}
+	return c.JSON(fiber.Map{"data": respItems})
 }
 
 func (h *UserHandler) GetByID(c fiber.Ctx) error {
@@ -44,7 +48,7 @@ func (h *UserHandler) GetByID(c fiber.Ctx) error {
 		}
 		return internalServerError(c)
 	}
-	return c.JSON(user)
+	return c.JSON(toUserResponse(user))
 }
 
 func (h *UserHandler) Update(c fiber.Ctx) error {
@@ -65,7 +69,7 @@ func (h *UserHandler) Update(c fiber.Ctx) error {
 		}
 		return internalServerError(c)
 	}
-	return c.JSON(user)
+	return c.JSON(toUserResponse(user))
 }
 
 func (h *UserHandler) Delete(c fiber.Ctx) error {

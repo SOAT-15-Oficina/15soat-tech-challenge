@@ -16,19 +16,19 @@ var ErrWorkOrderNotFound = errors.New("work order not found")
 type PublicServiceView struct {
 	Title          string                                `json:"title"`
 	Status         domain.WorkOrderServiceStatus         `json:"status"`
-	ApprovalStatus domain.WorkOrderServiceApprovalStatus `json:"approval_status"`
+	ApprovalStatus domain.WorkOrderServiceApprovalStatus `json:"approvalStatus"`
 }
 
 type PublicWorkOrderView struct {
 	Code                     string                 `json:"code"`
 	Status                   domain.WorkOrderStatus `json:"status"`
-	TotalEstimatedPriceCents int                    `json:"total_estimated_price_cents"`
-	ReceivedAt               time.Time              `json:"received_at"`
-	QuoteSentAt              *time.Time             `json:"quote_sent_at,omitempty"`
-	ApprovedAt               *time.Time             `json:"approved_at,omitempty"`
-	StartedAt                *time.Time             `json:"started_at,omitempty"`
-	FinishedAt               *time.Time             `json:"finished_at,omitempty"`
-	DeliveredAt              *time.Time             `json:"delivered_at,omitempty"`
+	TotalEstimatedPriceCents int                    `json:"totalEstimatedPriceCents"`
+	ReceivedAt               time.Time              `json:"receivedAt"`
+	QuoteSentAt              *time.Time             `json:"quoteSentAt,omitempty"`
+	ApprovedAt               *time.Time             `json:"approvedAt,omitempty"`
+	StartedAt                *time.Time             `json:"startedAt,omitempty"`
+	FinishedAt               *time.Time             `json:"finishedAt,omitempty"`
+	DeliveredAt              *time.Time             `json:"deliveredAt,omitempty"`
 	Services                 []PublicServiceView    `json:"services"`
 }
 

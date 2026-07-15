@@ -74,11 +74,11 @@
       sel.disabled = !customerId;
       if (!customerId) return;
       try {
-        const resp = await api.get('/vehicles?customer_id=' + customerId);
+        const resp = await api.get('/vehicles?customerId=' + customerId);
         const data = await api.json(resp);
         (data.data || []).forEach(v => {
           sel.insertAdjacentHTML('beforeend',
-            `<option value="${v.id}">${v.license_plate} - ${v.brand} ${v.model} (${v.year})</option>`);
+            `<option value="${v.id}">${v.licensePlate} - ${v.brand} ${v.model} (${v.year})</option>`);
         });
       } catch (e) { showError(e.message); }
     }
@@ -95,7 +95,7 @@
       }
 
       try {
-        const body = { title, customer_id: customerId, vehicle_id: vehicleId };
+        const body = { title, customerId: customerId, vehicleId: vehicleId };
         if (desc) body.description = desc;
         const resp = await api.post('/work-orders', body);
         const wo = await api.json(resp);

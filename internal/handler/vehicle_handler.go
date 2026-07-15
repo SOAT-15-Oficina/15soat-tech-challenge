@@ -9,6 +9,14 @@ import (
 	"github.com/google/uuid"
 )
 
+type vehicleRequest struct {
+	LicensePlate string    `json:"licensePlate"`
+	CustomerID   uuid.UUID `json:"customerId"`
+	Model        string    `json:"model"`
+	Year         int       `json:"year"`
+	Brand        string    `json:"brand"`
+}
+
 type VehicleHandler struct {
 	svc service.VehicleService
 }
@@ -18,9 +26,17 @@ func NewVehicleHandler(svc service.VehicleService) *VehicleHandler {
 }
 
 func (h *VehicleHandler) Create(c fiber.Ctx) error {
-	var vehicle domain.Vehicle
-	if err := c.Bind().JSON(&vehicle); err != nil {
+	var req vehicleRequest
+	if err := c.Bind().JSON(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	vehicle := domain.Vehicle{
+		LicensePlate: req.LicensePlate,
+		CustomerID:   req.CustomerID,
+		Model:        req.Model,
+		Year:         req.Year,
+		Brand:        req.Brand,
 	}
 
 	result, err := h.svc.Create(c.Context(), &vehicle)
@@ -35,7 +51,7 @@ func (h *VehicleHandler) Create(c fiber.Ctx) error {
 		return internalServerError(c)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(result)
+	return c.Status(fiber.StatusCreated).JSON(toVehicleResponse(result))
 }
 
 func (h *VehicleHandler) GetAll(c fiber.Ctx) error {
@@ -62,7 +78,11 @@ func (h *VehicleHandler) GetAll(c fiber.Ctx) error {
 		vehicles = []domain.Vehicle{}
 	}
 
-	return c.JSON(fiber.Map{"data": vehicles})
+	respItems := make([]vehicleResponse, 0, len(vehicles))
+	for i := range vehicles {
+		respItems = append(respItems, toVehicleResponse(&vehicles[i]))
+	}
+	return c.JSON(fiber.Map{"data": respItems})
 }
 
 func (h *VehicleHandler) GetByID(c fiber.Ctx) error {
@@ -79,7 +99,7 @@ func (h *VehicleHandler) GetByID(c fiber.Ctx) error {
 		return internalServerError(c)
 	}
 
-	return c.JSON(vehicle)
+	return c.JSON(toVehicleResponse(vehicle))
 }
 
 func (h *VehicleHandler) Update(c fiber.Ctx) error {
@@ -88,11 +108,18 @@ func (h *VehicleHandler) Update(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
 
-	var vehicle domain.Vehicle
-	if err := c.Bind().JSON(&vehicle); err != nil {
+	var req vehicleRequest
+	if err := c.Bind().JSON(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	vehicle.ID = id
+	vehicle := domain.Vehicle{
+		ID:           id,
+		LicensePlate: req.LicensePlate,
+		CustomerID:   req.CustomerID,
+		Model:        req.Model,
+		Year:         req.Year,
+		Brand:        req.Brand,
+	}
 
 	result, err := h.svc.Update(c.Context(), &vehicle)
 	if err != nil {
@@ -106,7 +133,7 @@ func (h *VehicleHandler) Update(c fiber.Ctx) error {
 		return internalServerError(c)
 	}
 
-	return c.JSON(result)
+	return c.JSON(toVehicleResponse(result))
 }
 
 func (h *VehicleHandler) Delete(c fiber.Ctx) error {

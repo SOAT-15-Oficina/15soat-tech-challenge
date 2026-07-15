@@ -68,11 +68,11 @@ type AvgExecutionTimeFilters struct {
 }
 
 type AvgExecutionTimeResult struct {
-	ServiceID            uuid.UUID `json:"service_id"`
+	ServiceID            uuid.UUID `json:"serviceId"`
 	Title                string    `json:"title"`
-	EstimatedTimeMinutes int       `json:"estimated_time_minutes"`
-	AvgRealTimeMinutes   float64   `json:"avg_real_time_minutes"`
-	ExecutionCount       int       `json:"execution_count"`
+	EstimatedTimeMinutes int       `json:"estimatedTimeMinutes"`
+	AvgRealTimeMinutes   float64   `json:"avgRealTimeMinutes"`
+	ExecutionCount       int       `json:"executionCount"`
 }
 
 func (s *WorkshopService) Deactivate() {
